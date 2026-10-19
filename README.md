@@ -20,10 +20,13 @@ zhiyuan-app-v2/
 │   ├── main.py               # 路由与 API（/api/health, /api/majors, /api/verify, /api/admission/search ...）
 │   ├── services/
 │   │   ├── content.py        # 读取 shared/content.json
-│   │   ├── admission.py      # 录取位次模型 + 冲稳保 + 真实数据可插拔
+│   │   ├── admission.py      # 录取位次模型 + 冲稳保 + 真实/样例基线自动切换
 │   │   └── verify.py         # P2 核心：观点×数据 交叉核验
+│   ├── scripts/
+│   │   └── ingest_gaokao_advisor.py  # 由 gaokao-advisor 生成 31 省真实录取基线
 │   ├── data/
-│   │   └── admission_sample.json   # 参数化样例录取数据（演示用，非官方）
+│   │   ├── admission_real_baseline.json  # 真实基线（31 省，脚本生成，后端优先使用）
+│   │   └── admission_sample.json         # 参数化样例录取数据（演示/fallback，非官方）
 │   ├── tests/test_api.py     # 后端测试（pytest + TestClient）
 │   └── requirements.txt
 ├── frontend/                 # uni-app (Vue3) 前端
@@ -98,11 +101,24 @@ cd frontend && node tests/engine.test.mjs
 - **caution（需谨慎）**：推荐但只能摸到低位次批次（普通二本/专科）→ 提示原 bias 风险被放大；或避坑专业但能摸到较好批次 → 仅在满足例外条件时考虑。
 - **conflict（冲突）**：避坑专业却正好落在低位次批次 → 建议坚决规避；或专业在所有批次都够不到 → 提示不可及。
 
-录取门槛由 `backend/data/admission_sample.json` 的参数化模型给出（省份×科类×批次基线 + 专业难度系数）。
+录取门槛默认由 `backend/data/admission_real_baseline.json`（已覆盖 **31 省**，由 ingestion 脚本基于 [chenxuyaun/gaokao-advisor](https://github.com/chenxuyaun/gaokao-advisor) 生成）给出，回退到 `admission_sample.json` 样例；两者结构一致，均为「省份×科类×批次基线 + 专业难度系数」。
 
-### 接入真实录取数据（可插拔）
-把 `chenxuyaun/gaokao-advisor` 导出的 CSV 放到 `backend/data/gaokao_advisor.csv`，
-列：`province,subject,tier,school,major,min_score,min_rank`。服务会自动从 sample 切换为 real（`/api/health` 可见 `admission_data_source`）。
+### 接入真实录取数据（可插拔，已默认开启）
+
+仓库已内置由 [chenxuyaun/gaokao-advisor](https://github.com/chenxuyaun/gaokao-advisor)（MIT）生成的
+`backend/data/admission_real_baseline.json`，**覆盖全国 31 省**，后端自动优先使用（`/api/health` 可见 `admission_data_source: "real"`）。
+
+如需重新生成 / 拉取最新参数：
+
+```bash
+cd backend
+python scripts/ingest_gaokao_advisor.py            # 用内置参数生成（离线）
+python scripts/ingest_gaokao_advisor.py --sync     # 先拉取 gaokao-advisor 最新参数再生成
+```
+
+脚本复用 gaokao-advisor 的「31 省一分一段表 + 院校层次」确定性参数，计算各省各批次录取门槛，
+写出与 `admission_sample.json` 同构的基线文件；删除该文件即回退到样例数据。
+> 说明：位次门槛为模型推算；分数为锚点区间插值、区间外按斜率外推（顶尖/末端为估算），专科为估算值。
 
 ## 六、技术要点
 
@@ -114,6 +130,6 @@ cd frontend && node tests/engine.test.mjs
 
 ## 七、已知边界
 
-- 样例录取数据为参数化估算（演示），**非官方数据**；正式填报以各省考试院为准。
+- 录取基线默认来自 `admission_real_baseline.json`（覆盖 31 省，由 gaokao-advisor 参数推算），位次门槛为模型估算、分数为插值/外推，**非官方数据**；正式填报以各省考试院为准。
 - 观点侧截至公开整理时点，需年度滚动更新（见"单一数据源"）。
 - 微信小程序端联调后端需配置 HTTPS 合法域名。

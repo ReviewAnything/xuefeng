@@ -54,7 +54,8 @@ def test_verify_caution_low_tier_recommend():
 
 
 def test_verify_conflict_avoid_low_tier():
-    r = c.post("/api/verify", json={"province": "河南", "subject": "物理类", "user_rank": 210000, "major_name": "生物工程"})
+    # 真实 31 省基线更精细：210000 已能冲上「普通一本」，故用更低位次确保只够低位次批次 -> 冲突
+    r = c.post("/api/verify", json={"province": "河南", "subject": "物理类", "user_rank": 280000, "major_name": "生物工程"})
     assert r.status_code == 200
     assert r.json()["alignment"] == "conflict"
 

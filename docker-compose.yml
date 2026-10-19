@@ -1,0 +1,9 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      # 持久化录取数据（真实基线 / 样例），避免重建容器后丢失
+      - ./backend/data:/app/data
+    restart: unless-stopped

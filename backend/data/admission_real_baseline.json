@@ -1,0 +1,1398 @@
+{
+  "meta": {
+    "year": 2026,
+    "source": "gaokao-advisor",
+    "note": "由 scripts/ingest_gaokao_advisor.py 基于 chenxuyaun/gaokao-advisor（MIT）的 31 省一分一段表/院校层次参数生成，覆盖 31 省。位次门槛为模型推算；分数在锚点区间内插值、区间外按斜率外推（顶尖/末端为估算）。专科为估算值。后端优先使用本文件，仅供学习参考。"
+  },
+  "tier_order": [
+    "985",
+    "211",
+    "普通一本",
+    "普通二本",
+    "专科"
+  ],
+  "tier_baseline": {
+    "广东": {
+      "物理类": {
+        "985": {
+          "min_score": 589,
+          "min_rank": 7000
+        },
+        "211": {
+          "min_score": 537,
+          "min_rank": 87500
+        },
+        "普通一本": {
+          "min_score": 503,
+          "min_rank": 140000
+        },
+        "普通二本": {
+          "min_score": 400,
+          "min_rank": 280000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 332500
+        }
+      },
+      "历史类": {
+        "985": {
+          "min_score": 568,
+          "min_rank": 7680
+        },
+        "211": {
+          "min_score": 538,
+          "min_rank": 26999
+        },
+        "普通一本": {
+          "min_score": 518,
+          "min_rank": 39599
+        },
+        "普通二本": {
+          "min_score": 466,
+          "min_rank": 73200
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 114000
+        }
+      }
+    },
+    "河南": {
+      "物理类": {
+        "985": {
+          "min_score": 572,
+          "min_rank": 8400
+        },
+        "211": {
+          "min_score": 523,
+          "min_rank": 105000
+        },
+        "普通一本": {
+          "min_score": 491,
+          "min_rank": 168000
+        },
+        "普通二本": {
+          "min_score": 377,
+          "min_rank": 336000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 399000
+        }
+      },
+      "历史类": {
+        "985": {
+          "min_score": 553,
+          "min_rank": 9600
+        },
+        "211": {
+          "min_score": 524,
+          "min_rank": 33750
+        },
+        "普通一本": {
+          "min_score": 506,
+          "min_rank": 49499
+        },
+        "普通二本": {
+          "min_score": 455,
+          "min_rank": 91500
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 142500
+        }
+      }
+    },
+    "江苏": {
+      "物理类": {
+        "985": {
+          "min_score": 555,
+          "min_rank": 5600
+        },
+        "211": {
+          "min_score": 518,
+          "min_rank": 70000
+        },
+        "普通一本": {
+          "min_score": 494,
+          "min_rank": 112000
+        },
+        "普通二本": {
+          "min_score": 316,
+          "min_rank": 224000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 266000
+        }
+      },
+      "历史类": {
+        "985": {
+          "min_score": 549,
+          "min_rank": 6400
+        },
+        "211": {
+          "min_score": 531,
+          "min_rank": 22499
+        },
+        "普通一本": {
+          "min_score": 519,
+          "min_rank": 32999
+        },
+        "普通二本": {
+          "min_score": 488,
+          "min_rank": 61000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 95000
+        }
+      }
+    },
+    "山东": {
+      "综合": {
+        "985": {
+          "min_score": 580,
+          "min_rank": 9000
+        },
+        "211": {
+          "min_score": 533,
+          "min_rank": 112500
+        },
+        "普通一本": {
+          "min_score": 501,
+          "min_rank": 180000
+        },
+        "普通二本": {
+          "min_score": 364,
+          "min_rank": 360000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 427500
+        }
+      }
+    },
+    "湖北": {
+      "物理类": {
+        "985": {
+          "min_score": 572,
+          "min_rank": 4400
+        },
+        "211": {
+          "min_score": 532,
+          "min_rank": 55000
+        },
+        "普通一本": {
+          "min_score": 507,
+          "min_rank": 88000
+        },
+        "普通二本": {
+          "min_score": 438,
+          "min_rank": 176000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 209000
+        }
+      },
+      "历史类": {
+        "985": {
+          "min_score": 551,
+          "min_rank": 5120
+        },
+        "211": {
+          "min_score": 526,
+          "min_rank": 18000
+        },
+        "普通一本": {
+          "min_score": 509,
+          "min_rank": 26399
+        },
+        "普通二本": {
+          "min_score": 465,
+          "min_rank": 48800
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 76000
+        }
+      }
+    },
+    "浙江": {
+      "综合": {
+        "985": {
+          "min_score": 640,
+          "min_rank": 5800
+        },
+        "211": {
+          "min_score": 581,
+          "min_rank": 72500
+        },
+        "普通一本": {
+          "min_score": 542,
+          "min_rank": 116000
+        },
+        "普通二本": {
+          "min_score": 210,
+          "min_rank": 232000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 275500
+        }
+      }
+    },
+    "湖南": {
+      "物理类": {
+        "985": {
+          "min_score": 535,
+          "min_rank": 6000
+        },
+        "211": {
+          "min_score": 495,
+          "min_rank": 75000
+        },
+        "普通一本": {
+          "min_score": 469,
+          "min_rank": 120000
+        },
+        "普通二本": {
+          "min_score": 400,
+          "min_rank": 240000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 285000
+        }
+      },
+      "历史类": {
+        "985": {
+          "min_score": 513,
+          "min_rank": 7040
+        },
+        "211": {
+          "min_score": 494,
+          "min_rank": 24749
+        },
+        "普通一本": {
+          "min_score": 481,
+          "min_rank": 36299
+        },
+        "普通二本": {
+          "min_score": 449,
+          "min_rank": 67100
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 104500
+        }
+      }
+    },
+    "河北": {
+      "物理类": {
+        "985": {
+          "min_score": 562,
+          "min_rank": 6400
+        },
+        "211": {
+          "min_score": 521,
+          "min_rank": 80000
+        },
+        "普通一本": {
+          "min_score": 494,
+          "min_rank": 128000
+        },
+        "普通二本": {
+          "min_score": 370,
+          "min_rank": 256000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 304000
+        }
+      },
+      "历史类": {
+        "985": {
+          "min_score": 563,
+          "min_rank": 7680
+        },
+        "211": {
+          "min_score": 539,
+          "min_rank": 26999
+        },
+        "普通一本": {
+          "min_score": 523,
+          "min_rank": 39599
+        },
+        "普通二本": {
+          "min_score": 475,
+          "min_rank": 73200
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 114000
+        }
+      }
+    },
+    "安徽": {
+      "物理类": {
+        "985": {
+          "min_score": 559,
+          "min_rank": 5000
+        },
+        "211": {
+          "min_score": 519,
+          "min_rank": 62500
+        },
+        "普通一本": {
+          "min_score": 492,
+          "min_rank": 100000
+        },
+        "普通二本": {
+          "min_score": 334,
+          "min_rank": 200000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 237500
+        }
+      },
+      "历史类": {
+        "985": {
+          "min_score": 536,
+          "min_rank": 5760
+        },
+        "211": {
+          "min_score": 519,
+          "min_rank": 20249
+        },
+        "普通一本": {
+          "min_score": 508,
+          "min_rank": 29699
+        },
+        "普通二本": {
+          "min_score": 454,
+          "min_rank": 54900
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 85500
+        }
+      }
+    },
+    "四川": {
+      "物理类": {
+        "985": {
+          "min_score": 663,
+          "min_rank": 6000
+        },
+        "211": {
+          "min_score": 544,
+          "min_rank": 75000
+        },
+        "普通一本": {
+          "min_score": 502,
+          "min_rank": 120000
+        },
+        "普通二本": {
+          "min_score": 286,
+          "min_rank": 240000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 285000
+        }
+      },
+      "历史类": {
+        "985": {
+          "min_score": 557,
+          "min_rank": 7040
+        },
+        "211": {
+          "min_score": 532,
+          "min_rank": 24749
+        },
+        "普通一本": {
+          "min_score": 516,
+          "min_rank": 36299
+        },
+        "普通二本": {
+          "min_score": 473,
+          "min_rank": 67100
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 104500
+        }
+      }
+    },
+    "福建": {
+      "物理类": {
+        "985": {
+          "min_score": 580,
+          "min_rank": 3600
+        },
+        "211": {
+          "min_score": 528,
+          "min_rank": 45000
+        },
+        "普通一本": {
+          "min_score": 493,
+          "min_rank": 72000
+        },
+        "普通二本": {
+          "min_score": 316,
+          "min_rank": 144000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 171000
+        }
+      },
+      "历史类": {
+        "985": {
+          "min_score": 549,
+          "min_rank": 4480
+        },
+        "211": {
+          "min_score": 515,
+          "min_rank": 15749
+        },
+        "普通一本": {
+          "min_score": 493,
+          "min_rank": 23099
+        },
+        "普通二本": {
+          "min_score": 420,
+          "min_rank": 42700
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 66500
+        }
+      }
+    },
+    "江西": {
+      "物理类": {
+        "985": {
+          "min_score": 548,
+          "min_rank": 4000
+        },
+        "211": {
+          "min_score": 512,
+          "min_rank": 50000
+        },
+        "普通一本": {
+          "min_score": 489,
+          "min_rank": 80000
+        },
+        "普通二本": {
+          "min_score": 427,
+          "min_rank": 160000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 190000
+        }
+      },
+      "历史类": {
+        "985": {
+          "min_score": 551,
+          "min_rank": 4800
+        },
+        "211": {
+          "min_score": 532,
+          "min_rank": 16875
+        },
+        "普通一本": {
+          "min_score": 519,
+          "min_rank": 24749
+        },
+        "普通二本": {
+          "min_score": 485,
+          "min_rank": 45750
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 71250
+        }
+      }
+    },
+    "陕西": {
+      "物理类": {
+        "985": {
+          "min_score": 512,
+          "min_rank": 3000
+        },
+        "211": {
+          "min_score": 475,
+          "min_rank": 37500
+        },
+        "普通一本": {
+          "min_score": 451,
+          "min_rank": 60000
+        },
+        "普通二本": {
+          "min_score": 386,
+          "min_rank": 120000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 142500
+        }
+      },
+      "历史类": {
+        "985": {
+          "min_score": 491,
+          "min_rank": 3520
+        },
+        "211": {
+          "min_score": 468,
+          "min_rank": 12374
+        },
+        "普通一本": {
+          "min_score": 453,
+          "min_rank": 18149
+        },
+        "普通二本": {
+          "min_score": 414,
+          "min_rank": 33550
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 52250
+        }
+      }
+    },
+    "山西": {
+      "物理类": {
+        "985": {
+          "min_score": 571,
+          "min_rank": 3200
+        },
+        "211": {
+          "min_score": 506,
+          "min_rank": 40000
+        },
+        "普通一本": {
+          "min_score": 464,
+          "min_rank": 64000
+        },
+        "普通二本": {
+          "min_score": 283,
+          "min_rank": 128000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 152000
+        }
+      },
+      "历史类": {
+        "985": {
+          "min_score": 551,
+          "min_rank": 3840
+        },
+        "211": {
+          "min_score": 510,
+          "min_rank": 13499
+        },
+        "普通一本": {
+          "min_score": 484,
+          "min_rank": 19799
+        },
+        "普通二本": {
+          "min_score": 414,
+          "min_rank": 36600
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 57000
+        }
+      }
+    },
+    "辽宁": {
+      "物理类": {
+        "985": {
+          "min_score": 611,
+          "min_rank": 2600
+        },
+        "211": {
+          "min_score": 543,
+          "min_rank": 32500
+        },
+        "普通一本": {
+          "min_score": 498,
+          "min_rank": 52000
+        },
+        "普通二本": {
+          "min_score": 380,
+          "min_rank": 104000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 123500
+        }
+      },
+      "历史类": {
+        "985": {
+          "min_score": 559,
+          "min_rank": 3200
+        },
+        "211": {
+          "min_score": 529,
+          "min_rank": 11249
+        },
+        "普通一本": {
+          "min_score": 510,
+          "min_rank": 16499
+        },
+        "普通二本": {
+          "min_score": 458,
+          "min_rank": 30500
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 47500
+        }
+      }
+    },
+    "重庆": {
+      "物理类": {
+        "985": {
+          "min_score": 555,
+          "min_rank": 2300
+        },
+        "211": {
+          "min_score": 518,
+          "min_rank": 28750
+        },
+        "普通一本": {
+          "min_score": 494,
+          "min_rank": 46000
+        },
+        "普通二本": {
+          "min_score": 430,
+          "min_rank": 92000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 109250
+        }
+      },
+      "历史类": {
+        "985": {
+          "min_score": 540,
+          "min_rank": 2880
+        },
+        "211": {
+          "min_score": 516,
+          "min_rank": 10124
+        },
+        "普通一本": {
+          "min_score": 500,
+          "min_rank": 14849
+        },
+        "普通二本": {
+          "min_score": 457,
+          "min_rank": 27450
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 42750
+        }
+      }
+    },
+    "贵州": {
+      "物理类": {
+        "985": {
+          "min_score": 533,
+          "min_rank": 4400
+        },
+        "211": {
+          "min_score": 484,
+          "min_rank": 55000
+        },
+        "普通一本": {
+          "min_score": 452,
+          "min_rank": 88000
+        },
+        "普通二本": {
+          "min_score": 314,
+          "min_rank": 176000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 209000
+        }
+      },
+      "历史类": {
+        "985": {
+          "min_score": 518,
+          "min_rank": 5120
+        },
+        "211": {
+          "min_score": 498,
+          "min_rank": 18000
+        },
+        "普通一本": {
+          "min_score": 484,
+          "min_rank": 26399
+        },
+        "普通二本": {
+          "min_score": 448,
+          "min_rank": 48800
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 76000
+        }
+      }
+    },
+    "云南": {
+      "物理类": {
+        "985": {
+          "min_score": 559,
+          "min_rank": 3600
+        },
+        "211": {
+          "min_score": 510,
+          "min_rank": 45000
+        },
+        "普通一本": {
+          "min_score": 479,
+          "min_rank": 72000
+        },
+        "普通二本": {
+          "min_score": 210,
+          "min_rank": 144000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 171000
+        }
+      },
+      "历史类": {
+        "985": {
+          "min_score": 565,
+          "min_rank": 4480
+        },
+        "211": {
+          "min_score": 535,
+          "min_rank": 15749
+        },
+        "普通一本": {
+          "min_score": 515,
+          "min_rank": 23099
+        },
+        "普通二本": {
+          "min_score": 461,
+          "min_rank": 42700
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 66500
+        }
+      }
+    },
+    "黑龙江": {
+      "物理类": {
+        "985": {
+          "min_score": 526,
+          "min_rank": 2200
+        },
+        "211": {
+          "min_score": 478,
+          "min_rank": 27500
+        },
+        "普通一本": {
+          "min_score": 446,
+          "min_rank": 44000
+        },
+        "普通二本": {
+          "min_score": 362,
+          "min_rank": 88000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 104500
+        }
+      },
+      "历史类": {
+        "985": {
+          "min_score": 486,
+          "min_rank": 2560
+        },
+        "211": {
+          "min_score": 466,
+          "min_rank": 9000
+        },
+        "普通一本": {
+          "min_score": 452,
+          "min_rank": 13199
+        },
+        "普通二本": {
+          "min_score": 418,
+          "min_rank": 24400
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 38000
+        }
+      }
+    },
+    "吉林": {
+      "物理类": {
+        "985": {
+          "min_score": 537,
+          "min_rank": 1800
+        },
+        "211": {
+          "min_score": 479,
+          "min_rank": 22500
+        },
+        "普通一本": {
+          "min_score": 442,
+          "min_rank": 36000
+        },
+        "普通二本": {
+          "min_score": 343,
+          "min_rank": 72000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 85500
+        }
+      },
+      "历史类": {
+        "985": {
+          "min_score": 502,
+          "min_rank": 2240
+        },
+        "211": {
+          "min_score": 470,
+          "min_rank": 7874
+        },
+        "普通一本": {
+          "min_score": 448,
+          "min_rank": 11549
+        },
+        "普通二本": {
+          "min_score": 392,
+          "min_rank": 21350
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 33250
+        }
+      }
+    },
+    "甘肃": {
+      "物理类": {
+        "985": {
+          "min_score": 536,
+          "min_rank": 2400
+        },
+        "211": {
+          "min_score": 486,
+          "min_rank": 30000
+        },
+        "普通一本": {
+          "min_score": 453,
+          "min_rank": 48000
+        },
+        "普通二本": {
+          "min_score": 364,
+          "min_rank": 96000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 114000
+        }
+      },
+      "历史类": {
+        "985": {
+          "min_score": 528,
+          "min_rank": 2880
+        },
+        "211": {
+          "min_score": 504,
+          "min_rank": 10124
+        },
+        "普通一本": {
+          "min_score": 488,
+          "min_rank": 14849
+        },
+        "普通二本": {
+          "min_score": 446,
+          "min_rank": 27450
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 42750
+        }
+      }
+    },
+    "广西": {
+      "物理类": {
+        "985": {
+          "min_score": 565,
+          "min_rank": 4000
+        },
+        "211": {
+          "min_score": 503,
+          "min_rank": 50000
+        },
+        "普通一本": {
+          "min_score": 462,
+          "min_rank": 80000
+        },
+        "普通二本": {
+          "min_score": 350,
+          "min_rank": 160000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 190000
+        }
+      },
+      "历史类": {
+        "985": {
+          "min_score": 540,
+          "min_rank": 4800
+        },
+        "211": {
+          "min_score": 506,
+          "min_rank": 16875
+        },
+        "普通一本": {
+          "min_score": 483,
+          "min_rank": 24749
+        },
+        "普通二本": {
+          "min_score": 424,
+          "min_rank": 45750
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 71250
+        }
+      }
+    },
+    "内蒙古": {
+      "物理类": {
+        "985": {
+          "min_score": 553,
+          "min_rank": 1600
+        },
+        "211": {
+          "min_score": 501,
+          "min_rank": 20000
+        },
+        "普通一本": {
+          "min_score": 468,
+          "min_rank": 32000
+        },
+        "普通二本": {
+          "min_score": 379,
+          "min_rank": 64000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 76000
+        }
+      },
+      "历史类": {
+        "985": {
+          "min_score": 542,
+          "min_rank": 1920
+        },
+        "211": {
+          "min_score": 510,
+          "min_rank": 6749
+        },
+        "普通一本": {
+          "min_score": 489,
+          "min_rank": 9899
+        },
+        "普通二本": {
+          "min_score": 434,
+          "min_rank": 18300
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 28500
+        }
+      }
+    },
+    "新疆": {
+      "物理类": {
+        "985": {
+          "min_score": 519,
+          "min_rank": 1700
+        },
+        "211": {
+          "min_score": 457,
+          "min_rank": 21250
+        },
+        "普通一本": {
+          "min_score": 417,
+          "min_rank": 34000
+        },
+        "普通二本": {
+          "min_score": 310,
+          "min_rank": 68000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 80750
+        }
+      },
+      "历史类": {
+        "985": {
+          "min_score": 473,
+          "min_rank": 2240
+        },
+        "211": {
+          "min_score": 443,
+          "min_rank": 7874
+        },
+        "普通一本": {
+          "min_score": 424,
+          "min_rank": 11549
+        },
+        "普通二本": {
+          "min_score": 371,
+          "min_rank": 21350
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 33250
+        }
+      }
+    },
+    "北京": {
+      "综合": {
+        "985": {
+          "min_score": 604,
+          "min_rank": 1100
+        },
+        "211": {
+          "min_score": 554,
+          "min_rank": 13750
+        },
+        "普通一本": {
+          "min_score": 521,
+          "min_rank": 22000
+        },
+        "普通二本": {
+          "min_score": 433,
+          "min_rank": 44000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 52250
+        }
+      }
+    },
+    "天津": {
+      "综合": {
+        "985": {
+          "min_score": 609,
+          "min_rank": 1100
+        },
+        "211": {
+          "min_score": 562,
+          "min_rank": 13750
+        },
+        "普通一本": {
+          "min_score": 532,
+          "min_rank": 22000
+        },
+        "普通二本": {
+          "min_score": 449,
+          "min_rank": 44000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 52250
+        }
+      }
+    },
+    "上海": {
+      "综合": {
+        "985": {
+          "min_score": 562,
+          "min_rank": 1040
+        },
+        "211": {
+          "min_score": 515,
+          "min_rank": 13000
+        },
+        "普通一本": {
+          "min_score": 485,
+          "min_rank": 20800
+        },
+        "普通二本": {
+          "min_score": 404,
+          "min_rank": 41600
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 49400
+        }
+      }
+    },
+    "海南": {
+      "综合": {
+        "985": {
+          "min_score": 630,
+          "min_rank": 800
+        },
+        "211": {
+          "min_score": 579,
+          "min_rank": 10000
+        },
+        "普通一本": {
+          "min_score": 545,
+          "min_rank": 16000
+        },
+        "普通二本": {
+          "min_score": 452,
+          "min_rank": 32000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 38000
+        }
+      }
+    },
+    "宁夏": {
+      "物理类": {
+        "985": {
+          "min_score": 472,
+          "min_rank": 1100
+        },
+        "211": {
+          "min_score": 440,
+          "min_rank": 13750
+        },
+        "普通一本": {
+          "min_score": 419,
+          "min_rank": 22000
+        },
+        "普通二本": {
+          "min_score": 362,
+          "min_rank": 44000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 52250
+        }
+      },
+      "历史类": {
+        "985": {
+          "min_score": 495,
+          "min_rank": 1600
+        },
+        "211": {
+          "min_score": 470,
+          "min_rank": 5624
+        },
+        "普通一本": {
+          "min_score": 453,
+          "min_rank": 8249
+        },
+        "普通二本": {
+          "min_score": 410,
+          "min_rank": 15250
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 23750
+        }
+      }
+    },
+    "青海": {
+      "物理类": {
+        "985": {
+          "min_score": 448,
+          "min_rank": 620
+        },
+        "211": {
+          "min_score": 418,
+          "min_rank": 7750
+        },
+        "普通一本": {
+          "min_score": 398,
+          "min_rank": 12400
+        },
+        "普通二本": {
+          "min_score": 344,
+          "min_rank": 24800
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 29450
+        }
+      },
+      "历史类": {
+        "985": {
+          "min_score": 441,
+          "min_rank": 1024
+        },
+        "211": {
+          "min_score": 426,
+          "min_rank": 3599
+        },
+        "普通一本": {
+          "min_score": 416,
+          "min_rank": 5279
+        },
+        "普通二本": {
+          "min_score": 389,
+          "min_rank": 9760
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 15200
+        }
+      }
+    },
+    "西藏": {
+      "物理类": {
+        "985": {
+          "min_score": 446,
+          "min_rank": 400
+        },
+        "211": {
+          "min_score": 400,
+          "min_rank": 5000
+        },
+        "普通一本": {
+          "min_score": 370,
+          "min_rank": 8000
+        },
+        "普通二本": {
+          "min_score": 290,
+          "min_rank": 16000
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 19000
+        }
+      },
+      "历史类": {
+        "985": {
+          "min_score": 428,
+          "min_rank": 896
+        },
+        "211": {
+          "min_score": 397,
+          "min_rank": 3149
+        },
+        "普通一本": {
+          "min_score": 377,
+          "min_rank": 4619
+        },
+        "普通二本": {
+          "min_score": 324,
+          "min_rank": 8540
+        },
+        "专科": {
+          "min_score": 200,
+          "min_rank": 13300
+        }
+      }
+    }
+  },
+  "category_default": {
+    "理工硬核": {
+      "score_add": 12,
+      "rank_factor": 0.9
+    },
+    "医学类": {
+      "score_add": 10,
+      "rank_factor": 0.92
+    },
+    "文科保底": {
+      "score_add": 2,
+      "rank_factor": 1.0
+    },
+    "体制内": {
+      "score_add": 15,
+      "rank_factor": 0.88
+    },
+    "避坑天坑": {
+      "score_add": -8,
+      "rank_factor": 1.12
+    }
+  },
+  "major_overrides": {
+    "计算机科学与技术": {
+      "score_add": 25,
+      "rank_factor": 0.82
+    },
+    "软件工程": {
+      "score_add": 22,
+      "rank_factor": 0.84
+    },
+    "电子信息类": {
+      "score_add": 18,
+      "rank_factor": 0.86
+    },
+    "电气工程及其自动化": {
+      "score_add": 20,
+      "rank_factor": 0.85
+    },
+    "自动化": {
+      "score_add": 14,
+      "rank_factor": 0.9
+    },
+    "临床医学": {
+      "score_add": 16,
+      "rank_factor": 0.88
+    },
+    "口腔医学": {
+      "score_add": 18,
+      "rank_factor": 0.86
+    },
+    "法学": {
+      "score_add": 6,
+      "rank_factor": 0.97
+    },
+    "公费师范生": {
+      "score_add": 20,
+      "rank_factor": 0.85
+    },
+    "警校/公安类": {
+      "score_add": 10,
+      "rank_factor": 0.92
+    },
+    "军校": {
+      "score_add": 8,
+      "rank_factor": 0.93
+    },
+    "新闻学": {
+      "score_add": -10,
+      "rank_factor": 1.15
+    },
+    "土木工程": {
+      "score_add": -15,
+      "rank_factor": 1.2
+    },
+    "建筑学": {
+      "score_add": -12,
+      "rank_factor": 1.18
+    },
+    "金融学(无背景)": {
+      "score_add": -5,
+      "rank_factor": 1.05
+    },
+    "工商管理": {
+      "score_add": -6,
+      "rank_factor": 1.08
+    }
+  }
+}

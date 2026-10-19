@@ -13,7 +13,7 @@ FastAPI 应用，提供：
 """
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from services import content as C
 from services import admission as A
@@ -70,6 +70,8 @@ def get_resources(cat: str = "all"):
 
 @app.get("/api/admission/search")
 def admission_search(province: str, subject: str, user_rank: int, limit: int = 20):
+    if user_rank <= 0:
+        raise HTTPException(status_code=400, detail="位次必须为正整数")
     result = A.search(province, subject, user_rank, limit)
     if not result["ok"]:
         raise HTTPException(status_code=404, detail=result["error"])
@@ -79,7 +81,7 @@ def admission_search(province: str, subject: str, user_rank: int, limit: int = 2
 class VerifyRequest(BaseModel):
     province: str
     subject: str
-    user_rank: int
+    user_rank: int = Field(gt=0, description="高考位次，必须为正整数")
     major_name: str
 
 

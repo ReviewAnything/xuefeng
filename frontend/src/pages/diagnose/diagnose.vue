@@ -38,9 +38,9 @@
       <view class="cv-block">
         <text class="cv-k">推荐方向（框架，非定论）</text>
         <view class="tags">
-          <text v-for="p in canvas.picks" :key="p.name" class="tagx" :class="p.view === 'recommend' ? 'good' : 'info'">{{ p.name }}</text>
+          <text v-for="p in canvas.picks" :key="p.name" class="tagx" :class="p.view === 'recommend' ? 'good' : 'info'" @click="goVerify(p.name)">{{ p.name }}</text>
         </view>
-        <text class="small">以上由你的条件过滤得出，需到「专业图谱」逐条核对理由与偏见校正。</text>
+        <text class="small">点击任一专业可直接带入「核验」页做观点×数据交叉核验（需先填省份/科类/位次）。以上由你的条件过滤得出，仍需逐条核对理由与偏见校正。</text>
       </view>
       <view class="cv-block warn">
         <text class="cv-k">偏见校正</text>
@@ -125,6 +125,16 @@ function clear() {
   canvas.value = null;
   search.value = null;
   uni.removeStorageSync("zhiyuan_profile_v2");
+}
+
+// 一键把诊断画布里的专业带入「核验」页（观点×数据交叉核验）
+function goVerify(name) {
+  if (!form.province || !form.subject || !rankInput.value) {
+    uni.showToast({ title: "请先填写省份 / 科类 / 位次", icon: "none" });
+    return;
+  }
+  const q = `province=${encodeURIComponent(form.province)}&subject=${encodeURIComponent(form.subject)}&user_rank=${encodeURIComponent(rankInput.value)}&major_name=${encodeURIComponent(name)}`;
+  uni.navigateTo({ url: `/pages/verify/verify?${q}` });
 }
 
 async function enrich() {

@@ -74,10 +74,12 @@
 
 <script setup>
 import { reactive, ref } from "vue";
+import { onLoad } from "@dcloudio/uni-app";
 import { MAJORS } from "@/utils/content.js";
 import { api } from "@/utils/api.js";
 
-const provinces = ["河南", "广东", "山东", "四川", "河北", "江苏"];
+// 全国 31 省（与 admission_real_baseline.json 覆盖一致）
+const provinces = ["北京", "天津", "河北", "山西", "内蒙古", "辽宁", "吉林", "黑龙江", "上海", "江苏", "浙江", "安徽", "福建", "江西", "山东", "河南", "湖北", "湖南", "广东", "广西", "海南", "重庆", "四川", "贵州", "云南", "西藏", "陕西", "甘肃", "青海", "宁夏", "新疆"];
 const subjects = ["物理类", "历史类", "综合/未改革"];
 const majorNames = MAJORS.map((m) => m.name);
 
@@ -85,6 +87,16 @@ const p = reactive({ province: "", subject: "", user_rank: "", major_name: "" })
 const res = ref(null);
 const err = ref("");
 const loading = ref(false);
+
+// 支持从「诊断画布」一键带入（省份/科类/位次/专业）
+onLoad((q) => {
+  if (q) {
+    if (q.province) p.province = q.province;
+    if (q.subject) p.subject = q.subject;
+    if (q.user_rank) p.user_rank = q.user_rank;
+    if (q.major_name) p.major_name = q.major_name;
+  }
+});
 
 async function run() {
   if (!p.province || !p.subject || !p.user_rank || !p.major_name) {

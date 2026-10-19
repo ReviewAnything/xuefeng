@@ -1,0 +1,41 @@
+name: Deploy H5 (GitHub Pages)
+
+# 默认手动触发；如需「推送到 master 自动部署」，取消下方 push 段注释。
+on:
+  workflow_dispatch:
+  # push:
+  #   branches: [master]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm install
+      - name: Build H5
+        run: npm run build:h5
+      # 部署前请把 src/utils/api.js 的 API_BASE 改为你的后端地址（HTTPS + 小程序需配置 request 合法域名）
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist/build/h5
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
