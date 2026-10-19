@@ -24,7 +24,7 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 TARGET_LABEL = {
     "universities": "院校总表（教育部 2868 所 + 985/211 权威清单）",
-    "admission": "录取基线（31 省估算 + 6 省官方覆盖）",
+    "admission": "录取基线（31 省估算 + 11 省官方覆盖）",
     "content": "内容数据（专业图谱 / 开源资源）",
     "admin": "管理员账号与密钥",
 }
@@ -379,7 +379,7 @@ def sources(admin: dict = Depends(auth.require_admin)):
         ("universities", "全国普通高校总表", os.path.join(seed_mod.DATA_DIR, "universities_national.json")),
         ("elite", "985/211 权威清单", os.path.join(seed_mod.DATA_DIR, "universities.json")),
         ("baseline", "31 省录取基线", os.path.join(seed_mod.DATA_DIR, "admission_real_baseline.json")),
-        ("official", "6 省官方省控线", os.path.join(seed_mod.DATA_DIR, "admission_official_2024.json")),
+        ("official", "11 省官方省控线", os.path.join(seed_mod.DATA_DIR, "admission_official_2024.json")),
         ("content", "专业图谱与资源", os.path.join(seed_mod.SHARED_DIR, "content.json")),
     ]
     sigs = _source_signatures()

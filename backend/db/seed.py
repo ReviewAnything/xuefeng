@@ -138,7 +138,7 @@ def sync_elite(session) -> dict:
 
 
 def sync_admission(session, year: int | None = None) -> dict:
-    """31 省估算基线 + 6 省官方覆盖层 → admission_baselines 表（按年份分版本）。
+    """31 省估算基线 + 11 省官方覆盖层 → admission_baselines 表（按年份分版本）。
 
     year：目标数据版本年份，缺省取 baseline meta.year。
     官方行的 source_year 保留其真实出处年份，并据此标记 carried（沿用往年官方值，待更新）。

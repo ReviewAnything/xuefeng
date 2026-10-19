@@ -77,7 +77,7 @@
         </wd-button>
 
         <view v-if="search" class="verify-box">
-          <text class="dsrc">数据源：{{ search.data_source === "official_overlay" ? "6 省官方省控线 + 其余估算" : (search.data_source === "real" ? "真实录取记录（估算）" : "参数化样例（演示）") }}</text>
+          <text class="dsrc">数据源：{{ search.data_source === "official_overlay" ? "11 省官方省控线 + 其余估算" : (search.data_source === "real" ? "真实录取记录（估算）" : "参数化样例（演示）") }}</text>
           <view class="tier-group" v-for="g in groups" :key="g.key">
             <text class="tg-title" :class="g.key">{{ g.title }}</text>
             <view class="tg-items">

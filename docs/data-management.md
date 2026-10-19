@@ -73,7 +73,7 @@ L2 服务层 serving/   SQLite/PostgreSQL：admission_baselines（按 year 分�
 
 | 时间 | 数据 | 动作 |
 | --- | --- | --- |
-| 6 月下旬 | 各省控制分数线（批次线） | `new-year` 建草稿 → 回填 6 省官方批次线 |
+| 6 月下旬 | 各省控制分数线（批次线） | `new-year` 建草稿 → 回填 11 省官方批次线 |
 | 6 月底 | 一分一段表 | 回填位次（985/211 入门位次优先） |
 | 7–8 月 | 投档线陆续公布 | 分批 `patch`，每批后 `validate` |
 | 8 月底 | 数据基本齐全 | `validate` → 无 error → `publish` |
@@ -98,6 +98,28 @@ python scripts/manage_data.py validate 2027
 
 # 5) 发布（旧版本自动归档，生效年份切换，缓存失效）
 python scripts/manage_data.py publish 2027 --operator alice
+```
+
+### 5.1 自动化：GitHub Actions 年度更新工作流
+
+`.github/workflows/data-annual.yml` 每年 **7 月 1 日 11:00（北京时间）**自动执行，也可手动触发：
+
+1. 从静态数据源重建数据库（幂等播种）；
+2. **以当前生效年份为蓝本创建下一年度草稿**（已存在则跳过）；
+3. 跑 `validate`，把结论写进 Job Summary；
+4. 导出「待更新清单 + 校验报告」为 Artifact；
+5. 在仓库开（或追加评论到）`data-update` 标签的提醒 Issue，列出待回填省份与阻断项。
+
+> 自动化只做「建草稿 + 校验 + 催办」，**不自动发布**——官方数据需要人工核对来源，
+> 发布动作留给维护者（`workflow_dispatch` 时勾选 `publish` 才会在校验通过后自动发布）。
+
+所有命令支持 `--json`（单行紧凑输出），方便 CI/脚本消费：
+
+```bash
+python scripts/manage_data.py status --json
+python scripts/manage_data.py new-year --to 2027 --operator github-actions --json
+python scripts/manage_data.py validate 2027 --json
+python scripts/manage_data.py pending --year 2027 --json
 ```
 
 ## 6. 单年/局部更新（补丁）

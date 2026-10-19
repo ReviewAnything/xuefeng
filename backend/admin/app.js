@@ -146,7 +146,7 @@ const app = createApp({
     const navItems = [
       { key: "dashboard", label: "数据看板", icon: "dashboard", title: "数据看板", desc: "院校、录取基线与查询流量的整体概览" },
       { key: "universities", label: "院校库", icon: "school", title: "全国院校库", desc: "教育部普通高校名单 2868 所，可检索与导出" },
-      { key: "baselines", label: "录取基线", icon: "chart", title: "录取基线", desc: "31 省估算基线 + 6 省官方省控线覆盖，支持按年份浏览与单条修正" },
+      { key: "baselines", label: "录取基线", icon: "chart", title: "录取基线", desc: "31 省估算基线 + 11 省官方省控线覆盖，支持按年份浏览与单条修正" },
       { key: "versions", label: "数据版本", icon: "database", title: "数据版本", desc: "年度更新：建草稿 → 校验 → 发布；支持补丁、审计与回滚" },
       { key: "sync", label: "数据同步", icon: "sync", title: "数据同步", desc: "静态数据源 → 数据库的幂等同步" },
       { key: "events", label: "查询日志", icon: "list", title: "查询日志", desc: "匿名记录核验 / 检索调用，用于产品分析" },

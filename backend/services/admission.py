@@ -17,7 +17,7 @@ import os
 _DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
 _SAMPLE = os.path.join(_DATA_DIR, "admission_sample.json")
 _REAL = os.path.join(_DATA_DIR, "admission_real_baseline.json")
-# 6 省官方省控线覆盖层（2024，批次线层级优先于估算基线）
+# 11 省官方省控线覆盖层（2024，批次线层级优先于估算基线）
 _OFFICIAL = os.path.join(_DATA_DIR, "admission_official_2024.json")
 
 # 冲稳保阈值（基于 user_rank / min_rank 比值）
@@ -47,7 +47,7 @@ def _load_baseline() -> dict:
 
 
 def _load_official() -> dict:
-    """加载 6 省官方省控线覆盖层（不存在返回空 dict）。"""
+    """加载 11 省官方省控线覆盖层（不存在返回空 dict）。"""
     global _OFFICIAL_CACHE
     if _OFFICIAL_CACHE is None:
         if os.path.exists(_OFFICIAL):
@@ -96,7 +96,7 @@ def official_coverage() -> list:
 def data_source() -> str:
     """当前实际生效的数据源标签。
 
-    - official_overlay：存在官方省控线覆盖层 + 真实基线（6 省批次线用官方，其余估算）
+    - official_overlay：存在官方省控线覆盖层 + 真实基线（11 省批次线用官方，其余估算）
     - real：仅真实估算基线
     - sample：仅参数化样例
     """
@@ -173,7 +173,7 @@ def _thresholds_from_json(province: str, subject: str, diff: dict, baseline: dic
 def major_thresholds(province: str, subject: str, major_name: str, major_cat: str) -> dict:
     """返回某专业在指定省/科类下各批次的录取门槛（含专业难度系数）。
 
-    官方值（6 省省控线 / 985·211 入门投档位次）已在落库时合并，逐层返回 data_source。
+    官方值（11 省省控线 / 985·211 入门投档位次）已在落库时合并，逐层返回 data_source。
     """
     subject = _norm_subject(subject)
     baseline = _load_baseline()

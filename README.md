@@ -44,7 +44,7 @@ zhiyuan-app-v2/
 │   │   └── manage_data.py                 # 数据管理 CLI（年度更新 / 补丁 / 发布 / 回滚）
 │   ├── data/
 │   │   ├── admission_real_baseline.json  # 真实基线（31 省，脚本生成）
-│   │   ├── admission_official_2024.json  # 6 省官方省控线 + 985/211 入门投档位次
+│   │   ├── admission_official_2024.json  # 11 省官方省控线 + 6 省 985/211 入门投档位次
 │   │   ├── universities_national.json    # 全国普通高校静态总表（2868 所）
 │   │   ├── universities.json             # 985/211 权威清单（112 所，含门类/官网）
 │   │   ├── xuefeng.db                    # SQLite 数据库（运行时生成，已 gitignore）
@@ -230,12 +230,14 @@ python scripts/ingest_gaokao_advisor.py --sync     # 先拉取 gaokao-advisor �
 写出与 `admission_sample.json` 同构的基线文件；删除该文件即回退到样例数据。
 > 说明：位次门槛为模型推算；分数为锚点区间插值、区间外按斜率外推（顶尖/末端为估算），专科为估算值。
 
-### 官方省控线覆盖层（6 省，2024）
+### 官方省控线覆盖层（11 省，2024）
 
-在估算基线之上，仓库额外内置 `backend/data/admission_official_2024.json`：**河南/广东/四川/山东/河北/江苏**
+在估算基线之上，仓库额外内置 `backend/data/admission_official_2024.json`：**河南/四川/山东/广东/江苏/河北/安徽/湖南/湖北/福建/重庆**
 的 **批次线**（普通一本/普通二本/专科）已替换为 2024 年各省教育考试院**官方录取控制分数线 + 官方一分一段表对应位次**。
+合并本科批的新高考省统一口径：**普通一本 ← 特殊类型招生控制线（特招线，≈原一本线）**，**普通二本 ← 本科批线**，专科 ← 专科批线；
+河南/四川沿用本科一批/二批口径，山东为一段线/二段线。
 后端 `admission.py` 自动优先采用官方批次线（接口逐层标注 `data_source: official`），并进一步接入 **6 省 985/211 真实入门投档位次**
-（同样标注 `official`）：985/211 阈值不再用估算，而是各省发布的 2024 最低投档线及位次（普通类本科批），未覆盖的 25 省仍标注 `estimated`。
+（同样标注 `official`）：985/211 阈值不再用估算，而是各省发布的 2024 最低投档线及位次（普通类本科批），未覆盖的省份仍标注 `estimated`。
 `/api/health` 的 `admission_data_source` 为 `official_overlay`，并新增 `official_provinces` 字段。
 
 - 逐省来源、位次与置信度见 `backend/data/SOURCES.md`。
@@ -274,7 +276,7 @@ python scripts/ingest_gaokao_advisor.py --sync     # 先拉取 gaokao-advisor �
 
 ## 八、已知边界
 
-- 录取数据：河南/广东/四川/山东/河北/江苏 的**批次线**与 **985/211 入门投档位次**均已用 2024 官方数据（高置信）；其余 25 省仍为 gaokao-advisor 参数推算（标注 estimated），**非官方数据**；正式填报以各省考试院为准（逐省来源见 `backend/data/SOURCES.md`）。
+- 录取数据：**11 省**（河南/四川/山东/广东/江苏/河北/安徽/湖南/湖北/福建/重庆）的**批次线**与 **6 省 985/211 入门投档位次**均已用 2024 官方数据（高置信）；其余省份仍为 gaokao-advisor 参数推算（标注 estimated），**非官方数据**；正式填报以各省考试院为准（逐省来源见 `backend/data/SOURCES.md`）。
 - 院校清单：全国 2868 所普通高校为教育部官方静态名单；军校不列入（故 985 计 38）；**不含逐年录取分数**。
 - 观点侧截至公开整理时点，需年度滚动更新（见"单一数据源"）。
 - 微信小程序端联调后端需配置 HTTPS 合法域名。

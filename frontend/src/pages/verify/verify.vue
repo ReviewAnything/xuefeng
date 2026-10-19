@@ -117,7 +117,7 @@ const viewTagType = computed(() => {
 const sourceLabel = computed(() => {
   if (!res.value) return "";
   return res.value.data_source === "official_overlay"
-    ? "6 省官方省控线 + 其余估算（以考试院为准）"
+    ? "11 省官方省控线 + 其余估算（以考试院为准）"
     : res.value.data_source === "real"
       ? "真实录取记录（估算）"
       : "参数化样例（演示）";

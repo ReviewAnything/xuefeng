@@ -2,6 +2,8 @@
 import main
 from fastapi.testclient import TestClient
 
+from db import repository as repo
+
 c = TestClient(main.app)
 
 
@@ -147,3 +149,24 @@ def test_verify_includes_reachable_schools():
     assert j["reachable_tier"] == "985"
     assert j["reachable_tier_school_count"] == 39
     assert "清华大学" in j["reachable_tier_schools"]
+
+
+def test_official_coverage_expanded_to_11_provinces():
+    """官方省控线覆盖由 6 省扩到 11 省，且合并批次省口径一致（一本=特招线 > 二本=本科批）。"""
+    rows = repo.baseline_rows()
+    official = {r["province"] for r in rows if r["data_source"] == "official"}
+    assert {"河南", "广东", "四川", "山东", "河北", "江苏",
+            "安徽", "湖南", "湖北", "福建", "重庆"} <= official, official
+
+    t = repo.thresholds("安徽", "物理类")
+    assert t["普通一本"]["min_score"] == 514 and t["普通一本"]["min_rank"] == 107457
+    assert t["普通二本"]["min_score"] == 465 and t["普通二本"]["min_rank"] == 176157
+    assert t["专科"]["min_score"] == 200 and t["专科"]["min_rank"] == 313412
+    assert t["普通一本"]["data_source"] == "official"
+
+    for prov, sub in [("湖南", "历史类"), ("湖北", "物理类"), ("福建", "历史类"),
+                      ("重庆", "物理类"), ("江苏", "物理类"), ("广东", "历史类"),
+                      ("河北", "物理类")]:
+        t = repo.thresholds(prov, sub)
+        assert t["普通一本"]["min_rank"] < t["普通二本"]["min_rank"] < t["专科"]["min_rank"], (prov, sub)
+        assert t["普通一本"]["min_score"] > t["普通二本"]["min_score"] > t["专科"]["min_score"], (prov, sub)
