@@ -16,6 +16,8 @@ import os
 _DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
 _SAMPLE = os.path.join(_DATA_DIR, "admission_sample.json")
 _REAL = os.path.join(_DATA_DIR, "admission_real_baseline.json")
+# 6 省官方省控线覆盖层（2024，批次线层级优先于估算基线）
+_OFFICIAL = os.path.join(_DATA_DIR, "admission_official_2024.json")
 
 # 冲稳保阈值（基于 user_rank / min_rank 比值）
 SAFETY_RATIO = 0.85   # < 0.85 保
@@ -37,9 +39,33 @@ def _load_baseline() -> dict:
         return json.load(f)
 
 
+def _load_official() -> dict:
+    """加载 6 省官方省控线覆盖层（不存在返回空 dict）。"""
+    if os.path.exists(_OFFICIAL):
+        with open(_OFFICIAL, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+def official_coverage() -> list:
+    """已接入官方省控线的省份列表。"""
+    return _load_official().get("meta", {}).get("coverage", [])
+
+
 def data_source() -> str:
-    """当前实际生效的数据源。"""
-    return "real" if os.path.exists(_REAL) else "sample"
+    """当前实际生效的数据源标签。
+
+    - official_overlay：存在官方省控线覆盖层 + 真实基线（6 省批次线用官方，其余估算）
+    - real：仅真实估算基线
+    - sample：仅参数化样例
+    """
+    has_real = os.path.exists(_REAL)
+    has_official = os.path.exists(_OFFICIAL)
+    if has_official and has_real:
+        return "official_overlay"
+    if has_real:
+        return "real"
+    return "sample"
 
 
 def _difficulty(major_cat: str, major_name: str, baseline: dict) -> dict:
@@ -50,21 +76,38 @@ def _difficulty(major_cat: str, major_name: str, baseline: dict) -> dict:
 
 
 def major_thresholds(province: str, subject: str, major_name: str, major_cat: str) -> dict:
-    """返回某专业在指定省/科类下各批次的录取门槛（含专业难度系数）。"""
+    """返回某专业在指定省/科类下各批次的录取门槛（含专业难度系数）。
+
+    批次线层级（普通一本/普通二本/专科）若命中官方省控线覆盖层，优先用官方
+    score/rank 并标注 data_source=official；985/211 为学校层级，官方无对应省控线，
+    维持估算基线并标注 estimated。
+    """
     subject = _norm_subject(subject)
     baseline = _load_baseline()
     tiers = baseline["tier_baseline"].get(province, {}).get(subject)
     if not tiers:
         return {"ok": False, "error": f"暂无 {province}/{subject} 的录取基线数据"}
     diff = _difficulty(major_cat, major_name, baseline)
+    official = _load_official().get("batch_lines", {}).get(province, {}).get(subject, {})
     out = []
     for tier in baseline["tier_order"]:
         base = tiers.get(tier)
         if not base:
             continue
+        # 默认：估算基线
         min_score = base["min_score"] + diff["score_add"]
         min_rank = max(1, round(base["min_rank"] * diff["rank_factor"]))
-        out.append({"tier": tier, "min_score": min_score, "min_rank": min_rank})
+        src = "estimated"
+        line = None
+        # 官方覆盖：批次线优先
+        ov = official.get(tier)
+        if ov:
+            min_score = ov["score"] + diff["score_add"]
+            min_rank = max(1, round(ov["rank"] * diff["rank_factor"]))
+            src = "official"
+            line = ov.get("line")
+        out.append({"tier": tier, "min_score": min_score, "min_rank": min_rank,
+                    "data_source": src, "line": line})
     return {"ok": True, "province": province, "subject": subject, "major": major_name,
             "tiers": out, "data_source": data_source()}
 

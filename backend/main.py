@@ -41,6 +41,7 @@ def health():
         "version": C.APP_VERSION,
         "data_date": C.DATA_DATE,
         "admission_data_source": A.data_source(),
+        "official_provinces": A.official_coverage(),
         "majors": len(C.MAJORS),
         "resources": len(C.RESOURCES),
     }

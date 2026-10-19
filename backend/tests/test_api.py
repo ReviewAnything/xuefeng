@@ -63,3 +63,39 @@ def test_verify_conflict_avoid_low_tier():
 def test_verify_unknown_major():
     r = c.post("/api/verify", json={"province": "河南", "subject": "物理类", "user_rank": 1000, "major_name": "不存在专业"})
     assert r.status_code == 404
+
+
+def test_official_overlay_health():
+    r = c.get("/api/health")
+    j = r.json()
+    assert j["admission_data_source"] == "official_overlay"
+    assert "河南" in j["official_provinces"]
+
+
+def test_official_batch_line_used():
+    # 河南物理 普通一本 应命中 2024 官方省控线 511→130195
+    # 用「汉语言文学」（文科保底，难度系数 identity）做精确断言
+    r = c.post("/api/verify", json={"province": "河南", "subject": "物理类", "user_rank": 30000, "major_name": "汉语言文学"})
+    assert r.status_code == 200
+    j = r.json()
+    yiben = next((t for t in j["tiers"] if t["tier"] == "普通一本"), None)
+    assert yiben is not None
+    assert yiben["data_source"] == "official"
+    assert yiben["min_rank"] == 130195
+    # 985/211 为学校层级，官方无对应省控线口径，仍估算
+    top = next((t for t in j["tiers"] if t["tier"] == "985"), None)
+    assert top["data_source"] == "estimated"
+
+    # 热门专业（计算机）会在官方批次线上叠加难度系数（rank_factor<1），仍标注 official 且更靠前
+    r2 = c.post("/api/verify", json={"province": "河南", "subject": "物理类", "user_rank": 30000, "major_name": "计算机科学与技术"})
+    y2 = next((t for t in r2.json()["tiers"] if t["tier"] == "普通一本"), None)
+    assert y2["data_source"] == "official"
+    assert 0 < y2["min_rank"] < 130195
+
+
+def test_official_unsupported_province_falls_back():
+    # 北京不在官方覆盖层，全部 tier 应为 estimated（沿用估算基线）
+    r = c.post("/api/verify", json={"province": "北京", "subject": "综合", "user_rank": 30000, "major_name": "计算机科学与技术"})
+    assert r.status_code == 200
+    j = r.json()
+    assert all(t["data_source"] == "estimated" for t in j["tiers"])

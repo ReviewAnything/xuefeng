@@ -53,11 +53,11 @@
       <view class="block">
         <text class="bk">各批次录取门槛（{{ res.province }} · {{ res.subject }}）</text>
         <view class="tier" v-for="t in res.tiers" :key="t.tier" :class="{ best: res.best_reachable && res.best_reachable.tier === t.tier }">
-          <text class="tt">{{ t.tier }}</text>
+          <text class="tt">{{ t.tier }}<text class="src" :class="t.data_source">{{ t.data_source === 'official' ? '官方' : '估算' }}</text></text>
           <text class="ts">≈{{ t.min_score }}分 / 位次{{ t.min_rank }}</text>
           <text class="tl" :class="t.level">{{ t.level }}</text>
         </view>
-        <text class="dsrc">数据源：{{ res.data_source === 'real' ? '真实录取记录' : '参数化样例（演示）' }}</text>
+        <text class="dsrc">数据源：{{ res.data_source === 'official_overlay' ? '6省官方省控线 + 其余估算（以考试院为准）' : (res.data_source === 'real' ? '真实录取记录（估算）' : '参数化样例（演示）') }}</text>
       </view>
 
       <view class="block msg">
@@ -154,6 +154,9 @@ async function run() {
 .tier { display: flex; align-items: center; justify-content: space-between; background: #0f1115; border: 1px solid #23262e; border-radius: 10rpx; padding: 12rpx 16rpx; margin-bottom: 8rpx; }
 .tier.best { border-color: #ffd24d; }
 .tt { font-size: 24rpx; color: #e6e8ec; }
+.src { font-size: 18rpx; padding: 1rpx 10rpx; border-radius: 999rpx; margin-left: 10rpx; vertical-align: middle; }
+.src.official { background: #143a2a; color: #5fd87f; }
+.src.estimated { background: #2a2a18; color: #c9b458; }
 .ts { font-size: 22rpx; color: #8a909c; flex: 1; margin-left: 12rpx; }
 .tl { font-size: 22rpx; padding: 2rpx 12rpx; border-radius: 999rpx; }
 .tl.保 { background: #16361f; color: #5fd87f; }

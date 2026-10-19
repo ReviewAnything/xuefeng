@@ -120,6 +120,16 @@ python scripts/ingest_gaokao_advisor.py --sync     # 先拉取 gaokao-advisor �
 写出与 `admission_sample.json` 同构的基线文件；删除该文件即回退到样例数据。
 > 说明：位次门槛为模型推算；分数为锚点区间插值、区间外按斜率外推（顶尖/末端为估算），专科为估算值。
 
+### 官方省控线覆盖层（6 省，2024）
+
+在估算基线之上，仓库额外内置 `backend/data/admission_official_2024.json`：**河南/广东/四川/山东/河北/江苏**
+的 **批次线**（普通一本/普通二本/专科）已替换为 2024 年各省教育考试院**官方录取控制分数线 + 官方一分一段表对应位次**。
+后端 `admission.py` 自动优先采用官方批次线（接口逐层标注 `data_source: official`），985/211 等学校层级仍用估算并标注 `estimated`；
+其余 25 省整体沿用估算基线。`/api/health` 的 `admission_data_source` 为 `official_overlay`，并新增 `official_provinces` 字段。
+
+- 逐省来源、位次与置信度见 `backend/data/SOURCES.md`。
+- 官方口径为 2024 年；新高考改革省份逐年微调，使用时应以当年省考试院公布数据为准。
+
 ## 六、技术要点
 
 - **跨端**：uni-app Vue3 + Vite，`pages.json` tabBar 一套代码出 H5/小程序/App。
@@ -130,6 +140,6 @@ python scripts/ingest_gaokao_advisor.py --sync     # 先拉取 gaokao-advisor �
 
 ## 七、已知边界
 
-- 录取基线默认来自 `admission_real_baseline.json`（覆盖 31 省，由 gaokao-advisor 参数推算），位次门槛为模型估算、分数为插值/外推，**非官方数据**；正式填报以各省考试院为准。
+- 录取数据：河南/广东/四川/山东/河北/江苏 的**批次线**已用 2024 官方省控线（高置信）；985/211 层级与其余 25 省仍为 gaokao-advisor 参数推算（标注 estimated），**非官方数据**；正式填报以各省考试院为准（逐省来源见 `backend/data/SOURCES.md`）。
 - 观点侧截至公开整理时点，需年度滚动更新（见"单一数据源"）。
 - 微信小程序端联调后端需配置 HTTPS 合法域名。
