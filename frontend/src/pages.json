@@ -1,0 +1,28 @@
+{
+  "pages": [
+    { "path": "pages/diagnose/diagnose", "style": { "navigationBarTitleText": "自我诊断" } },
+    { "path": "pages/majors/majors", "style": { "navigationBarTitleText": "专业图谱" } },
+    { "path": "pages/verify/verify", "style": { "navigationBarTitleText": "观点×数据核验" } },
+    { "path": "pages/resources/resources", "style": { "navigationBarTitleText": "开源资源" } },
+    { "path": "pages/about/about", "style": { "navigationBarTitleText": "关于" } }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "志愿决策助手",
+    "navigationBarBackgroundColor": "#0f1115",
+    "backgroundColor": "#0f1115"
+  },
+  "tabBar": {
+    "color": "#8a909c",
+    "selectedColor": "#ffd24d",
+    "backgroundColor": "#16191f",
+    "borderStyle": "black",
+    "list": [
+      { "pagePath": "pages/diagnose/diagnose", "text": "诊断" },
+      { "pagePath": "pages/majors/majors", "text": "专业" },
+      { "pagePath": "pages/verify/verify", "text": "核验" },
+      { "pagePath": "pages/resources/resources", "text": "资源" },
+      { "pagePath": "pages/about/about", "text": "关于" }
+    ]
+  }
+}

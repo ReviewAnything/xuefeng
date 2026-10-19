@@ -1,0 +1,59 @@
+{
+  "meta": {
+    "year": 2025,
+    "source": "sample",
+    "note": "参数化样例数据：基于公开信息整理的各省各批次控制线/位次估算模型，仅用于演示 P2 观点×数据交叉核验，非官方录取数据。接入真实数据见 README（把 gaokao-advisor 导出的 CSV 放到 backend/data/gaokao_advisor.csv 即可自动切换）。"
+  },
+  "tier_order": ["985", "211", "普通一本", "普通二本", "专科"],
+  "tier_baseline": {
+    "河南": {
+      "物理类": {"985": {"min_score": 620, "min_rank": 12000}, "211": {"min_score": 585, "min_rank": 35000}, "普通一本": {"min_score": 530, "min_rank": 100000}, "普通二本": {"min_score": 465, "min_rank": 205000}, "专科": {"min_score": 185, "min_rank": 550000}},
+      "历史类": {"985": {"min_score": 600, "min_rank": 2500}, "211": {"min_score": 570, "min_rank": 9000}, "普通一本": {"min_score": 525, "min_rank": 32000}, "普通二本": {"min_score": 460, "min_rank": 80000}, "专科": {"min_score": 185, "min_rank": 330000}}
+    },
+    "广东": {
+      "物理类": {"985": {"min_score": 615, "min_rank": 15000}, "211": {"min_score": 580, "min_rank": 40000}, "普通一本": {"min_score": 535, "min_rank": 90000}, "普通二本": {"min_score": 470, "min_rank": 180000}, "专科": {"min_score": 160, "min_rank": 350000}},
+      "历史类": {"985": {"min_score": 595, "min_rank": 3000}, "211": {"min_score": 560, "min_rank": 10000}, "普通一本": {"min_score": 520, "min_rank": 30000}, "普通二本": {"min_score": 455, "min_rank": 75000}, "专科": {"min_score": 160, "min_rank": 250000}}
+    },
+    "山东": {
+      "物理类": {"985": {"min_score": 615, "min_rank": 16000}, "211": {"min_score": 580, "min_rank": 45000}, "普通一本": {"min_score": 520, "min_rank": 110000}, "普通二本": {"min_score": 470, "min_rank": 200000}, "专科": {"min_score": 150, "min_rank": 450000}},
+      "历史类": {"985": {"min_score": 600, "min_rank": 3000}, "211": {"min_score": 565, "min_rank": 11000}, "普通一本": {"min_score": 515, "min_rank": 35000}, "普通二本": {"min_score": 460, "min_rank": 90000}, "专科": {"min_score": 150, "min_rank": 280000}}
+    },
+    "四川": {
+      "物理类": {"985": {"min_score": 625, "min_rank": 11000}, "211": {"min_score": 590, "min_rank": 32000}, "普通一本": {"min_score": 530, "min_rank": 95000}, "普通二本": {"min_score": 470, "min_rank": 170000}, "专科": {"min_score": 150, "min_rank": 300000}},
+      "历史类": {"985": {"min_score": 605, "min_rank": 2200}, "211": {"min_score": 575, "min_rank": 8500}, "普通一本": {"min_score": 525, "min_rank": 28000}, "普通二本": {"min_score": 460, "min_rank": 70000}, "专科": {"min_score": 150, "min_rank": 200000}}
+    },
+    "河北": {
+      "物理类": {"985": {"min_score": 620, "min_rank": 13000}, "211": {"min_score": 585, "min_rank": 38000}, "普通一本": {"min_score": 525, "min_rank": 95000}, "普通二本": {"min_score": 460, "min_rank": 190000}, "专科": {"min_score": 200, "min_rank": 350000}},
+      "历史类": {"985": {"min_score": 600, "min_rank": 2700}, "211": {"min_score": 570, "min_rank": 9500}, "普通一本": {"min_score": 520, "min_rank": 30000}, "普通二本": {"min_score": 455, "min_rank": 78000}, "专科": {"min_score": 200, "min_rank": 220000}}
+    },
+    "江苏": {
+      "物理类": {"985": {"min_score": 630, "min_rank": 12000}, "211": {"min_score": 595, "min_rank": 35000}, "普通一本": {"min_score": 540, "min_rank": 90000}, "普通二本": {"min_score": 480, "min_rank": 160000}, "专科": {"min_score": 220, "min_rank": 300000}},
+      "历史类": {"985": {"min_score": 610, "min_rank": 2500}, "211": {"min_score": 580, "min_rank": 9000}, "普通一本": {"min_score": 530, "min_rank": 28000}, "普通二本": {"min_score": 470, "min_rank": 70000}, "专科": {"min_score": 220, "min_rank": 200000}}
+    }
+  },
+  "category_default": {
+    "理工硬核": {"score_add": 12, "rank_factor": 0.90},
+    "医学类": {"score_add": 10, "rank_factor": 0.92},
+    "文科保底": {"score_add": 2, "rank_factor": 1.00},
+    "体制内": {"score_add": 15, "rank_factor": 0.88},
+    "避坑天坑": {"score_add": -8, "rank_factor": 1.12}
+  },
+  "major_overrides": {
+    "计算机科学与技术": {"score_add": 25, "rank_factor": 0.82},
+    "软件工程": {"score_add": 22, "rank_factor": 0.84},
+    "电子信息类": {"score_add": 18, "rank_factor": 0.86},
+    "电气工程及其自动化": {"score_add": 20, "rank_factor": 0.85},
+    "自动化": {"score_add": 14, "rank_factor": 0.90},
+    "临床医学": {"score_add": 16, "rank_factor": 0.88},
+    "口腔医学": {"score_add": 18, "rank_factor": 0.86},
+    "法学": {"score_add": 6, "rank_factor": 0.97},
+    "公费师范生": {"score_add": 20, "rank_factor": 0.85},
+    "警校/公安类": {"score_add": 10, "rank_factor": 0.92},
+    "军校": {"score_add": 8, "rank_factor": 0.93},
+    "新闻学": {"score_add": -10, "rank_factor": 1.15},
+    "土木工程": {"score_add": -15, "rank_factor": 1.20},
+    "建筑学": {"score_add": -12, "rank_factor": 1.18},
+    "金融学(无背景)": {"score_add": -5, "rank_factor": 1.05},
+    "工商管理": {"score_add": -6, "rank_factor": 1.08}
+  }
+}
