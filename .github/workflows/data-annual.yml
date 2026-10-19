@@ -1,0 +1,144 @@
+name: 数据年度更新
+
+# 每年 7 月上旬：各省录取控制线与一分一段表已发布，自动建下一年度数据版本草稿、
+# 跑校验并产出「待更新清单 + 校验报告」，提醒维护者回填官方数据后发布。
+# 也可在 Actions 页面手动触发（workflow_dispatch）指定年份。
+
+on:
+  schedule:
+    - cron: "0 3 1 7 *" # 每年 7 月 1 日 11:00（北京时间）
+  workflow_dispatch:
+    inputs:
+      year:
+        description: 目标年度（留空自动推算）
+        required: false
+      publish:
+        description: 校验通过后直接发布为生效版本
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  annual-update:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      XUEFENG_DB_PATH: data/xuefeng.db
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Resolve target year
+        id: year
+        run: |
+          if [ -n "${{ inputs.year }}" ]; then
+            y="${{ inputs.year }}"
+          else
+            m=$(date +%-m)
+            if [ "$m" -ge 7 ]; then y=$(date +%Y); else y=$(( $(date +%Y) - 1 )); fi
+          fi
+          echo "target=$y" >> "$GITHUB_OUTPUT"
+          echo "目标年度: $y"
+
+      - name: Init database (seed from static data sources)
+        run: python -c "from db import init_db; init_db()"
+
+      - name: Create next-year draft (idempotent)
+        id: draft
+        run: |
+          python scripts/manage_data.py new-year --to "${{ steps.year.outputs.target }}" \
+            --operator github-actions > /tmp/newyear.json 2>&1 || true
+          cat /tmp/newyear.json
+          python scripts/manage_data.py status > /tmp/status.txt
+          cat /tmp/status.txt
+
+      - name: Validate target year
+        id: validate
+        run: |
+          python scripts/manage_data.py validate "${{ steps.year.outputs.target }}" --json > /tmp/validate.json || true
+          cat /tmp/validate.json
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          d = json.load(open('/tmp/validate.json'))
+          print("## 数据年度校验 · %s" % d.get("year"))
+          print("- 结论：**%s**" % ("通过" if d.get("ok") else "存在阻断项"))
+          print("- 行数：%s，官方行：%s，沿用往年：%s" % (
+              d.get("stats", {}).get("rows"), d.get("stats", {}).get("official_rows"),
+              d.get("stats", {}).get("carried_rows")))
+          for e in d.get("errors", []):
+              print("- ❌ %s：%s" % (e.get("code"), e.get("message")))
+          for w in d.get("warnings", []):
+              print("- ⚠️ %s：%s" % (w.get("code"), w.get("message")))
+          PY
+
+      - name: Pending update list (待回填官方数据的行)
+        run: |
+          python scripts/manage_data.py pending --year "${{ steps.year.outputs.target }}" --json > /tmp/pending.json || true
+          python - <<'PY'
+          import json
+          d = json.load(open('/tmp/pending.json'))
+          print("待更新：%s 行 / %s 省" % (d.get("total"), len(d.get("provinces", []))))
+          PY
+
+      - name: Publish if requested and valid
+        if: ${{ inputs.publish && success() }}
+        run: |
+          python scripts/manage_data.py publish "${{ steps.year.outputs.target }}" --operator github-actions
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: data-annual-report-${{ steps.year.outputs.target }}
+          path: |
+            /tmp/validate.json
+            /tmp/pending.json
+            /tmp/status.txt
+
+      - name: Open reminder issue
+        if: ${{ always() }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const year = '${{ steps.year.outputs.target }}';
+            let v = { ok: false, stats: {}, errors: [], warnings: [] };
+            try { v = JSON.parse(fs.readFileSync('/tmp/validate.json', 'utf8')); } catch (e) {}
+            let p = { total: 0, provinces: [] };
+            try { p = JSON.parse(fs.readFileSync('/tmp/pending.json', 'utf8')); } catch (e) {}
+            const title = `[数据年度更新] ${year} 年度版本草稿已就绪，待回填官方数据`;
+            const body = [
+              `定时任务已为 **${year}** 年度创建数据版本草稿（沿用上一年度数值，标记 \`carried\`）。`,
+              '',
+              `- 校验结论：**${v.ok ? '通过' : '存在阻断项'}**`,
+              `- 行数：${v.stats?.rows ?? '-'}，官方行：${v.stats?.official_rows ?? '-'}，沿用往年：${v.stats?.carried_rows ?? '-'}`,
+              `- 待回填：${p.total ?? 0} 行（${(p.provinces || []).length} 个省份）`,
+              '',
+              '### 阻断项',
+              (v.errors || []).length ? (v.errors || []).map(e => `- ${e.code}：${e.message}`).join('\n') : '- 无',
+              '',
+              '### 提示项',
+              (v.warnings || []).length ? (v.warnings || []).map(w => `- ${w.code}：${w.message}`).join('\n') : '- 无',
+              '',
+              '### 处理步骤',
+              '1. 从各省教育考试院获取当年批次线与一分一段表，写入 `backend/data/raw/<year>/`；',
+              '2. 更新 `backend/data/admission_official_<year>.json`（官方行必须带 `source_url`）；',
+              '3. 本地执行 `python backend/scripts/manage_data.py validate <year>` 与 `publish <year>`；',
+              '4. 详细流程见 `docs/data-management.md`。',
+            ].join('\n');
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo, state: 'open', labels: 'data-update', per_page: 100,
+            });
+            const existing = issues.find(i => i.title === title);
+            if (existing) {
+              await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, body });
+            } else {
+              await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title, body, labels: ['data-update'] });
+            }

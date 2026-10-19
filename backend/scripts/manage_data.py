@@ -3,6 +3,7 @@
 用法（在 backend/ 目录下执行）：
 
     python scripts/manage_data.py status
+    python scripts/manage_data.py new-year  --to 2027            # 缺省以当前生效年份为蓝本
     python scripts/manage_data.py new-year  --from 2026 --to 2027
     python scripts/manage_data.py validate  2027
     python scripts/manage_data.py patch     --province 河南 --subject 物理类 --tier 一本 \
@@ -10,7 +11,7 @@
                                             --source-url https://... --operator alice
     python scripts/manage_data.py publish   2027
     python scripts/manage_data.py rollback  2026
-    python scripts/manage_data.py pending   2027
+    python scripts/manage_data.py pending   --year 2027 --json   # --json 单行输出，便于 CI 消费
     python scripts/manage_data.py changes   --limit 20
 """
 from __future__ import annotations
@@ -26,22 +27,31 @@ from db import repository as repo            # noqa: E402
 from services import data_versions as DV     # noqa: E402
 
 
-def _print(data) -> None:
-    print(json.dumps(data, ensure_ascii=False, indent=2))
+def _print(data, compact: bool = False) -> None:
+    """默认人类可读缩进输出；--json 时输出单行紧凑 JSON，便于 CI/脚本消费。"""
+    if compact:
+        print(json.dumps(data, ensure_ascii=False, separators=(",", ":")))
+    else:
+        print(json.dumps(data, ensure_ascii=False, indent=2))
+
+
+def _compact(args) -> bool:
+    return bool(getattr(args, "json", False))
 
 
 def cmd_status(args) -> None:
-    _print(DV.status(args.dataset))
+    _print(DV.status(args.dataset), _compact(args))
 
 
 def cmd_new_year(args) -> None:
-    _print(DV.clone_year(args.from_year, args.to_year, dataset=args.dataset,
-                         operator=args.operator, note=args.note or ""))
+    src = args.from_year or repo.active_year(args.dataset)
+    _print(DV.clone_year(src, args.to_year, dataset=args.dataset,
+                         operator=args.operator, note=args.note or ""), _compact(args))
 
 
 def cmd_validate(args) -> None:
     result = DV.validate_year(args.year, args.dataset)
-    _print(result)
+    _print(result, _compact(args))
     sys.exit(0 if result["ok"] else 1)
 
 
@@ -59,7 +69,7 @@ def cmd_rollback(args) -> None:
 
 
 def cmd_pending(args) -> None:
-    _print(DV.pending_updates(args.year, args.dataset))
+    _print(DV.pending_updates(args.year, args.dataset), _compact(args))
 
 
 def cmd_changes(args) -> None:
@@ -95,19 +105,22 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("status", help="版本总览")
     s.add_argument("--dataset", default="admission")
+    s.add_argument("--json", action="store_true", help="输出单行 JSON（CI 用）")
     s.set_defaults(func=cmd_status)
 
-    s = sub.add_parser("new-year", help="以某年为蓝本创建新年度草稿")
-    s.add_argument("--from", dest="from_year", type=int, required=True)
+    s = sub.add_parser("new-year", help="以某年为蓝本创建新年度草稿（--from 缺省为当前生效年份）")
+    s.add_argument("--from", dest="from_year", type=int, default=None)
     s.add_argument("--to", dest="to_year", type=int, required=True)
     s.add_argument("--dataset", default="admission")
     s.add_argument("--note", default="")
     s.add_argument("--operator", default="cli")
+    s.add_argument("--json", action="store_true", help="输出单行 JSON")
     s.set_defaults(func=cmd_new_year)
 
     s = sub.add_parser("validate", help="发布前校验")
     s.add_argument("year", type=int)
     s.add_argument("--dataset", default="admission")
+    s.add_argument("--json", action="store_true", help="输出单行 JSON（CI 用）")
     s.set_defaults(func=cmd_validate)
 
     s = sub.add_parser("publish", help="发布为生效版本")
@@ -126,7 +139,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("pending", help="待更新清单")
     s.add_argument("year", type=int, nargs="?")
+    s.add_argument("--year", dest="year_opt", type=int, default=None)
     s.add_argument("--dataset", default="admission")
+    s.add_argument("--json", action="store_true", help="输出单行 JSON（CI 用）")
     s.set_defaults(func=cmd_pending)
 
     s = sub.add_parser("changes", help="变更审计")
@@ -154,6 +169,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
+    if getattr(args, "year_opt", None) is not None:
+        args.year = args.year_opt
     args.func(args)
 
 
