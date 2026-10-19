@@ -78,9 +78,10 @@ def _difficulty(major_cat: str, major_name: str, baseline: dict) -> dict:
 def major_thresholds(province: str, subject: str, major_name: str, major_cat: str) -> dict:
     """返回某专业在指定省/科类下各批次的录取门槛（含专业难度系数）。
 
-    批次线层级（普通一本/普通二本/专科）若命中官方省控线覆盖层，优先用官方
-    score/rank 并标注 data_source=official；985/211 为学校层级，官方无对应省控线，
-    维持估算基线并标注 estimated。
+    命中官方覆盖层时优先采用官方值并标注 data_source=official：
+      - 批次线层级（普通一本/普通二本/专科）：6 省官方省控线 + 一分一段表位次
+      - 学校层级（985/211）：6 省真实入门投档位次
+    其余层级/省份维持估算基线并标注 estimated。
     """
     subject = _norm_subject(subject)
     baseline = _load_baseline()
@@ -88,7 +89,9 @@ def major_thresholds(province: str, subject: str, major_name: str, major_cat: st
     if not tiers:
         return {"ok": False, "error": f"暂无 {province}/{subject} 的录取基线数据"}
     diff = _difficulty(major_cat, major_name, baseline)
-    official = _load_official().get("batch_lines", {}).get(province, {}).get(subject, {})
+    official = _load_official()
+    official_batch = official.get("batch_lines", {}).get(province, {}).get(subject, {})
+    official_school = official.get("school_tier_lines", {}).get(province, {}).get(subject, {})
     out = []
     for tier in baseline["tier_order"]:
         base = tiers.get(tier)
@@ -99,13 +102,21 @@ def major_thresholds(province: str, subject: str, major_name: str, major_cat: st
         min_rank = max(1, round(base["min_rank"] * diff["rank_factor"]))
         src = "estimated"
         line = None
-        # 官方覆盖：批次线优先
-        ov = official.get(tier)
+        # 官方覆盖：批次线优先（普通一本/二本/专科）
+        ov = official_batch.get(tier)
         if ov:
             min_score = ov["score"] + diff["score_add"]
             min_rank = max(1, round(ov["rank"] * diff["rank_factor"]))
             src = "official"
             line = ov.get("line")
+        # 官方覆盖：985/211 学校层级入门投档位次优先（仅 6 省）
+        if tier in ("985", "211"):
+            sv = official_school.get(tier)
+            if sv:
+                min_score = sv["score"] + diff["score_add"]
+                min_rank = max(1, round(sv["rank"] * diff["rank_factor"]))
+                src = "official"
+                line = sv.get("line")
         out.append({"tier": tier, "min_score": min_score, "min_rank": min_rank,
                     "data_source": src, "line": line})
     return {"ok": True, "province": province, "subject": subject, "major": major_name,
@@ -161,30 +172,53 @@ def _load_universities() -> dict:
     return _UNI_CACHE
 
 
-def universities(province: str = None, tier: str = None, category: str = None,
-                 q: str = None, limit: int = 300) -> dict:
-    """按条件筛选 985/211 院校完整静态清单（教育部官方名单，112 所）。
+_NAT_CACHE = None
 
-    tier: "985" 仅返回 985（39 所）；"211" 返回全部 211（112 所，含 985）。
-    q: 校名/简称模糊匹配。
+
+def _load_national() -> dict:
+    """加载全国普通高等学校静态总表（教育部官方名单，2868 所，缓存）。"""
+    global _NAT_CACHE
+    if _NAT_CACHE is None:
+        path = os.path.join(_DATA_DIR, "universities_national.json")
+        with open(path, "r", encoding="utf-8") as f:
+            _NAT_CACHE = json.load(f)
+    return _NAT_CACHE
+
+
+def universities(province: str = None, tier: str = None, category: str = None,
+                 level: str = None, q: str = None, limit: int = 500, offset: int = 0) -> dict:
+    """按条件筛选全国普通高等学校静态总表（教育部官方名单，2868 所：本科 1308 + 专科 1560）。
+
+    level: "本科" / "专科"；tier: "985" / "211" / "dfc"(双一流近似)；
+    q: 校名模糊匹配。返回 total_matched 为过滤后总数，count 为本次返回条数。
     """
-    data = _load_universities()
+    data = _load_national()
     items = data["universities"]
     if province:
         items = [u for u in items if u["province"] == province]
+    if level:
+        items = [u for u in items if u["level"] == level]
     if tier == "985":
         items = [u for u in items if u["is_985"]]
     elif tier == "211":
         items = [u for u in items if u["is_211"]]
+    elif tier == "dfc":
+        items = [u for u in items if u["is_dfc"]]
     if category:
-        items = [u for u in items if u["category"] == category]
+        items = [u for u in items if u.get("category") == category]
     if q:
         q = q.strip()
-        items = [u for u in items if q in u["name"] or q in u["short"]]
-    items = items[:limit]
-    return {"ok": True, "count": len(items), "total": data["meta"]["count"],
-            "count_985": data["meta"]["count_985"],
-            "universities": items, "data_source": "static_official"}
+        items = [u for u in items if q in u["name"]]
+    total_matched = len(items)
+    offset = max(0, offset)
+    items = items[offset:offset + limit]
+    meta = data["meta"]
+    return {"ok": True, "count": len(items), "total_matched": total_matched,
+            "offset": offset, "limit": limit,
+            "total": meta["count"], "count_benke": meta["count_benke"],
+            "count_zhuanke": meta["count_zhuanke"],
+            "count_985": meta["count_985"], "count_211": meta["count_211"],
+            "universities": items, "data_source": "static_official_moe"}
 
 
 def universities_by_tier(tier: str) -> list:

@@ -23,9 +23,14 @@ zhiyuan-app-v2/
 │   │   ├── admission.py      # 录取位次模型 + 冲稳保 + 真实/样例基线自动切换
 │   │   └── verify.py         # P2 核心：观点×数据 交叉核验
 │   ├── scripts/
-│   │   └── ingest_gaokao_advisor.py  # 由 gaokao-advisor 生成 31 省真实录取基线
+│   │   ├── ingest_gaokao_advisor.py       # 由 gaokao-advisor 生成 31 省真实录取基线
+│   │   └── build_universities_national.py # 由教育部官方 xls 生成全国院校总表
 │   ├── data/
 │   │   ├── admission_real_baseline.json  # 真实基线（31 省，脚本生成，后端优先使用）
+│   │   ├── admission_official_2024.json  # 6 省官方省控线 + 985/211 入门投档位次
+│   │   ├── universities_national.json    # 全国普通高校静态总表（2868 所）
+│   │   ├── universities.json             # 985/211 权威清单（112 所，含门类/官网）
+│   │   ├── SOURCES.md                    # 录取数据来源与置信度
 │   │   └── admission_sample.json         # 参数化样例录取数据（演示/fallback，非官方）
 │   ├── tests/test_api.py     # 后端测试（pytest + TestClient）
 │   └── requirements.txt
@@ -124,20 +129,31 @@ python scripts/ingest_gaokao_advisor.py --sync     # 先拉取 gaokao-advisor �
 
 在估算基线之上，仓库额外内置 `backend/data/admission_official_2024.json`：**河南/广东/四川/山东/河北/江苏**
 的 **批次线**（普通一本/普通二本/专科）已替换为 2024 年各省教育考试院**官方录取控制分数线 + 官方一分一段表对应位次**。
-后端 `admission.py` 自动优先采用官方批次线（接口逐层标注 `data_source: official`），985/211 等学校层级仍用估算并标注 `estimated`；
-其余 25 省整体沿用估算基线。`/api/health` 的 `admission_data_source` 为 `official_overlay`，并新增 `official_provinces` 字段。
+后端 `admission.py` 自动优先采用官方批次线（接口逐层标注 `data_source: official`），并进一步接入 **6 省 985/211 真实入门投档位次**
+（同样标注 `official`）：985/211 阈值不再用估算，而是各省发布的 2024 最低投档线及位次（普通类本科批），未覆盖的 25 省仍标注 `estimated`。
+`/api/health` 的 `admission_data_source` 为 `official_overlay`，并新增 `official_provinces` 字段。
 
 - 逐省来源、位次与置信度见 `backend/data/SOURCES.md`。
 - 官方口径为 2024 年；新高考改革省份逐年微调，使用时应以当年省考试院公布数据为准。
 
-### 985/211 院校完整静态清单（112 所）
+### 全国普通高等学校静态总表（2868 所）
 
-仓库内置 `backend/data/universities.json`：**教育部官方「211 工程」全部 112 所院校**（含 39 所 985），
-每所带 `省份/城市/门类/主管单位/层次(is_985/is_211/is_dfc)` 等静态属性。数据来自教育部官方名单，属权威、静态、可离线。
+仓库内置两份院校数据，均来自教育部官方名单，**权威、静态、可离线**：
 
-- 后端新增 `GET /api/universities`：可按 `province` / `tier(985|211)` / `category` / `q(校名)` 筛选。
-- 交叉核验结果（`/api/verify`）会返回用户位次**可触及层次**的院校清单（`reachable_tier` / `reachable_tier_schools`），前端核验页直接展示该层次全部院校。
-- 说明：清单为院校层级元数据，**不含逐年录取分数**；同层次内各校正取线差异较大，具体请以各校招生网/考试院为准。
+- `backend/data/universities_national.json`：**教育部《全国普通高等学校名单》（截至 2024-06-20）全部 2868 所**
+  （本科 1308 + 高职专科 1560，31 省全覆盖）。每所带 `省份/城市/办学层次(本科|专科)/办学性质(公办|民办|中外合作办学)/
+  主管部门/学校标识码/is_985/is_211/is_dfc` 等静态属性。
+- `backend/data/universities.json`：教育部「211 工程」全部 112 所（含 39 所 985），带 `门类/主管单位/官网` 等更细属性，
+  用于核验页按层次展示可触及院校。
+
+**接口**：
+- `GET /api/universities`：可按 `province` / `level(本科|专科)` / `tier(985|211|dfc)` / `category` / `q(校名)` 筛选，
+  返回 `total`、`count_benke`、`count_zhuanke`、`count_985`（38，教育部名单不含军校）、`count_211`（112）。
+- `GET /api/verify` 仍返回用户位次**可触及层次**的 985/211 院校清单（`reachable_tier` / `reachable_tier_schools`）。
+
+**构建脚本**：`python scripts/build_universities_national.py --xls 名单.xls`（不传 `--xls` 则自动下载教育部官方 xls）。
+> 说明：军校（国防科技大学、海军/空军军医大学等）不列入教育部「普通高等学校」名单，故 985 计 38、211 计 112；
+> 清单为院校元数据，**不含逐年录取分数**，具体以各校招生网/考试院为准。
 
 ## 六、技术要点
 
@@ -149,6 +165,7 @@ python scripts/ingest_gaokao_advisor.py --sync     # 先拉取 gaokao-advisor �
 
 ## 七、已知边界
 
-- 录取数据：河南/广东/四川/山东/河北/江苏 的**批次线**已用 2024 官方省控线（高置信）；985/211 层级与其余 25 省仍为 gaokao-advisor 参数推算（标注 estimated），**非官方数据**；正式填报以各省考试院为准（逐省来源见 `backend/data/SOURCES.md`）。
+- 录取数据：河南/广东/四川/山东/河北/江苏 的**批次线**与 **985/211 入门投档位次**均已用 2024 官方数据（高置信）；其余 25 省仍为 gaokao-advisor 参数推算（标注 estimated），**非官方数据**；正式填报以各省考试院为准（逐省来源见 `backend/data/SOURCES.md`）。
+- 院校清单：全国 2868 所普通高校为教育部官方静态名单；军校不列入（故 985 计 38）；**不含逐年录取分数**。
 - 观点侧截至公开整理时点，需年度滚动更新（见"单一数据源"）。
 - 微信小程序端联调后端需配置 HTTPS 合法域名。

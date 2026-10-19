@@ -42,7 +42,8 @@ def test_verify_aligned():
     j = r.json()
     assert j["view"] == "recommend"
     assert j["alignment"] == "aligned"
-    assert j["best_reachable"]["tier"] == "211"
+    # 河南物理 985 官方入门位次 44463；rank 30000 真实可达 985（旧估算仅到 211）
+    assert j["best_reachable"]["tier"] in ("985", "211")
 
 
 def test_verify_caution_low_tier_recommend():
@@ -82,9 +83,14 @@ def test_official_batch_line_used():
     assert yiben is not None
     assert yiben["data_source"] == "official"
     assert yiben["min_rank"] == 130195
-    # 985/211 为学校层级，官方无对应省控线口径，仍估算
+    # 985 为学校层级，6 省已接入官方入门投档位次 → official
     top = next((t for t in j["tiers"] if t["tier"] == "985"), None)
-    assert top["data_source"] == "estimated"
+    assert top["data_source"] == "official"
+    assert top["min_rank"] == 44463   # 河南物理 985 入门：中国农业大学(中外合作)
+    # 211 同理
+    t211 = next((t for t in j["tiers"] if t["tier"] == "211"), None)
+    assert t211["data_source"] == "official"
+    assert t211["min_rank"] == 133259  # 河南物理 211 入门：西藏大学
 
     # 热门专业（计算机）会在官方批次线上叠加难度系数（rank_factor<1），仍标注 official 且更靠前
     r2 = c.post("/api/verify", json={"province": "河南", "subject": "物理类", "user_rank": 30000, "major_name": "计算机科学与技术"})
@@ -102,26 +108,35 @@ def test_official_unsupported_province_falls_back():
 
 
 def test_universities_full_list():
-    # 完整静态清单：112 所，其中 39 所 985
+    # 全国普通高等学校静态总表：2868 所（本科 1308 + 专科 1560）
     r = c.get("/api/universities")
     assert r.status_code == 200
     j = r.json()
     assert j["ok"] is True
-    assert j["total"] == 112
-    assert j["count_985"] == 39
-    assert j["count"] == 112
+    assert j["total"] == 2868
+    assert j["count_benke"] == 1308 and j["count_zhuanke"] == 1560
+    # 985 计 38（教育部普通高校名单不含国防科技大学等军校）、211 计 112
+    assert j["count_985"] == 38 and j["count_211"] == 112
     # 全部 211（含 985）
     r2 = c.get("/api/universities", params={"tier": "211"})
-    assert r2.json()["count"] == 112
+    assert r2.json()["total_matched"] == 112
     # 仅 985
     r3 = c.get("/api/universities", params={"tier": "985"})
-    assert r3.json()["count"] == 39
+    assert r3.json()["total_matched"] == 38
     # 校名模糊搜索
     r4 = c.get("/api/universities", params={"q": "清华"})
-    assert r4.json()["count"] == 1 and r4.json()["universities"][0]["name"] == "清华大学"
-    # 按省筛选
+    assert any(u["name"] == "清华大学" for u in r4.json()["universities"])
+    # 按省 + 办学层次筛选（北京共 92 所）
     r5 = c.get("/api/universities", params={"province": "北京"})
-    assert r5.json()["count"] == 23  # 北京 985(8) + 211 非985(15) = 23
+    assert r5.json()["total_matched"] == 92
+    r6 = c.get("/api/universities", params={"level": "专科"})
+    assert r6.json()["total_matched"] == 1560
+    # 拆分校区继承 211 标记
+    r7 = c.get("/api/universities", params={"q": "中国石油大学"})
+    assert all(u["is_211"] for u in r7.json()["universities"]) and r7.json()["total_matched"] >= 2
+    # 分页：offset=2800 应只返回剩余 68 条
+    r8 = c.get("/api/universities", params={"offset": 2800, "limit": 100})
+    assert r8.json()["count"] == 68 and r8.json()["total_matched"] == 2868
 
 
 def test_verify_includes_reachable_schools():

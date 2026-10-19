@@ -6,7 +6,7 @@ FastAPI 应用，提供：
   - GET  /api/majors            专业图谱（含视图/偏见校正）
   - GET  /api/resources         开源资源中心
   - GET  /api/admission/search  按位次筛 冲/稳/保 可达专业（数据侧）
-  - GET  /api/universities       985/211 院校完整静态清单（112 所，可筛选）
+  - GET  /api/universities       全国普通高等学校静态总表（2868 所：本科 1308 + 专科 1560）
   - POST /api/verify            观点×数据 交叉核验（P2 核心）
 
 运行：uvicorn main:app --reload --port 8000
@@ -81,9 +81,15 @@ def admission_search(province: str, subject: str, user_rank: int, limit: int = 2
 
 
 @app.get("/api/universities")
-def universities(province: str = None, tier: str = None, category: str = None, q: str = None):
-    """985/211 院校完整静态清单（教育部官方名单，112 所，可按省/层次/门类/校名筛选）。"""
-    result = A.universities(province=province, tier=tier, category=category, q=q)
+def universities(province: str = None, tier: str = None, category: str = None,
+                 level: str = None, q: str = None, limit: int = 500, offset: int = 0):
+    """全国普通高等学校静态总表（教育部官方名单，2868 所：本科 1308 + 专科 1560）。
+
+    可按 省(province)/层次(tier: 985|211|dfc)/门类(category)/办学层次(level: 本科|专科)/校名(q) 筛选；
+    分页 limit/offset，total_matched 为过滤后总数。
+    """
+    result = A.universities(province=province, tier=tier, category=category,
+                            level=level, q=q, limit=limit, offset=offset)
     if not result["ok"]:
         raise HTTPException(status_code=404, detail=result["error"])
     return result
