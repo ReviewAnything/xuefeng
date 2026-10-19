@@ -346,3 +346,14 @@ html.dark {
 ::-webkit-scrollbar { width: 9px; height: 9px; }
 ::-webkit-scrollbar-thumb { background: #2a2e37; border-radius: 999px; }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* 外部数据源管道 */
+.pipe-list { display: flex; flex-direction: column; gap: 10px; }
+.pipe {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  background: #12151a; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px;
+}
+.pipe-main { min-width: 0; }
+.pipe-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pipe-title > b { font-size: 13.5px; color: var(--text); }
+.pipe-desc { margin: 6px 0 4px; font-size: 12.5px; color: var(--muted); line-height: 1.6; }

@@ -350,6 +350,8 @@ def recent_jobs(limit: int = 20) -> list[dict]:
             "message": r.message, "operator": r.operator,
             "created_at": r.created_at.isoformat() if r.created_at else None,
             "finished_at": r.finished_at.isoformat() if r.finished_at else None,
+            "duration_ms": (int((r.finished_at - r.created_at).total_seconds() * 1000)
+                            if r.finished_at and r.created_at else None),
         } for r in rows]
 
 

@@ -77,12 +77,14 @@ def test_database_repository_matches_json():
 
 
 def test_admin_sync_is_idempotent():
+    """同步按目标逐个留痕：重复执行不产生重复数据，只新增任务记录。"""
     h = _auth()
     first = c.post("/api/admin/sync", json={"targets": ["content"], "force": True}, headers=h)
     assert first.status_code == 200, first.text
-    assert first.json()["job_id"] > 0
+    assert first.json()["results"]["content"]["job_id"] > 0
     second = c.post("/api/admin/sync", json={"targets": ["content"]}, headers=h)
     assert second.status_code == 200
+    assert second.json()["results"]["content"]["ok"] is True
     jobs = c.get("/api/admin/jobs", headers=h).json()["rows"]
     assert jobs and jobs[0]["kind"] == "content"
 
@@ -155,3 +157,33 @@ def test_admin_console_served():
     assert r.status_code == 200
     body = r.text
     assert "loginForm.password" in body and 'type="password"' in body
+
+
+def test_admin_sync_targets_catalog_includes_pipelines():
+    j = c.get("/api/admin/sync/targets", headers=_auth()).json()
+    assert j["ok"] is True
+    assert {"universities", "admission", "content"} <= set(j["seed_targets"])
+    assert {"ingest_baseline", "build_universities"} <= set(j["pipeline_targets"])
+    pipe = j["targets"]["ingest_baseline"]
+    assert pipe["kind"] == "pipeline"
+    assert pipe["then_seed"] == ["admission"]
+    assert pipe["script"].endswith("ingest_gaokao_advisor.py")
+    assert "last" in pipe
+
+
+def test_admin_sync_seed_target_records_job():
+    h = _auth()
+    r = c.post("/api/admin/sync", json={"targets": ["content"], "force": True}, headers=h)
+    assert r.status_code == 200, r.text
+    j = r.json()
+    assert j["results"]["content"]["ok"] is True
+    assert j["results"]["content"]["job_id"] > 0
+    rows = c.get("/api/admin/jobs?limit=10", headers=h).json()["rows"]
+    hit = next(x for x in rows if x["kind"] == "content")
+    assert hit["status"] == "success"
+    assert hit["duration_ms"] is not None
+
+
+def test_admin_sync_rejects_unknown_target():
+    r = c.post("/api/admin/sync", json={"targets": ["nope"]}, headers=_auth())
+    assert r.status_code == 400

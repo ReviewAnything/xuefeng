@@ -551,6 +551,13 @@
                   </div>
                   <el-switch v-model="syncForce"></el-switch>
                 </div>
+                <div class="switch-row">
+                  <div>
+                    <b>拉取上游最新</b>
+                    <span>pipeline 任务联网取最新源（gaokao-advisor 参数 / 教育部名单）后再生成</span>
+                  </div>
+                  <el-switch v-model="syncRefresh"></el-switch>
+                </div>
                 <el-button type="primary" size="large" :loading="syncing" class="sync-btn" @click="runSync">
                   <app-icon name="refresh"></app-icon> {{ syncing ? '同步中…' : '开始同步' }}
                 </el-button>
@@ -561,6 +568,38 @@
                   同步会写入「同步任务」记录；完成后业务缓存立即失效，核验/检索接口自动使用最新数据。
                 </p>
               </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <div><h3>外部数据源管道</h3><p>重新拉取/生成 L1 静态数据，并自动播种进数据库</p></div>
+              <el-button size="small" @click="loadSyncTargets">重新检测</el-button>
+            </div>
+            <div class="pipe-list">
+              <div class="pipe" v-for="t in pipeTargets" :key="t.key">
+                <div class="pipe-main">
+                  <div class="pipe-title">
+                    <b>{{ t.label }}</b>
+                    <el-tag size="small" effect="plain" type="info">pipeline</el-tag>
+                    <el-tag size="small" v-if="t.last" :type="jobTag(t.last.status)" effect="plain">
+                      上次：{{ jobLabel(t.last.status) }}
+                    </el-tag>
+                    <el-tag size="small" v-else effect="plain">从未执行</el-tag>
+                  </div>
+                  <p class="pipe-desc">{{ t.desc }}</p>
+                  <span class="muted">
+                    输出：{{ t.outputs.join('、') }}
+                    <template v-if="t.last"> · {{ fmtTime(t.last.finished_at) }} ·
+                      {{ t.last.duration_ms ? (t.last.duration_ms / 1000).toFixed(1) + 's' : '-' }}
+                    </template>
+                  </span>
+                </div>
+                <el-button type="primary" plain :loading="syncing" @click="runSync([t.key])">
+                  <app-icon name="refresh"></app-icon> 运行
+                </el-button>
+              </div>
+              <el-empty v-if="!pipeTargets.length" description="暂无外部数据源管道"></el-empty>
             </div>
           </div>
 

@@ -122,6 +122,20 @@ python scripts/manage_data.py validate 2027 --json
 python scripts/manage_data.py pending --year 2027 --json
 ```
 
+## 5.2 同步编排（外部数据源管道）
+
+`services/data_sync.py` 把「L0 外部源 → L1 静态 JSON → L2 数据库」串成可登记的同步任务，管理端「数据同步」页可直接点：
+
+| 目标 | 类型 | 动作 |
+| --- | --- | --- |
+| `universities` / `admission` / `content` | seed | 仓库内静态 JSON 幂等播种进数据库 |
+| `ingest_baseline` | pipeline | 跑 `scripts/ingest_gaokao_advisor.py`（勾选「拉取上游最新」时追加 `--sync`）重算 31 省基线 → 自动播种 `admission` |
+| `build_universities` | pipeline | 跑 `scripts/build_universities_national.py` 抓教育部官方名单 → 自动播种 `universities` |
+
+- 每个目标独立写一条 `sync_jobs`（状态 / 行数 / 耗时 / 操作人），pipeline 失败会记录脚本 stderr 末尾三行；
+- pipeline 成功后连带播种的目标不会重复播种（避免两次写同一批数据）；
+- 脚本超时 900s；联网失败不会污染已有数据（L1 文件未被改写）。
+
 ## 6. 单年/局部更新（补丁）
 
 - **单条修正**：管理端基线表格直接改，或 `PATCH /api/admin/baselines/{id}`；

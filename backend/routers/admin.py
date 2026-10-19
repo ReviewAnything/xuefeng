@@ -14,10 +14,11 @@ from sqlalchemy import select
 
 from db import repository as repo
 from db.database import session_scope
-from db.models import AdminUser, SyncJob
+from db.models import AdminUser
 from db import seed as seed_mod
 from services import admission as A
 from services import admin_auth as auth
+from services import data_sync as DS
 from services import data_versions as DV
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -27,6 +28,8 @@ TARGET_LABEL = {
     "admission": "录取基线（31 省估算 + 11 省官方覆盖）",
     "content": "内容数据（专业图谱 / 开源资源）",
     "admin": "管理员账号与密钥",
+    "ingest_baseline": "重新生成录取基线（gaokao-advisor 参数）",
+    "build_universities": "重新构建全国院校总表（教育部名单）",
 }
 
 
@@ -43,6 +46,7 @@ class ChangePasswordRequest(BaseModel):
 class SyncRequest(BaseModel):
     targets: list[str] = Field(default_factory=lambda: ["universities", "admission", "content"])
     force: bool = False
+    refresh: bool = False   # pipeline 目标：拉取上游最新数据后再生成
 
 
 # ---------------------------------------------------------------- 数据版本
@@ -414,42 +418,20 @@ def sources(admin: dict = Depends(auth.require_admin)):
             "signatures": sigs}
 
 
+@router.get("/sync/targets")
+def sync_targets(admin: dict = Depends(auth.require_admin)):
+    """同步目标清单（含 pipeline 类外部数据源任务）与各自最近一次执行记录。"""
+    return DS.targets_catalog()
+
+
 @router.post("/sync")
 def sync(req: SyncRequest, admin: dict = Depends(auth.require_admin)):
-    targets = [t for t in req.targets if t in seed_mod.TARGETS]
-    if not targets:
-        raise HTTPException(status_code=400, detail="未指定有效同步目标")
-    with session_scope() as s:
-        job = SyncJob(kind=",".join(targets), status="running", operator=admin["username"])
-        s.add(job)
-        s.flush()
-        job_id = job.id
-    try:
-        stats = seed_mod.sync_all(targets, force=req.force)
-        A.invalidate_cache()
-        totals = {"total": 0, "inserted": 0, "updated": 0, "skipped": 0}
-        for value in stats.values():
-            if isinstance(value, dict):
-                for k in totals:
-                    totals[k] += int(value.get(k, 0) or 0)
-        message = "；".join(f"{TARGET_LABEL.get(k, k)}: 新增 {v.get('inserted', 0)} / 更新 {v.get('updated', 0)}"
-                            for k, v in stats.items() if isinstance(v, dict)) or "无变化"
-        with session_scope() as s:
-            j = s.get(SyncJob, job_id)
-            j.status = "success"
-            j.total, j.inserted, j.updated, j.skipped = (totals["total"], totals["inserted"],
-                                                         totals["updated"], totals["skipped"])
-            j.message = message
-            j.finished_at = datetime.now(timezone.utc)
-        return {"ok": True, "job_id": job_id, "targets": targets, "stats": stats,
-                "summary": totals, "message": message}
-    except Exception as exc:
-        with session_scope() as s:
-            j = s.get(SyncJob, job_id)
-            j.status = "failed"
-            j.message = f"{type(exc).__name__}: {exc}"
-            j.finished_at = datetime.now(timezone.utc)
-        raise HTTPException(status_code=500, detail=f"同步失败：{exc}")
+    """执行同步。seed 类直接播种；pipeline 类先跑 ingest/build 脚本再播种，逐个目标留痕。"""
+    result = DS.run(req.targets, force=req.force, refresh=req.refresh,
+                    operator=admin["username"])
+    if not result.get("ok") and not result.get("results"):
+        raise HTTPException(status_code=400, detail=result.get("error") or "未指定有效同步目标")
+    return result
 
 
 # ---------------------------------------------------------------- 导出

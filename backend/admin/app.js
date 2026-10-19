@@ -485,9 +485,13 @@ const app = createApp({
     const sources = ref([]);
     const syncTargets = ref(["universities", "admission", "content"]);
     const syncForce = ref(false);
+    const syncRefresh = ref(false);
     const syncing = ref(false);
     const lastSync = ref(null);
     const jobs = ref([]);
+    const syncTargetsCatalog = ref({});
+    const pipeTargets = computed(() =>
+      Object.values(syncTargetsCatalog.value).filter((t) => t.kind === "pipeline"));
 
     async function loadSources() {
       const res = await api("/api/admin/sources");
@@ -499,18 +503,28 @@ const app = createApp({
       jobs.value = res.rows;
     }
 
-    async function runSync() {
-      if (!syncTargets.value.length) { ElMessage.warning("请至少选择一个同步目标"); return; }
+    async function loadSyncTargets() {
+      const res = await api("/api/admin/sync/targets");
+      syncTargetsCatalog.value = res.targets || {};
+    }
+
+    async function runSync(only) {
+      const targets = only || syncTargets.value;
+      if (!targets.length) { ElMessage.warning("请至少选择一个同步目标"); return; }
       syncing.value = true;
       lastSync.value = null;
       try {
         const res = await api("/api/admin/sync", {
           method: "POST",
-          body: JSON.stringify({ targets: syncTargets.value, force: syncForce.value }),
+          body: JSON.stringify({ targets, force: syncForce.value, refresh: syncRefresh.value }),
         });
-        lastSync.value = { ok: true, message: res.message || "同步完成" };
-        ElMessage.success("同步完成");
-        await Promise.all([loadSources(), loadJobs(), loadOverview()]);
+        lastSync.value = {
+          ok: res.ok !== false,
+          message: res.message || "同步完成",
+        };
+        if (res.ok === false) ElMessage.warning(res.message || "部分目标同步失败");
+        else ElMessage.success("同步完成");
+        await Promise.all([loadSources(), loadJobs(), loadSyncTargets(), loadOverview()]);
         if (page.value === "universities") loadUniversities(uniPage.value);
         if (page.value === "baselines") loadBaselines();
       } catch (e) {
@@ -567,7 +581,7 @@ const app = createApp({
         if (page.value === "universities") await loadUniversities(uniPage.value);
         if (page.value === "baselines") await loadBaselines();
         if (page.value === "versions") await loadVersions();
-        if (page.value === "sync") await Promise.all([loadSources(), loadJobs()]);
+        if (page.value === "sync") await Promise.all([loadSources(), loadJobs(), loadSyncTargets()]);
         if (page.value === "events") await loadEvents();
       } catch (e) {
         ElMessage.error(e.message);
@@ -603,7 +617,7 @@ const app = createApp({
         if (p === "universities" && !uniRows.value.length) await loadUniversities(1);
         if (p === "baselines" && !baseRows.value.length) await loadBaselines();
         if (p === "versions") await loadVersions();
-        if (p === "sync") await Promise.all([loadSources(), loadJobs()]);
+        if (p === "sync") await Promise.all([loadSources(), loadJobs(), loadSyncTargets()]);
         if (p === "events") await loadEvents();
         if (p === "settings") await loadProfile();
       } catch (e) {
@@ -626,7 +640,8 @@ const app = createApp({
       vState, changes, checkResult, checkDialog, newYearDialog, newYearForm, vOperating,
       loadVersions, loadPending, loadChanges, openNewYear, cloneYear, validateYear,
       publishYear, rollbackYear, undoChange, statusTag, statusLabel, actionLabel,
-      sources, syncTargets, syncForce, syncing, lastSync, jobs, loadSources, loadJobs, runSync,
+      sources, syncTargets, syncForce, syncRefresh, syncing, lastSync, jobs,
+      syncTargetsCatalog, pipeTargets, loadSources, loadJobs, loadSyncTargets, runSync,
       events, eventStats, eventKind, loadEvents,
       pwdForm, pwdLoading, changePassword,
       exportCsv, fmtTime, jobTag, jobLabel, alignLabel,
