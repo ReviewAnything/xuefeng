@@ -78,11 +78,19 @@ def init_db(seed: bool = True) -> dict:
     from . import models  # noqa: F401  确保模型已注册
 
     Base.metadata.create_all(get_engine())
+    try:
+        from .migrate import migrate
+
+        migration = migrate()
+    except Exception as exc:  # 迁移失败不应阻断启动（服务可走 JSON 兜底）
+        migration = {"ok": False, "error": f"{type(exc).__name__}: {exc}", "actions": []}
     if not seed:
-        return {"seeded": False}
+        return {"seeded": False, "migration": migration}
     from . import seed as seed_mod
 
-    return seed_mod.ensure_seeded()
+    seeded = seed_mod.ensure_seeded()
+    seeded["migration"] = migration
+    return seeded
 
 
 def reset_engine() -> None:

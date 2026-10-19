@@ -146,7 +146,8 @@ const app = createApp({
     const navItems = [
       { key: "dashboard", label: "数据看板", icon: "dashboard", title: "数据看板", desc: "院校、录取基线与查询流量的整体概览" },
       { key: "universities", label: "院校库", icon: "school", title: "全国院校库", desc: "教育部普通高校名单 2868 所，可检索与导出" },
-      { key: "baselines", label: "录取基线", icon: "chart", title: "录取基线", desc: "31 省估算基线 + 6 省官方省控线覆盖" },
+      { key: "baselines", label: "录取基线", icon: "chart", title: "录取基线", desc: "31 省估算基线 + 6 省官方省控线覆盖，支持按年份浏览与单条修正" },
+      { key: "versions", label: "数据版本", icon: "database", title: "数据版本", desc: "年度更新：建草稿 → 校验 → 发布；支持补丁、审计与回滚" },
       { key: "sync", label: "数据同步", icon: "sync", title: "数据同步", desc: "静态数据源 → 数据库的幂等同步" },
       { key: "events", label: "查询日志", icon: "list", title: "查询日志", desc: "匿名记录核验 / 检索调用，用于产品分析" },
       { key: "settings", label: "系统设置", icon: "settings", title: "系统设置", desc: "账号安全与运行环境" },
@@ -285,6 +286,7 @@ const app = createApp({
     const baseFilters = reactive({ province: "", subject: "" });
     const baseRows = ref([]);
     const baseLoading = ref(false);
+    const baselineYear = ref(null);
     const baseOfficialCount = computed(() => baseRows.value.filter((r) => r.data_source === "official").length);
 
     async function loadBaselines() {
@@ -293,14 +295,191 @@ const app = createApp({
         const qs = new URLSearchParams();
         if (baseFilters.province) qs.set("province", baseFilters.province);
         if (baseFilters.subject) qs.set("subject", baseFilters.subject);
+        if (baselineYear.value) qs.set("year", String(baselineYear.value));
         const res = await api(`/api/admin/baselines?${qs}`);
         baseRows.value = res.rows;
+        baselineYear.value = res.year;
       } catch (e) {
         ElMessage.error(e.message);
       } finally {
         baseLoading.value = false;
       }
     }
+
+    /* ---------- 基线单条补丁 ---------- */
+    const editDialog = ref(false);
+    const editSaving = ref(false);
+    const editForm = reactive({ id: null, label: "", min_score: 0, min_rank: 0,
+      source_url: "", source_year: null, reason: "" });
+
+    function openEdit(row) {
+      editForm.id = row.id;
+      editForm.label = `${row.year} · ${row.province}/${row.subject}/${row.tier}`;
+      editForm.min_score = row.min_score;
+      editForm.min_rank = row.min_rank;
+      editForm.source_url = row.source_url || "";
+      editForm.source_year = row.source_year || row.year;
+      editForm.reason = "";
+      editDialog.value = true;
+    }
+
+    async function saveEdit() {
+      editSaving.value = true;
+      try {
+        await api(`/api/admin/baselines/${editForm.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            min_score: Number(editForm.min_score),
+            min_rank: Number(editForm.min_rank),
+            source_url: editForm.source_url,
+            source_year: Number(editForm.source_year) || null,
+            reason: editForm.reason || "管理端单条修正",
+          }),
+        });
+        ElMessage.success("已保存并留痕");
+        editDialog.value = false;
+        await loadBaselines();
+        await loadVersions();
+      } catch (e) {
+        ElMessage.error(e.message);
+      } finally {
+        editSaving.value = false;
+      }
+    }
+
+    /* ---------- 数据版本 ---------- */
+    const vState = reactive({ active_year: null, versions: [], pending: { total: 0, provinces: [] } });
+    const changes = ref([]);
+    const checkResult = ref(null);
+    const checkDialog = ref(false);
+    const newYearDialog = ref(false);
+    const newYearForm = reactive({ from_year: null, to_year: null, note: "" });
+    const vOperating = ref(false);
+
+    async function loadVersions() {
+      const res = await api("/api/admin/versions");
+      vState.active_year = res.active_year;
+      vState.versions = res.versions;
+      vState.pending = res.pending || { total: 0, provinces: [] };
+      changes.value = res.changes || [];
+      if (!baselineYear.value) baselineYear.value = res.active_year;
+    }
+
+    async function loadPending(year) {
+      const res = await api(`/api/admin/versions/${year || vState.active_year}/pending`);
+      vState.pending = res;
+    }
+
+    async function loadChanges() {
+      const res = await api("/api/admin/changes?limit=40");
+      changes.value = res.rows;
+    }
+
+    function openNewYear() {
+      const years = vState.versions.map((v) => v.year);
+      newYearForm.from_year = vState.active_year;
+      newYearForm.to_year = (Math.max(0, ...years) || new Date().getFullYear()) + 1;
+      newYearForm.note = "";
+      newYearDialog.value = true;
+    }
+
+    async function cloneYear() {
+      vOperating.value = true;
+      try {
+        const res = await api("/api/admin/versions/clone", {
+          method: "POST",
+          body: JSON.stringify({ from_year: Number(newYearForm.from_year),
+            to_year: Number(newYearForm.to_year), note: newYearForm.note }),
+        });
+        ElMessage.success(`已创建 ${res.year} 年草稿（${res.version.rows} 行）`);
+        newYearDialog.value = false;
+        await loadVersions();
+      } catch (e) {
+        ElMessage.error(e.message);
+      } finally {
+        vOperating.value = false;
+      }
+    }
+
+    async function validateYear(year) {
+      vOperating.value = true;
+      try {
+        const res = await api(`/api/admin/versions/${year}/validate`, { method: "POST" });
+        checkResult.value = res;
+        checkDialog.value = true;
+        if (!res.ok) ElMessage.error(`存在 ${res.errors.length} 类阻塞问题`);
+        else ElMessage.success("校验通过（详见提示项）");
+        await loadVersions();
+      } catch (e) {
+        ElMessage.error(e.message);
+      } finally {
+        vOperating.value = false;
+      }
+    }
+
+    async function publishYear(year, force = false) {
+      try {
+        await ElMessageBox.confirm(
+          force ? "校验未通过，确认强制发布？" : `确认将 ${year} 年发布为生效版本？`,
+          "发布确认", { type: force ? "warning" : "info" });
+      } catch (_) { return; }
+      vOperating.value = true;
+      try {
+        const res = await api(`/api/admin/versions/${year}/publish`, {
+          method: "POST", body: JSON.stringify({ force }),
+        });
+        ElMessage.success(`${year} 年已发布为生效版本`);
+        await loadVersions();
+        await loadOverview();
+      } catch (e) {
+        if (/阻塞|校验未通过/.test(e.message) && !force) {
+          ElMessage.warning("校验未通过，可在核对后强制发布");
+        } else {
+          ElMessage.error(e.message);
+        }
+      } finally {
+        vOperating.value = false;
+      }
+    }
+
+    async function rollbackYear(year) {
+      try {
+        await ElMessageBox.confirm(`确认回滚到 ${year} 年数据？当前生效版本将被归档。`, "回滚确认",
+          { type: "warning" });
+      } catch (_) { return; }
+      vOperating.value = true;
+      try {
+        await api(`/api/admin/versions/${year}/rollback`, { method: "POST", body: JSON.stringify({}) });
+        ElMessage.success(`已回滚到 ${year} 年`);
+        await loadVersions();
+        await loadOverview();
+      } catch (e) {
+        ElMessage.error(e.message);
+      } finally {
+        vOperating.value = false;
+      }
+    }
+
+    async function undoChange(id) {
+      try {
+        await ElMessageBox.confirm("确认撤销该条修改？", "撤销确认", { type: "warning" });
+      } catch (_) { return; }
+      try {
+        await api(`/api/admin/changes/${id}/undo`, { method: "POST" });
+        ElMessage.success("已撤销");
+        await loadChanges();
+        await loadVersions();
+      } catch (e) {
+        ElMessage.error(e.message);
+      }
+    }
+
+    const statusTag = (s) => ({ published: "success", validated: "primary", draft: "warning",
+      archived: "info" }[s] || "info");
+    const statusLabel = (s) => ({ published: "生效中", validated: "已校验", draft: "草稿",
+      archived: "已归档" }[s] || s);
+    const actionLabel = (a) => ({ clone: "建年度", patch: "补丁", create: "补录", publish: "发布",
+      rollback: "回滚", import: "导入" }[a] || a);
 
     /* ---------- 同步 ---------- */
     const sources = ref([]);
@@ -387,6 +566,7 @@ const app = createApp({
         await Promise.all([loadOverview(), loadMeta(), loadProfile()]);
         if (page.value === "universities") await loadUniversities(uniPage.value);
         if (page.value === "baselines") await loadBaselines();
+        if (page.value === "versions") await loadVersions();
         if (page.value === "sync") await Promise.all([loadSources(), loadJobs()]);
         if (page.value === "events") await loadEvents();
       } catch (e) {
@@ -422,6 +602,7 @@ const app = createApp({
       try {
         if (p === "universities" && !uniRows.value.length) await loadUniversities(1);
         if (p === "baselines" && !baseRows.value.length) await loadBaselines();
+        if (p === "versions") await loadVersions();
         if (p === "sync") await Promise.all([loadSources(), loadJobs()]);
         if (p === "events") await loadEvents();
         if (p === "settings") await loadProfile();
@@ -440,7 +621,11 @@ const app = createApp({
       doLogin, logout, onUserCommand, refreshAll, go,
       uniFilters, uniRows, uniTotal, uniPage, uniPages, uniPageSize, uniLoading,
       loadUniversities, resetUniFilters,
-      baseFilters, baseRows, baseLoading, baseOfficialCount, loadBaselines,
+      baseFilters, baseRows, baseLoading, baseOfficialCount, loadBaselines, baselineYear,
+      editDialog, editSaving, editForm, openEdit, saveEdit,
+      vState, changes, checkResult, checkDialog, newYearDialog, newYearForm, vOperating,
+      loadVersions, loadPending, loadChanges, openNewYear, cloneYear, validateYear,
+      publishYear, rollbackYear, undoChange, statusTag, statusLabel, actionLabel,
       sources, syncTargets, syncForce, syncing, lastSync, jobs, loadSources, loadJobs, runSync,
       events, eventStats, eventKind, loadEvents,
       pwdForm, pwdLoading, changePassword,

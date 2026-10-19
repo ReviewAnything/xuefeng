@@ -53,11 +53,17 @@ class EliteUniversity(Base):
 
 
 class AdmissionBaseline(Base):
-    """录取门槛基线：每 (省, 科类, 批次) 一行，官方值覆盖估算值。"""
+    """录取门槛基线：每 (年份, 省, 科类, 批次) 一行，官方值覆盖估算值。
+
+    年份进入主键约束后，多年数据可并存（2024/2025/2026…），
+    对外服务只读取「当前生效年份」（settings.data_active_year）。
+    """
 
     __tablename__ = "admission_baselines"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    year: Mapped[int] = mapped_column(Integer, default=0, index=True)          # 所属数据版本年份
+    source_year: Mapped[int] = mapped_column(Integer, default=0)               # 数值实际出处年份（官方线常滞后一年）
     province: Mapped[str] = mapped_column(String(32), index=True)
     subject: Mapped[str] = mapped_column(String(16), index=True)
     tier: Mapped[str] = mapped_column(String(16))
@@ -66,14 +72,58 @@ class AdmissionBaseline(Base):
     data_source: Mapped[str] = mapped_column(String(16), default="estimated")   # official / estimated
     line: Mapped[str] = mapped_column(String(64), default="")                   # 官方线名称
     school: Mapped[str] = mapped_column(String(128), default="")                # 入门院校（学校层级）
-    year: Mapped[int] = mapped_column(Integer, default=0)
+    carried: Mapped[bool] = mapped_column(Boolean, default=False)               # 沿用上一年（待官方更新）
     source_url: Mapped[str] = mapped_column(String(512), default="")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
 
     __table_args__ = (
-        UniqueConstraint("province", "subject", "tier", name="uq_baseline_province_subject_tier"),
-        Index("ix_baseline_province_subject", "province", "subject"),
+        UniqueConstraint("year", "province", "subject", "tier", name="uq_baseline_year_province_subject_tier"),
+        Index("ix_baseline_year_province_subject", "year", "province", "subject"),
     )
+
+
+class DataVersion(Base):
+    """数据版本：一个 (数据集, 年份) 一条，支持草稿→校验→发布→归档的完整生命周期。"""
+
+    __tablename__ = "data_versions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    dataset: Mapped[str] = mapped_column(String(32), index=True)     # admission / universities / content
+    year: Mapped[int] = mapped_column(Integer, index=True)
+    status: Mapped[str] = mapped_column(String(16), default="draft")  # draft/validated/published/archived
+    revision: Mapped[int] = mapped_column(Integer, default=1)         # 每次补丁 +1
+    parent_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    row_count: Mapped[int] = mapped_column(Integer, default=0)
+    official_rows: Mapped[int] = mapped_column(Integer, default=0)
+    carried_rows: Mapped[int] = mapped_column(Integer, default=0)
+    coverage: Mapped[str] = mapped_column(Text, default="[]")        # JSON：已覆盖省份
+    checksum: Mapped[str] = mapped_column(String(64), default="")    # 内容指纹，用于判断是否有改动
+    check_result: Mapped[str] = mapped_column(Text, default="{}")    # JSON：最近一次校验结果
+    note: Mapped[str] = mapped_column(Text, default="")
+    operator: Mapped[str] = mapped_column(String(64), default="system")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (UniqueConstraint("dataset", "year", name="uq_version_dataset_year"),)
+
+
+class DataChange(Base):
+    """数据变更审计：任何写入/发布/回滚都留痕，支持按条回滚。"""
+
+    __tablename__ = "data_changes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    dataset: Mapped[str] = mapped_column(String(32), index=True)
+    year: Mapped[int] = mapped_column(Integer, index=True)
+    action: Mapped[str] = mapped_column(String(16), index=True)   # clone/patch/create/publish/rollback/import
+    entity: Mapped[str] = mapped_column(String(128), default="")  # 基线主键描述："河南/物理类/一本"
+    field: Mapped[str] = mapped_column(String(32), default="")    # min_score/min_rank/data_source/…
+    old_value: Mapped[str] = mapped_column(Text, default="")
+    new_value: Mapped[str] = mapped_column(Text, default="")
+    reason: Mapped[str] = mapped_column(Text, default="")
+    operator: Mapped[str] = mapped_column(String(64), default="system")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
 
 
 class Major(Base):

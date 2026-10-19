@@ -251,6 +251,9 @@
                 <el-option label="历史类" value="历史类" />
                 <el-option label="综合" value="综合" />
               </el-select>
+              <el-select v-model="baselineYear" placeholder="数据年份" style="width: 120px" @change="loadBaselines">
+                <el-option v-for="y in (meta ? meta.years : [])" :key="y" :label="y + ' 年'" :value="y" />
+              </el-select>
               <el-button @click="loadBaselines">刷新</el-button>
               <span class="toolbar-spacer"></span>
               <el-tag type="success" effect="plain">官方 {{ baseOfficialCount }} 行</el-tag>
@@ -280,8 +283,231 @@
                   <span v-else class="muted">—</span>
                 </template>
               </el-table-column>
+              <el-table-column label="沿用来年" width="90">
+                <template #default="s">
+                  <el-tag v-if="s.row.carried" size="small" type="warning" effect="plain">待更新</el-tag>
+                  <span v-else class="muted">—</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="90" fixed="right">
+                <template #default="s">
+                  <el-button link type="primary" @click="openEdit(s.row)">修正</el-button>
+                </template>
+              </el-table-column>
             </el-table>
           </div>
+
+          <!-- 单条修正 -->
+          <el-dialog v-model="editDialog" title="修正基线数据（单年补丁）" width="520">
+            <el-form label-position="top">
+              <el-form-item label="数据行">
+                <el-input :model-value="editForm.label" disabled />
+              </el-form-item>
+              <el-form-item label="最低分">
+                <el-input-number v-model="editForm.min_score" :min="0" :max="750" />
+              </el-form-item>
+              <el-form-item label="最低位次">
+                <el-input-number v-model="editForm.min_rank" :min="1" :max="3000000" :step="100" />
+              </el-form-item>
+              <el-form-item label="出处年份">
+                <el-input-number v-model="editForm.source_year" :min="2000" :max="2100" />
+              </el-form-item>
+              <el-form-item label="来源链接">
+                <el-input v-model="editForm.source_url" placeholder="官方公告 URL，便于追溯" />
+              </el-form-item>
+              <el-form-item label="修改原因">
+                <el-input v-model="editForm.reason" type="textarea" :rows="2"
+                          placeholder="如：2027 官方一本线回填（省考试院公告）" />
+              </el-form-item>
+            </el-form>
+            <p class="hint">保存后会写入变更审计，可在「数据版本 → 变更审计」中撤销。</p>
+            <template #footer>
+              <el-button @click="editDialog = false">取消</el-button>
+              <el-button type="primary" :loading="editSaving" @click="saveEdit">保存补丁</el-button>
+            </template>
+          </el-dialog>
+        </section>
+
+        <!-- ---------------- 数据版本 ---------------- -->
+        <section v-if="page === 'versions'" class="page">
+          <div class="mini-stats">
+            <div class="mini-stat"><span>当前生效年份</span><b>{{ vState.active_year || '—' }}</b></div>
+            <div class="mini-stat"><span>版本数量</span><b>{{ vState.versions.length }}</b></div>
+            <div class="mini-stat"><span>沿用待更新</span><b>{{ vState.pending.total }} 行</b></div>
+            <div class="mini-stat"><span>覆盖省份</span><b>{{ vState.pending.provinces.length }}</b></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h3>数据版本</h3>
+                <p>多年数据并存，仅「生效中」版本对外提供服务；草稿可反复校验后再发布</p>
+              </div>
+              <div>
+                <el-button type="primary" @click="openNewYear"><app-icon name="database" /> 新建年度</el-button>
+                <el-button @click="loadVersions" :loading="vOperating">刷新</el-button>
+              </div>
+            </div>
+
+            <el-table :data="vState.versions" v-loading="vOperating" stripe style="width: 100%">
+              <el-table-column label="年份" width="90">
+                <template #default="s">
+                  <b>{{ s.row.year }}</b>
+                  <el-tag v-if="s.row.is_active" size="small" type="success" effect="dark">生效</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="状态" width="110">
+                <template #default="s">
+                  <el-tag size="small" :type="statusTag(s.row.status)" effect="plain">
+                    {{ statusLabel(s.row.status) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="row_count" label="行数" width="80" align="right" />
+              <el-table-column prop="official_rows" label="官方行" width="80" align="right" />
+              <el-table-column label="沿用往年" width="100" align="right">
+                <template #default="s">
+                  <span :class="{ 'warn-text': s.row.carried_rows > 0 }">{{ s.row.carried_rows }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="coverage_count" label="覆盖省" width="80" align="right" />
+              <el-table-column label="最近校验" min-width="180">
+                <template #default="s">
+                  <el-tag v-if="!s.row.check || !s.row.check.validated_at" size="small" type="info" effect="plain">未校验</el-tag>
+                  <el-tag v-else size="small" :type="s.row.check.ok ? 'success' : 'danger'" effect="plain">
+                    {{ s.row.check.ok ? '通过' : (s.row.check.errors || []).length + ' 类错误' }}
+                    · {{ (s.row.check.warnings || []).length }} 项提示
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="revision" label="修订" width="70" align="right" />
+              <el-table-column prop="operator" label="操作人" width="100" />
+              <el-table-column label="更新时间" width="170">
+                <template #default="s">{{ fmtTime(s.row.updated_at) }}</template>
+              </el-table-column>
+              <el-table-column label="操作" width="260" fixed="right">
+                <template #default="s">
+                  <el-button link type="primary" @click="validateYear(s.row.year)">校验</el-button>
+                  <el-button link type="success" v-if="!s.row.is_active" @click="publishYear(s.row.year)">发布</el-button>
+                  <el-button link type="warning" v-if="!s.row.is_active" @click="rollbackYear(s.row.year)">回滚</el-button>
+                  <el-button link @click="loadPending(s.row.year)">待更新</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+
+          <div class="grid-2">
+            <div class="panel">
+              <div class="panel-head">
+                <div>
+                  <h3>待更新清单</h3>
+                  <p>{{ vState.active_year }} 年仍沿用往年数值的行（按省份聚合）</p>
+                </div>
+                <el-button size="small" @click="loadPending()">重新统计</el-button>
+              </div>
+              <el-table :data="vState.pending.provinces" height="320" style="width: 100%">
+                <el-table-column prop="province" label="省份" width="100" />
+                <el-table-column prop="rows" label="沿用行" width="90" align="right" />
+                <el-table-column prop="official" label="其中官方" width="90" align="right" />
+                <el-table-column label="层级" min-width="220">
+                  <template #default="s">
+                    <span class="muted">{{ (s.row.tiers || []).slice(0, 4).join('、') }}<template v-if="s.row.tiers && s.row.tiers.length > 4">…</template></span>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <el-empty v-if="!vState.pending.provinces.length" description="全部为当年数据" :image-size="60" />
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <div><h3>变更审计</h3><p>补丁 / 发布 / 回滚 / 建年度全程留痕</p></div>
+                <el-button size="small" @click="loadChanges">刷新</el-button>
+              </div>
+              <el-table :data="changes" height="320" style="width: 100%">
+                <el-table-column label="动作" width="90">
+                  <template #default="s">
+                    <el-tag size="small" effect="plain">{{ actionLabel(s.row.action) }}</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="entity" label="对象" min-width="160" show-overflow-tooltip />
+                <el-table-column label="变更" min-width="180" show-overflow-tooltip>
+                  <template #default="s">
+                    <span v-if="s.row.field">
+                      <b>{{ s.row.field }}</b>: {{ s.row.old_value }} → {{ s.row.new_value }}
+                    </span>
+                    <span v-else>{{ s.row.new_value }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="operator" label="操作人" width="90" />
+                <el-table-column label="时间" width="150">
+                  <template #default="s">{{ fmtTime(s.row.created_at) }}</template>
+                </el-table-column>
+                <el-table-column label="操作" width="90" fixed="right">
+                  <template #default="s">
+                    <el-button link type="danger" v-if="s.row.action === 'patch'"
+                               @click="undoChange(s.row.id)">撤销</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </div>
+          </div>
+
+          <!-- 新建年度 -->
+          <el-dialog v-model="newYearDialog" title="新建年度数据（年度更新第一步）" width="460">
+            <el-form label-position="top">
+              <el-form-item label="蓝本年份">
+                <el-select v-model="newYearForm.from_year" style="width: 100%">
+                  <el-option v-for="v in vState.versions" :key="v.year" :label="v.year + ' 年'" :value="v.year" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="目标年份">
+                <el-input-number v-model="newYearForm.to_year" :min="2000" :max="2100" />
+              </el-form-item>
+              <el-form-item label="备注">
+                <el-input v-model="newYearForm.note" type="textarea" :rows="2"
+                          placeholder="如：2027 年度更新，沿用 2026 数据作为草稿" />
+              </el-form-item>
+            </el-form>
+            <p class="hint">
+              新年度会复制蓝本年份的全部基线并标记为「沿用往年」，随后可用单条补丁或重新同步数据源回填官方值。
+            </p>
+            <template #footer>
+              <el-button @click="newYearDialog = false">取消</el-button>
+              <el-button type="primary" :loading="vOperating" @click="cloneYear">创建草稿</el-button>
+            </template>
+          </el-dialog>
+
+          <!-- 校验结果 -->
+          <el-dialog v-model="checkDialog" title="发布前校验结果" width="640">
+            <div v-if="checkResult">
+              <el-alert :type="checkResult.ok ? 'success' : 'error'" :closable="false" show-icon
+                        :title="checkResult.ok ? '校验通过' : '校验未通过'"
+                        :description="`${checkResult.year} 年 · 共 ${checkResult.stats.rows} 行 · 覆盖 ${checkResult.stats.provinces} 省`" />
+              <div v-if="checkResult.errors && checkResult.errors.length" class="check-block">
+                <b>阻塞问题</b>
+                <div class="check-item" v-for="(e, i) in checkResult.errors" :key="'e' + i">
+                  <el-tag size="small" type="danger" effect="plain">{{ e.code }}</el-tag>
+                  <span>{{ e.message }}</span>
+                  <ul><li v-for="(s, k) in (e.sample || [])" :key="k">{{ s }}</li></ul>
+                </div>
+              </div>
+              <div v-if="checkResult.warnings && checkResult.warnings.length" class="check-block">
+                <b>提示项（不阻断发布）</b>
+                <div class="check-item" v-for="(w, i) in checkResult.warnings" :key="'w' + i">
+                  <el-tag size="small" type="warning" effect="plain">{{ w.code }}</el-tag>
+                  <span>{{ w.message }}</span>
+                  <ul><li v-for="(s, k) in (w.sample || [])" :key="k">{{ s }}</li></ul>
+                </div>
+              </div>
+            </div>
+            <template #footer>
+              <el-button @click="checkDialog = false">关闭</el-button>
+              <el-button type="danger" v-if="checkResult && !checkResult.ok"
+                         @click="checkDialog = false; publishYear(checkResult.year, true)">强制发布</el-button>
+              <el-button type="primary" v-if="checkResult && checkResult.ok"
+                         @click="checkDialog = false; publishYear(checkResult.year)">发布为生效版本</el-button>
+            </template>
+          </el-dialog>
         </section>
 
         <!-- ---------------- 数据同步 ---------------- -->

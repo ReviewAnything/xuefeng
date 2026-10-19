@@ -137,8 +137,12 @@ def sync_elite(session) -> dict:
     return stat
 
 
-def sync_admission(session) -> dict:
-    """31 省估算基线 + 6 省官方覆盖层 → admission_baselines 表（单行合并）。"""
+def sync_admission(session, year: int | None = None) -> dict:
+    """31 省估算基线 + 6 省官方覆盖层 → admission_baselines 表（按年份分版本）。
+
+    year：目标数据版本年份，缺省取 baseline meta.year。
+    官方行的 source_year 保留其真实出处年份，并据此标记 carried（沿用往年官方值，待更新）。
+    """
     baseline = _read_json(os.path.join(DATA_DIR, "admission_real_baseline.json"))
     official_path = os.path.join(DATA_DIR, "admission_official_2024.json")
     official = _read_json(official_path) if os.path.exists(official_path) else {}
@@ -146,11 +150,12 @@ def sync_admission(session) -> dict:
     tier_order = baseline.get("tier_order", [])
     base_year = int(baseline.get("meta", {}).get("year") or 0)
     off_year = int(official.get("meta", {}).get("year") or 0)
+    version_year = int(year or base_year or datetime.now(timezone.utc).year)
     sources = official.get("meta", {}).get("sources", {})
     batch_lines = official.get("batch_lines", {})
     school_lines = official.get("school_tier_lines", {})
 
-    existing = {(r.province, r.subject, r.tier): r
+    existing = {(r.year, r.province, r.subject, r.tier): r
                 for r in session.scalars(select(AdmissionBaseline)).all()}
     stat = _empty_stat()
     seen = set()
@@ -158,7 +163,7 @@ def sync_admission(session) -> dict:
     for province, subjects in baseline.get("tier_baseline", {}).items():
         for subject, tiers in subjects.items():
             for tier, base in tiers.items():
-                key = (province, subject, tier)
+                key = (version_year, province, subject, tier)
                 seen.add(key)
                 payload = {
                     "min_score": int(base.get("min_score") or 0),
@@ -166,7 +171,9 @@ def sync_admission(session) -> dict:
                     "data_source": "estimated",
                     "line": "",
                     "school": "",
-                    "year": base_year,
+                    "year": version_year,
+                    "source_year": base_year or version_year,
+                    "carried": False,
                     "source_url": "",
                 }
                 ov = batch_lines.get(province, {}).get(subject, {}).get(tier)
@@ -177,7 +184,8 @@ def sync_admission(session) -> dict:
                         "min_rank": int(ov.get("rank") or 0),
                         "data_source": "official",
                         "line": ov.get("line") or "",
-                        "year": off_year or base_year,
+                        "source_year": off_year or base_year or version_year,
+                        "carried": bool(off_year and off_year < version_year),
                         "source_url": sources.get(province, ""),
                     })
                 elif sv:
@@ -187,7 +195,8 @@ def sync_admission(session) -> dict:
                         "data_source": "official",
                         "line": sv.get("line") or "",
                         "school": sv.get("school") or "",
-                        "year": off_year or base_year,
+                        "source_year": off_year or base_year or version_year,
+                        "carried": bool(off_year and off_year < version_year),
                         "source_url": sources.get(province, ""),
                     })
                 row = existing.get(key)
@@ -204,9 +213,9 @@ def sync_admission(session) -> dict:
                         stat["skipped"] += 1
                 stat["total"] += 1
 
-    # 清理已不存在于数据源的旧行（例如省份口径调整）
+    # 只清理当前版本内已不存在于数据源的旧行（其他年份的版本保持不动）
     for key, row in existing.items():
-        if key not in seen:
+        if key[0] == version_year and key not in seen:
             session.delete(row)
 
     _set_setting(session, "tier_order", json.dumps(tier_order, ensure_ascii=False))
@@ -214,7 +223,56 @@ def sync_admission(session) -> dict:
     _set_setting(session, "official_meta", json.dumps(official.get("meta", {}), ensure_ascii=False))
     _set_setting(session, "official_coverage", json.dumps(official.get("meta", {}).get("coverage", []), ensure_ascii=False))
     session.flush()
+
+    stat["year"] = version_year
+    stat.update(register_version(session, "admission", version_year))
     return stat
+
+
+def register_version(session, dataset: str, year: int, status: str | None = None) -> dict:
+    """为 (数据集, 年份) 建立/刷新版本记录，并回写行数、官方行、覆盖率与校验和。"""
+    from .models import DataVersion
+
+    rows = [r for r in session.scalars(select(AdmissionBaseline)).all() if r.year == int(year)]
+    version = session.scalar(select(DataVersion).where(DataVersion.dataset == dataset,
+                                                       DataVersion.year == int(year)))
+    official_rows = sum(1 for r in rows if r.data_source == "official")
+    carried_rows = sum(1 for r in rows if r.carried)
+    provinces = sorted({r.province for r in rows})
+    checksum = _rows_checksum(rows)
+    created = version is None
+    if version is None:
+        version = DataVersion(dataset=dataset, year=int(year), created_at=datetime.now(timezone.utc))
+        session.add(version)
+    version.row_count = len(rows)
+    version.official_rows = official_rows
+    version.carried_rows = carried_rows
+    version.coverage = json.dumps(provinces, ensure_ascii=False)
+    version.checksum = checksum
+    version.updated_at = datetime.now(timezone.utc)
+    if created:
+        version.status = status or "published"
+        version.published_at = datetime.now(timezone.utc)
+    elif status:
+        version.status = status
+    session.flush()
+    if version.status == "published":
+        # 同一事务内写入，避免嵌套会话导致 SQLite 写锁
+        _set_setting(session, f"data_active_year:{dataset}", str(int(year)))
+    return {"version": {"dataset": dataset, "year": int(year), "status": version.status,
+                        "rows": len(rows), "official_rows": official_rows,
+                        "carried_rows": carried_rows, "checksum": checksum[:12]}}
+
+
+def _rows_checksum(rows) -> str:
+    """基于行内容计算指纹，用于判断版本是否发生实质变化。"""
+    import hashlib
+
+    payload = "|".join(
+        f"{r.year}:{r.province}:{r.subject}:{r.tier}:{r.min_score}:{r.min_rank}:{r.data_source}"
+        for r in sorted(rows, key=lambda x: (x.province, x.subject, x.tier))
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def sync_content(session) -> dict:

@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, or_, select
 
 from .database import DEFAULT_DB_PATH, session_scope
-from .models import (AdmissionBaseline, EliteUniversity, Major, QueryEvent,
+from .models import (AdmissionBaseline, DataVersion, EliteUniversity, Major, QueryEvent,
                      Resource, Setting, SyncJob, University)
 
 _TTL = 30.0
@@ -52,11 +52,71 @@ def tier_order() -> list:
     return get_json_setting("tier_order", []) or []
 
 
+# ---------------------------------------------------------------- 数据版本
+
+def active_year(dataset: str = "admission") -> int:
+    """当前对外生效的数据年份。
+
+    优先级：显式设置 data_active_year > 已发布版本中最大的年份 > 表中最大年份 > 当前自然年。
+    """
+    from datetime import datetime
+
+    explicit = get_setting(f"data_active_year:{dataset}") or get_setting("data_active_year")
+    if explicit:
+        try:
+            return int(explicit)
+        except ValueError:
+            pass
+    with session_scope() as s:
+        published = s.scalar(
+            select(func.max(DataVersion.year)).where(
+                DataVersion.dataset == dataset, DataVersion.status == "published"))
+        if published:
+            return int(published)
+        max_year = s.scalar(select(func.max(AdmissionBaseline.year)))
+        if max_year:
+            return int(max_year)
+    return datetime.now().year
+
+
+def set_active_year(year: int, dataset: str = "admission") -> None:
+    with session_scope() as s:
+        row = s.get(Setting, f"data_active_year:{dataset}")
+        if row:
+            row.value = str(int(year))
+        else:
+            s.add(Setting(key=f"data_active_year:{dataset}", value=str(int(year))))
+
+
+def year_summary(dataset: str = "admission") -> list[dict]:
+    """各年份的基线行数概览（管理端数据版本页用）。"""
+    with session_scope() as s:
+        rows = s.execute(
+            select(AdmissionBaseline.year, func.count()).group_by(AdmissionBaseline.year)
+            .order_by(AdmissionBaseline.year.desc())).all()
+        versions = {(v.year): v for v in s.scalars(
+            select(DataVersion).where(DataVersion.dataset == dataset)).all()}
+        out = []
+        for year, count in rows:
+            v = versions.get(int(year))
+            out.append({
+                "year": int(year), "rows": int(count),
+                "status": v.status if v else "unmanaged",
+                "revision": v.revision if v else 0,
+                "checksum": v.checksum if v else "",
+            })
+        return out
+
+
 # ---------------------------------------------------------------- 录取基线
 
-def thresholds(province: str, subject: str) -> dict | None:
-    """返回 {tier: {min_score, min_rank, data_source, line, school, year}}。"""
-    key = (province, subject)
+def thresholds(province: str, subject: str, year: int | None = None) -> dict | None:
+    """返回 {tier: {min_score, min_rank, data_source, line, school, year}}。
+
+    year 缺省时使用当前生效年份（settings.data_active_year）。
+    """
+    year = int(year) if year else active_year()
+    key = (province, subject, year)
     now = time.time()
     hit = _threshold_cache.get(key)
     if hit and now - hit[0] < _TTL:
@@ -66,6 +126,7 @@ def thresholds(province: str, subject: str) -> dict | None:
             select(AdmissionBaseline).where(
                 AdmissionBaseline.province == province,
                 AdmissionBaseline.subject == subject,
+                AdmissionBaseline.year == year,
             )
         ).all()
         if not rows:
@@ -76,6 +137,7 @@ def thresholds(province: str, subject: str) -> dict | None:
                 "data_source": r.data_source, "line": r.line or None,
                 "school": r.school or None, "year": r.year,
                 "source_url": r.source_url or None,
+                "carried": bool(r.carried),
             }
             for r in rows
         }
@@ -83,20 +145,25 @@ def thresholds(province: str, subject: str) -> dict | None:
     return data
 
 
-def baseline_rows(province: str | None = None, subject: str | None = None) -> list[dict]:
+def baseline_rows(province: str | None = None, subject: str | None = None,
+                  year: int | None = None) -> list[dict]:
     with session_scope() as s:
         stmt = select(AdmissionBaseline)
+        if year:
+            stmt = stmt.where(AdmissionBaseline.year == int(year))
         if province:
             stmt = stmt.where(AdmissionBaseline.province == province)
         if subject:
             stmt = stmt.where(AdmissionBaseline.subject == subject)
-        rows = s.scalars(stmt.order_by(AdmissionBaseline.province, AdmissionBaseline.subject,
+        rows = s.scalars(stmt.order_by(AdmissionBaseline.year.desc(),
+                                       AdmissionBaseline.province, AdmissionBaseline.subject,
                                        AdmissionBaseline.min_rank)).all()
         return [{
             "id": r.id, "province": r.province, "subject": r.subject, "tier": r.tier,
             "min_score": r.min_score, "min_rank": r.min_rank,
             "data_source": r.data_source, "line": r.line, "school": r.school,
-            "year": r.year, "source_url": r.source_url,
+            "year": r.year, "source_year": r.source_year,
+            "carried": bool(r.carried), "source_url": r.source_url,
             "updated_at": r.updated_at.isoformat() if r.updated_at else None,
         } for r in rows]
 
@@ -302,6 +369,12 @@ def db_info() -> dict:
         official_rows = int(s.scalar(
             select(func.count()).select_from(AdmissionBaseline)
             .where(AdmissionBaseline.data_source == "official")) or 0)
+    active = active_year()
+    with session_scope() as s:
+        active_rows = int(s.scalar(
+            select(func.count()).select_from(AdmissionBaseline)
+            .where(AdmissionBaseline.year == active)) or 0)
     return {"path": path, "size_kb": round(size / 1024, 1),
             "baseline_rows": base_rows, "official_rows": official_rows,
-            "estimated_rows": base_rows - official_rows}
+            "estimated_rows": base_rows - official_rows,
+            "active_year": active, "active_rows": active_rows}

@@ -15,6 +15,8 @@ v2 在 v1 纯前端 PWA 基础上做了三件事：
 
 ```
 zhiyuan-app-v2/
+├── docs/
+│   └── data-management.md     # 后端数据管理方案（数据分层 / 年度更新 SOP / 校验规则）
 ├── shared/
 │   └── content.json          # 单一数据源：majors / resources / questions / 版本（前端与后端共用）
 ├── backend/                  # Python FastAPI 后端（P2 数据层 + 管理端 API）
@@ -34,9 +36,12 @@ zhiyuan-app-v2/
 │   ├── admin/                # 管理端控制台（Vue3 + Element Plus，免构建）
 │   │   ├── index.html / app.js / styles.css
 │   │   └── vendor/           # 本地化 vue / element-plus（不依赖 CDN）
+│   ├── services/
+│   │   └── data_versions.py   # 数据版本：年度更新 / 补丁 / 校验 / 发布 / 回滚 / 审计
 │   ├── scripts/
 │   │   ├── ingest_gaokao_advisor.py       # 由 gaokao-advisor 生成 31 省真实录取基线
-│   │   └── build_universities_national.py # 由教育部官方 xls 生成全国院校总表
+│   │   ├── build_universities_national.py # 由教育部官方 xls 生成全国院校总表
+│   │   └── manage_data.py                 # 数据管理 CLI（年度更新 / 补丁 / 发布 / 回滚）
 │   ├── data/
 │   │   ├── admission_real_baseline.json  # 真实基线（31 省，脚本生成）
 │   │   ├── admission_official_2024.json  # 6 省官方省控线 + 985/211 入门投档位次
@@ -86,11 +91,12 @@ uvicorn main:app --reload --port 8000
 ```
 首次启动会自动建表并播种（2868 所院校 + 280 行录取基线 + 38 专业），耗时约 5–10 秒；之后按文件签名跳过。
 
-### 2) 管理端（数据看板 / 数据同步 / 院校库）
+### 2) 管理端（数据看板 / 数据版本 / 数据同步 / 院校库）
 浏览器打开 `http://localhost:8000/admin`。
 - 初始账号：`admin` / `xuefeng@2026`（可用 `XUEFENG_ADMIN_USER` / `XUEFENG_ADMIN_PASSWORD` 覆盖）
 - **首次登录请立即在「系统设置」修改密码**；管理端会持续提示未改密状态。
-- 功能：数据看板（院校/基线/查询趋势/健康检查）、院校库检索与 CSV 导出、录取基线浏览、数据同步（含强制重灌与任务记录）、查询日志、账号安全。
+- 功能：数据看板（院校/基线/查询趋势/健康检查）、**数据版本（年度更新：建草稿→校验→发布→回滚）**、
+  院校库检索与 CSV 导出、录取基线浏览与单条修正、数据同步（含强制重灌与任务记录）、查询日志、账号安全。
 
 ### 3) 前端（uni-app，任选目标端）
 ```bash
@@ -109,7 +115,25 @@ npm run build:app       # App 包（需 HBuilderX / 云端打包）
 `backend/services/content.py` 读取。**年度更新只改这一个文件并 bump `APP_VERSION`**，
 再在管理端点「数据同步 → 内容数据」即写入数据库。
 
-### 5) 环境变量
+### 5) 数据版本与年度更新
+录取基线以「年份」为版本：多年数据并存，只有**生效版本**对外提供服务。完整方案见
+[`docs/data-management.md`](docs/data-management.md)。
+
+```bash
+cd backend
+python scripts/manage_data.py status                       # 版本总览
+python scripts/manage_data.py new-year --from 2026 --to 2027  # 建新年度草稿（沿用行自动标记）
+python scripts/manage_data.py pending 2027                  # 待更新清单
+python scripts/manage_data.py patch --year 2027 --province 河南 --subject 物理类 \
+    --tier 普通一本 --min-rank 150000 --min-score 520 --source-url https://... --operator alice
+python scripts/manage_data.py validate 2027                 # 校验（有阻塞问题则退出码 1）
+python scripts/manage_data.py publish  2027 --operator alice # 发布为生效版本
+python scripts/manage_data.py rollback 2026                 # 回滚到历史版本
+```
+
+管理端「数据版本」页提供同样的能力（建年度 / 校验 / 发布 / 回滚 / 待更新清单 / 变更审计 / 撤销）。
+
+### 6) 环境变量
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|

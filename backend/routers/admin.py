@@ -18,6 +18,7 @@ from db.models import AdminUser, SyncJob
 from db import seed as seed_mod
 from services import admission as A
 from services import admin_auth as auth
+from services import data_versions as DV
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -42,6 +43,55 @@ class ChangePasswordRequest(BaseModel):
 class SyncRequest(BaseModel):
     targets: list[str] = Field(default_factory=lambda: ["universities", "admission", "content"])
     force: bool = False
+
+
+# ---------------------------------------------------------------- 数据版本
+
+class CloneRequest(BaseModel):
+    from_year: int = Field(ge=2000, le=2100)
+    to_year: int = Field(ge=2000, le=2100)
+    dataset: str = "admission"
+    note: str = ""
+
+
+class PublishRequest(BaseModel):
+    dataset: str = "admission"
+    force: bool = False
+    note: str = ""
+
+
+class RollbackRequest(BaseModel):
+    dataset: str = "admission"
+    reason: str = ""
+
+
+class BaselinePatch(BaseModel):
+    min_score: int | None = None
+    min_rank: int | None = None
+    data_source: str | None = None
+    line: str | None = None
+    school: str | None = None
+    source_url: str | None = None
+    source_year: int | None = None
+    carried: bool | None = None
+    reason: str = ""
+    publish: bool = False
+
+
+class BaselineCreate(BaseModel):
+    year: int
+    province: str
+    subject: str
+    tier: str
+    min_score: int
+    min_rank: int
+    data_source: str | None = "estimated"
+    line: str | None = ""
+    school: str | None = ""
+    source_url: str | None = ""
+    source_year: int | None = None
+    carried: bool = False
+    reason: str = ""
 
 
 # ---------------------------------------------------------------- 鉴权
@@ -112,8 +162,9 @@ def overview(admin: dict = Depends(auth.require_admin)):
          "status": "ok" if counts["count_985"] >= 38 and counts["count_211"] == 112 else "warn",
          "detail": f"985 {counts['count_985']} 所 · 211 {counts['count_211']} 所"},
         {"key": "baselines", "label": "录取基线",
-         "status": "ok" if db_info["baseline_rows"] >= 280 else "warn",
-         "detail": f"{db_info['baseline_rows']} 行（官方 {db_info['official_rows']} / 估算 {db_info['estimated_rows']}）"},
+         "status": "ok" if db_info["active_rows"] >= 280 else "warn",
+         "detail": f"{db_info['active_year']} 年生效版本 {db_info['active_rows']} 行"
+                    f"（官方 {db_info['official_rows']} / 估算 {db_info['estimated_rows']}；全库 {db_info['baseline_rows']} 行）"},
         {"key": "official", "label": "官方数据覆盖",
          "status": "ok" if coverage else "warn",
          "detail": f"{len(coverage)} 省：{'、'.join(coverage) if coverage else '未接入'}"},
@@ -191,6 +242,8 @@ def meta(admin: dict = Depends(auth.require_admin)):
         "content": repo.get_json_setting("content_meta", {}),
         "admission": repo.get_json_setting("admission_meta", {}),
         "targets": TARGET_LABEL,
+        "active_year": repo.active_year(),
+        "years": [row["year"] for row in repo.year_summary()],
     }
 
 
@@ -213,9 +266,97 @@ def list_universities(q: str | None = None, province: str | None = None,
 
 @router.get("/baselines")
 def list_baselines(province: str | None = None, subject: str | None = None,
+                   year: int | None = None, admin: dict = Depends(auth.require_admin)):
+    active = repo.active_year()
+    rows = repo.baseline_rows(province, subject, int(year) if year else active)
+    return {"ok": True, "count": len(rows), "rows": rows,
+            "year": int(year) if year else active, "active_year": active}
+
+
+# ---------------------------------------------------------------- 数据版本管理
+
+@router.get("/versions")
+def list_versions(dataset: str = "admission", admin: dict = Depends(auth.require_admin)):
+    """数据版本总览：生效年份 + 各年份状态 + 待更新清单 + 最近变更。"""
+    return DV.status(dataset)
+
+
+@router.post("/versions/clone")
+def clone_version(req: CloneRequest, admin: dict = Depends(auth.require_admin)):
+    """以某一年为蓝本创建新年度草稿（年度更新第一步）。"""
+    result = DV.clone_year(req.from_year, req.to_year, dataset=req.dataset,
+                           operator=admin["username"], note=req.note)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+
+@router.post("/versions/{year}/validate")
+def validate_version(year: int, dataset: str = "admission",
+                     admin: dict = Depends(auth.require_admin)):
+    """发布前校验（覆盖、数值、单调性、来源、同比波动）。"""
+    return DV.validate_year(year, dataset)
+
+
+@router.post("/versions/{year}/publish")
+def publish_version(year: int, req: PublishRequest | None = None,
+                    admin: dict = Depends(auth.require_admin)):
+    req = req or PublishRequest()
+    result = DV.publish_year(year, dataset=req.dataset, operator=admin["username"], force=req.force)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+
+@router.post("/versions/{year}/rollback")
+def rollback_version(year: int, req: RollbackRequest | None = None,
+                     admin: dict = Depends(auth.require_admin)):
+    req = req or RollbackRequest()
+    result = DV.rollback(req.dataset, year, operator=admin["username"], reason=req.reason)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+
+@router.get("/versions/{year}/pending")
+def pending_updates(year: int | None = None, dataset: str = "admission",
+                    admin: dict = Depends(auth.require_admin)):
+    """待更新清单（沿用往年值的行，按省份聚合）。"""
+    return DV.pending_updates(year, dataset)
+
+
+@router.patch("/baselines/{row_id}")
+def patch_baseline(row_id: int, req: BaselinePatch,
                    admin: dict = Depends(auth.require_admin)):
-    rows = repo.baseline_rows(province, subject)
-    return {"ok": True, "count": len(rows), "rows": rows}
+    """单条基线补丁（单年数据修正），逐字段留痕。"""
+    result = DV.patch_baseline(row_id, req.model_dump(exclude_none=True),
+                               operator=admin["username"], reason=req.reason, publish=req.publish)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+
+@router.post("/baselines")
+def create_baseline(req: BaselineCreate, admin: dict = Depends(auth.require_admin)):
+    """补录缺失的基线行。"""
+    result = DV.create_baseline(req.model_dump(), operator=admin["username"], reason=req.reason)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+
+@router.get("/changes")
+def list_changes(dataset: str | None = None, year: int | None = None, limit: int = 50,
+                 admin: dict = Depends(auth.require_admin)):
+    return {"ok": True, "rows": DV.changes(dataset, year, limit)}
+
+
+@router.post("/changes/{change_id}/undo")
+def undo_change(change_id: int, admin: dict = Depends(auth.require_admin)):
+    result = DV.undo_change(change_id, operator=admin["username"])
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
 
 
 @router.get("/events")
