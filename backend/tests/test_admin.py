@@ -123,3 +123,35 @@ def test_admin_sources_status():
     keys = {f["key"] for f in j["files"]}
     assert {"universities", "elite", "baseline", "official", "content"} <= keys
     assert all(f["exists"] for f in j["files"])
+
+
+def test_admin_console_template_is_browser_safe():
+    """回归：in-DOM 模板里自闭合自定义标签会被浏览器当成开标签，吞掉后续兄弟节点。
+
+    曾导致登录页只剩账号输入框（密码框被吞进第一个 el-input 的插槽里）。
+    """
+    import re
+    from pathlib import Path
+
+    html = Path(__file__).resolve().parents[1] / "admin" / "index.html"
+    src = html.read_text(encoding="utf-8")
+    bad = re.findall(r"<(?:el|app)-[a-z0-9-]+[^<>]*/>", src)
+    assert not bad, f"存在自闭合自定义标签，浏览器解析会吞掉后续节点: {bad[:5]}"
+
+    # 登录表单必须同时存在账号与密码输入
+    assert 'v-model="loginForm.username"' in src
+    assert 'v-model="loginForm.password"' in src
+    assert 'type="password"' in src
+
+    # 每个自定义组件开标签都必须有对应闭合标签
+    for tag in ("el-input", "el-table-column", "el-option", "app-icon", "el-input-number"):
+        opened = len(re.findall(rf"<{tag}(?=[\s>])", src))
+        closed = src.count(f"</{tag}>")
+        assert opened == closed and opened > 0, f"{tag} 开闭标签数量不一致: {opened} vs {closed}"
+
+
+def test_admin_console_served():
+    r = c.get("/admin/")
+    assert r.status_code == 200
+    body = r.text
+    assert "loginForm.password" in body and 'type="password"' in body

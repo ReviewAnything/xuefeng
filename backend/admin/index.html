@@ -24,10 +24,10 @@
       </div>
       <div class="login-form">
         <label>管理员账号</label>
-        <el-input v-model="loginForm.username" size="large" placeholder="请输入账号" @keyup.enter="doLogin" />
+        <el-input v-model="loginForm.username" size="large" placeholder="请输入账号" @keyup.enter="doLogin"></el-input>
         <label>密码</label>
         <el-input v-model="loginForm.password" type="password" show-password size="large"
-                  placeholder="请输入密码" @keyup.enter="doLogin" />
+                  placeholder="请输入密码" @keyup.enter="doLogin"></el-input>
         <el-button type="primary" size="large" class="login-btn" :loading="loginLoading" @click="doLogin">
           登录控制台
         </el-button>
@@ -54,7 +54,7 @@
       <nav class="nav">
         <a v-for="item in navItems" :key="item.key"
            :class="['nav-item', { active: page === item.key }]" @click="go(item.key)">
-          <app-icon :name="item.icon" />
+          <app-icon :name="item.icon"></app-icon>
           <span>{{ item.label }}</span>
           <em v-if="item.key === 'sync' && overview && overview.kpis.pending_sync" class="dot">{{ overview.kpis.pending_sync }}</em>
         </a>
@@ -85,13 +85,13 @@
           </el-tag>
           <el-tag v-else type="success" effect="plain" round>数据已同步</el-tag>
           <el-button size="small" :loading="loading" @click="refreshAll">
-            <app-icon name="refresh" /> 刷新
+            <app-icon name="refresh"></app-icon> 刷新
           </el-button>
           <el-dropdown trigger="click" @command="onUserCommand">
             <span class="user-chip">
               <i class="avatar">{{ (user && user.username || 'A').slice(0, 1).toUpperCase() }}</i>
               <span>{{ user ? user.username : 'admin' }}</span>
-              <app-icon name="chevron" />
+              <app-icon name="chevron"></app-icon>
             </span>
             <template #dropdown>
               <el-dropdown-menu>
@@ -106,13 +106,13 @@
       <el-main class="main">
         <el-alert v-if="user && user.must_change_password" type="warning" show-icon :closable="false"
                   class="pwd-alert" title="当前仍在使用初始密码"
-                  description="为保障数据安全，请前往「系统设置」修改管理员密码。" />
+                  description="为保障数据安全，请前往「系统设置」修改管理员密码。"></el-alert>
 
         <!-- ---------------- 概览 ---------------- -->
         <section v-if="page === 'dashboard'" class="page">
           <div class="kpi-grid">
             <div class="kpi" v-for="k in kpiCards" :key="k.label">
-              <div class="kpi-top"><span>{{ k.label }}</span><app-icon :name="k.icon" /></div>
+              <div class="kpi-top"><span>{{ k.label }}</span><app-icon :name="k.icon"></app-icon></div>
               <div class="kpi-value">{{ k.value }}<em v-if="k.unit">{{ k.unit }}</em></div>
               <div class="kpi-sub">{{ k.sub }}</div>
             </div>
@@ -175,7 +175,7 @@
                   <span>{{ j.message || '—' }}</span>
                   <em>{{ fmtTime(j.created_at) }}</em>
                 </div>
-                <el-empty v-if="overview && !overview.jobs.length" description="暂无同步记录" :image-size="72" />
+                <el-empty v-if="overview && !overview.jobs.length" description="暂无同步记录" :image-size="72"></el-empty>
               </div>
             </div>
           </div>
@@ -186,26 +186,26 @@
           <div class="panel">
             <div class="toolbar">
               <el-input v-model="uniFilters.q" placeholder="搜索校名 / 城市" clearable
-                        style="width: 220px" @keyup.enter="loadUniversities(1)" />
+                        style="width: 220px" @keyup.enter="loadUniversities(1)"></el-input>
               <el-select v-model="uniFilters.province" placeholder="全部省份" clearable filterable style="width: 140px">
-                <el-option v-for="p in (meta ? meta.provinces : [])" :key="p" :label="p" :value="p" />
+                <el-option v-for="p in (meta ? meta.provinces : [])" :key="p" :label="p" :value="p"></el-option>
               </el-select>
               <el-select v-model="uniFilters.level" placeholder="办学层次" clearable style="width: 120px">
-                <el-option label="本科" value="本科" />
-                <el-option label="专科" value="专科" />
+                <el-option label="本科" value="本科"></el-option>
+                <el-option label="专科" value="专科"></el-option>
               </el-select>
               <el-select v-model="uniFilters.tier" placeholder="院校层次" clearable style="width: 120px">
-                <el-option label="985" value="985" />
-                <el-option label="211" value="211" />
-                <el-option label="双一流" value="dfc" />
+                <el-option label="985" value="985"></el-option>
+                <el-option label="211" value="211"></el-option>
+                <el-option label="双一流" value="dfc"></el-option>
               </el-select>
               <el-select v-model="uniFilters.nature" placeholder="办学性质" clearable style="width: 130px">
-                <el-option v-for="n in (meta ? meta.natures : [])" :key="n" :label="n" :value="n" />
+                <el-option v-for="n in (meta ? meta.natures : [])" :key="n" :label="n" :value="n"></el-option>
               </el-select>
               <el-button type="primary" @click="loadUniversities(1)">查询</el-button>
               <el-button @click="resetUniFilters">重置</el-button>
               <span class="toolbar-spacer"></span>
-              <el-button plain @click="exportCsv('universities')"><app-icon name="download" /> 导出 CSV</el-button>
+              <el-button plain @click="exportCsv('universities')"><app-icon name="download"></app-icon> 导出 CSV</el-button>
             </div>
 
             <div class="table-meta">
@@ -213,12 +213,12 @@
             </div>
 
             <el-table :data="uniRows" v-loading="uniLoading" stripe height="560" style="width: 100%">
-              <el-table-column prop="name" label="院校名称" min-width="220" show-overflow-tooltip />
-              <el-table-column prop="province" label="省份" width="90" />
-              <el-table-column prop="city" label="城市" width="110" show-overflow-tooltip />
-              <el-table-column prop="level" label="层次" width="80" />
-              <el-table-column prop="nature" label="性质" width="100" />
-              <el-table-column prop="supervisor" label="主管部门" min-width="150" show-overflow-tooltip />
+              <el-table-column prop="name" label="院校名称" min-width="220" show-overflow-tooltip></el-table-column>
+              <el-table-column prop="province" label="省份" width="90"></el-table-column>
+              <el-table-column prop="city" label="城市" width="110" show-overflow-tooltip></el-table-column>
+              <el-table-column prop="level" label="层次" width="80"></el-table-column>
+              <el-table-column prop="nature" label="性质" width="100"></el-table-column>
+              <el-table-column prop="supervisor" label="主管部门" min-width="150" show-overflow-tooltip></el-table-column>
               <el-table-column label="标签" width="150">
                 <template #default="s">
                   <el-tag v-if="s.row.is_985" size="small" type="danger" effect="dark">985</el-tag>
@@ -226,13 +226,13 @@
                   <el-tag v-if="s.row.is_dfc" size="small" type="info" effect="plain">双一流</el-tag>
                 </template>
               </el-table-column>
-              <el-table-column prop="code" label="标识码" width="130" />
+              <el-table-column prop="code" label="标识码" width="130"></el-table-column>
             </el-table>
 
             <div class="pager">
               <el-pagination background layout="prev, pager, next, jumper" :total="uniTotal"
                              :page-size="uniPageSize" :current-page="uniPage"
-                             @current-change="loadUniversities" />
+                             @current-change="loadUniversities"></el-pagination>
             </div>
           </div>
         </section>
@@ -243,30 +243,30 @@
             <div class="toolbar">
               <el-select v-model="baseFilters.province" placeholder="全部省份" clearable filterable
                          style="width: 160px" @change="loadBaselines">
-                <el-option v-for="p in (meta ? meta.provinces : [])" :key="p" :label="p" :value="p" />
+                <el-option v-for="p in (meta ? meta.provinces : [])" :key="p" :label="p" :value="p"></el-option>
               </el-select>
               <el-select v-model="baseFilters.subject" placeholder="全部科类" clearable
                          style="width: 140px" @change="loadBaselines">
-                <el-option label="物理类" value="物理类" />
-                <el-option label="历史类" value="历史类" />
-                <el-option label="综合" value="综合" />
+                <el-option label="物理类" value="物理类"></el-option>
+                <el-option label="历史类" value="历史类"></el-option>
+                <el-option label="综合" value="综合"></el-option>
               </el-select>
               <el-select v-model="baselineYear" placeholder="数据年份" style="width: 120px" @change="loadBaselines">
-                <el-option v-for="y in (meta ? meta.years : [])" :key="y" :label="y + ' 年'" :value="y" />
+                <el-option v-for="y in (meta ? meta.years : [])" :key="y" :label="y + ' 年'" :value="y"></el-option>
               </el-select>
               <el-button @click="loadBaselines">刷新</el-button>
               <span class="toolbar-spacer"></span>
               <el-tag type="success" effect="plain">官方 {{ baseOfficialCount }} 行</el-tag>
               <el-tag type="warning" effect="plain">估算 {{ baseRows.length - baseOfficialCount }} 行</el-tag>
-              <el-button plain @click="exportCsv('baselines')"><app-icon name="download" /> 导出 CSV</el-button>
+              <el-button plain @click="exportCsv('baselines')"><app-icon name="download"></app-icon> 导出 CSV</el-button>
             </div>
 
             <el-table :data="baseRows" v-loading="baseLoading" stripe height="600" style="width: 100%">
-              <el-table-column prop="province" label="省份" width="90" />
-              <el-table-column prop="subject" label="科类" width="90" />
-              <el-table-column prop="tier" label="批次" width="100" />
-              <el-table-column prop="min_score" label="最低分" width="90" align="right" />
-              <el-table-column prop="min_rank" label="最低位次" width="120" align="right" />
+              <el-table-column prop="province" label="省份" width="90"></el-table-column>
+              <el-table-column prop="subject" label="科类" width="90"></el-table-column>
+              <el-table-column prop="tier" label="批次" width="100"></el-table-column>
+              <el-table-column prop="min_score" label="最低分" width="90" align="right"></el-table-column>
+              <el-table-column prop="min_rank" label="最低位次" width="120" align="right"></el-table-column>
               <el-table-column label="数据来源" width="110">
                 <template #default="s">
                   <el-tag size="small" :type="s.row.data_source === 'official' ? 'success' : 'warning'" effect="plain">
@@ -274,9 +274,9 @@
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column prop="line" label="官方线" min-width="150" show-overflow-tooltip />
-              <el-table-column prop="school" label="入门院校" min-width="180" show-overflow-tooltip />
-              <el-table-column prop="year" label="年份" width="80" />
+              <el-table-column prop="line" label="官方线" min-width="150" show-overflow-tooltip></el-table-column>
+              <el-table-column prop="school" label="入门院校" min-width="180" show-overflow-tooltip></el-table-column>
+              <el-table-column prop="year" label="年份" width="80"></el-table-column>
               <el-table-column label="来源" width="90">
                 <template #default="s">
                   <a v-if="s.row.source_url" :href="s.row.source_url" target="_blank" class="link">查看 ↗</a>
@@ -301,23 +301,23 @@
           <el-dialog v-model="editDialog" title="修正基线数据（单年补丁）" width="520">
             <el-form label-position="top">
               <el-form-item label="数据行">
-                <el-input :model-value="editForm.label" disabled />
+                <el-input :model-value="editForm.label" disabled></el-input>
               </el-form-item>
               <el-form-item label="最低分">
-                <el-input-number v-model="editForm.min_score" :min="0" :max="750" />
+                <el-input-number v-model="editForm.min_score" :min="0" :max="750"></el-input-number>
               </el-form-item>
               <el-form-item label="最低位次">
-                <el-input-number v-model="editForm.min_rank" :min="1" :max="3000000" :step="100" />
+                <el-input-number v-model="editForm.min_rank" :min="1" :max="3000000" :step="100"></el-input-number>
               </el-form-item>
               <el-form-item label="出处年份">
-                <el-input-number v-model="editForm.source_year" :min="2000" :max="2100" />
+                <el-input-number v-model="editForm.source_year" :min="2000" :max="2100"></el-input-number>
               </el-form-item>
               <el-form-item label="来源链接">
-                <el-input v-model="editForm.source_url" placeholder="官方公告 URL，便于追溯" />
+                <el-input v-model="editForm.source_url" placeholder="官方公告 URL，便于追溯"></el-input>
               </el-form-item>
               <el-form-item label="修改原因">
                 <el-input v-model="editForm.reason" type="textarea" :rows="2"
-                          placeholder="如：2027 官方一本线回填（省考试院公告）" />
+                          placeholder="如：2027 官方一本线回填（省考试院公告）"></el-input>
               </el-form-item>
             </el-form>
             <p class="hint">保存后会写入变更审计，可在「数据版本 → 变更审计」中撤销。</p>
@@ -344,7 +344,7 @@
                 <p>多年数据并存，仅「生效中」版本对外提供服务；草稿可反复校验后再发布</p>
               </div>
               <div>
-                <el-button type="primary" @click="openNewYear"><app-icon name="database" /> 新建年度</el-button>
+                <el-button type="primary" @click="openNewYear"><app-icon name="database"></app-icon> 新建年度</el-button>
                 <el-button @click="loadVersions" :loading="vOperating">刷新</el-button>
               </div>
             </div>
@@ -363,14 +363,14 @@
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column prop="row_count" label="行数" width="80" align="right" />
-              <el-table-column prop="official_rows" label="官方行" width="80" align="right" />
+              <el-table-column prop="row_count" label="行数" width="80" align="right"></el-table-column>
+              <el-table-column prop="official_rows" label="官方行" width="80" align="right"></el-table-column>
               <el-table-column label="沿用往年" width="100" align="right">
                 <template #default="s">
                   <span :class="{ 'warn-text': s.row.carried_rows > 0 }">{{ s.row.carried_rows }}</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="coverage_count" label="覆盖省" width="80" align="right" />
+              <el-table-column prop="coverage_count" label="覆盖省" width="80" align="right"></el-table-column>
               <el-table-column label="最近校验" min-width="180">
                 <template #default="s">
                   <el-tag v-if="!s.row.check || !s.row.check.validated_at" size="small" type="info" effect="plain">未校验</el-tag>
@@ -380,8 +380,8 @@
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column prop="revision" label="修订" width="70" align="right" />
-              <el-table-column prop="operator" label="操作人" width="100" />
+              <el-table-column prop="revision" label="修订" width="70" align="right"></el-table-column>
+              <el-table-column prop="operator" label="操作人" width="100"></el-table-column>
               <el-table-column label="更新时间" width="170">
                 <template #default="s">{{ fmtTime(s.row.updated_at) }}</template>
               </el-table-column>
@@ -406,16 +406,16 @@
                 <el-button size="small" @click="loadPending()">重新统计</el-button>
               </div>
               <el-table :data="vState.pending.provinces" height="320" style="width: 100%">
-                <el-table-column prop="province" label="省份" width="100" />
-                <el-table-column prop="rows" label="沿用行" width="90" align="right" />
-                <el-table-column prop="official" label="其中官方" width="90" align="right" />
+                <el-table-column prop="province" label="省份" width="100"></el-table-column>
+                <el-table-column prop="rows" label="沿用行" width="90" align="right"></el-table-column>
+                <el-table-column prop="official" label="其中官方" width="90" align="right"></el-table-column>
                 <el-table-column label="层级" min-width="220">
                   <template #default="s">
                     <span class="muted">{{ (s.row.tiers || []).slice(0, 4).join('、') }}<template v-if="s.row.tiers && s.row.tiers.length > 4">…</template></span>
                   </template>
                 </el-table-column>
               </el-table>
-              <el-empty v-if="!vState.pending.provinces.length" description="全部为当年数据" :image-size="60" />
+              <el-empty v-if="!vState.pending.provinces.length" description="全部为当年数据" :image-size="60"></el-empty>
             </div>
 
             <div class="panel">
@@ -429,7 +429,7 @@
                     <el-tag size="small" effect="plain">{{ actionLabel(s.row.action) }}</el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column prop="entity" label="对象" min-width="160" show-overflow-tooltip />
+                <el-table-column prop="entity" label="对象" min-width="160" show-overflow-tooltip></el-table-column>
                 <el-table-column label="变更" min-width="180" show-overflow-tooltip>
                   <template #default="s">
                     <span v-if="s.row.field">
@@ -438,7 +438,7 @@
                     <span v-else>{{ s.row.new_value }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column prop="operator" label="操作人" width="90" />
+                <el-table-column prop="operator" label="操作人" width="90"></el-table-column>
                 <el-table-column label="时间" width="150">
                   <template #default="s">{{ fmtTime(s.row.created_at) }}</template>
                 </el-table-column>
@@ -457,15 +457,15 @@
             <el-form label-position="top">
               <el-form-item label="蓝本年份">
                 <el-select v-model="newYearForm.from_year" style="width: 100%">
-                  <el-option v-for="v in vState.versions" :key="v.year" :label="v.year + ' 年'" :value="v.year" />
+                  <el-option v-for="v in vState.versions" :key="v.year" :label="v.year + ' 年'" :value="v.year"></el-option>
                 </el-select>
               </el-form-item>
               <el-form-item label="目标年份">
-                <el-input-number v-model="newYearForm.to_year" :min="2000" :max="2100" />
+                <el-input-number v-model="newYearForm.to_year" :min="2000" :max="2100"></el-input-number>
               </el-form-item>
               <el-form-item label="备注">
                 <el-input v-model="newYearForm.note" type="textarea" :rows="2"
-                          placeholder="如：2027 年度更新，沿用 2026 数据作为草稿" />
+                          placeholder="如：2027 年度更新，沿用 2026 数据作为草稿"></el-input>
               </el-form-item>
             </el-form>
             <p class="hint">
@@ -482,7 +482,7 @@
             <div v-if="checkResult">
               <el-alert :type="checkResult.ok ? 'success' : 'error'" :closable="false" show-icon
                         :title="checkResult.ok ? '校验通过' : '校验未通过'"
-                        :description="`${checkResult.year} 年 · 共 ${checkResult.stats.rows} 行 · 覆盖 ${checkResult.stats.provinces} 省`" />
+                        :description="`${checkResult.year} 年 · 共 ${checkResult.stats.rows} 行 · 覆盖 ${checkResult.stats.provinces} 省`"></el-alert>
               <div v-if="checkResult.errors && checkResult.errors.length" class="check-block">
                 <b>阻塞问题</b>
                 <div class="check-item" v-for="(e, i) in checkResult.errors" :key="'e' + i">
@@ -549,14 +549,14 @@
                     <b>强制重灌</b>
                     <span>忽略文件签名，全量覆盖写入（用于修复数据）</span>
                   </div>
-                  <el-switch v-model="syncForce" />
+                  <el-switch v-model="syncForce"></el-switch>
                 </div>
                 <el-button type="primary" size="large" :loading="syncing" class="sync-btn" @click="runSync">
-                  <app-icon name="refresh" /> {{ syncing ? '同步中…' : '开始同步' }}
+                  <app-icon name="refresh"></app-icon> {{ syncing ? '同步中…' : '开始同步' }}
                 </el-button>
                 <el-alert v-if="lastSync" :type="lastSync.ok ? 'success' : 'error'" :closable="false" show-icon
                           :title="lastSync.ok ? '同步完成' : '同步失败'"
-                          :description="lastSync.message" />
+                          :description="lastSync.message"></el-alert>
                 <p class="hint">
                   同步会写入「同步任务」记录；完成后业务缓存立即失效，核验/检索接口自动使用最新数据。
                 </p>
@@ -569,19 +569,19 @@
               <div><h3>同步历史</h3><p>最近 20 次任务</p></div>
             </div>
             <el-table :data="jobs" stripe style="width: 100%">
-              <el-table-column prop="id" label="#" width="70" />
-              <el-table-column prop="kind" label="同步目标" min-width="180" />
+              <el-table-column prop="id" label="#" width="70"></el-table-column>
+              <el-table-column prop="kind" label="同步目标" min-width="180"></el-table-column>
               <el-table-column label="状态" width="100">
                 <template #default="s">
                   <el-tag size="small" :type="jobTag(s.row.status)" effect="plain">{{ jobLabel(s.row.status) }}</el-tag>
                 </template>
               </el-table-column>
-              <el-table-column prop="total" label="总行数" width="90" align="right" />
-              <el-table-column prop="inserted" label="新增" width="80" align="right" />
-              <el-table-column prop="updated" label="更新" width="80" align="right" />
-              <el-table-column prop="skipped" label="跳过" width="80" align="right" />
-              <el-table-column prop="message" label="结果" min-width="280" show-overflow-tooltip />
-              <el-table-column prop="operator" label="操作人" width="100" />
+              <el-table-column prop="total" label="总行数" width="90" align="right"></el-table-column>
+              <el-table-column prop="inserted" label="新增" width="80" align="right"></el-table-column>
+              <el-table-column prop="updated" label="更新" width="80" align="right"></el-table-column>
+              <el-table-column prop="skipped" label="跳过" width="80" align="right"></el-table-column>
+              <el-table-column prop="message" label="结果" min-width="280" show-overflow-tooltip></el-table-column>
+              <el-table-column prop="operator" label="操作人" width="100"></el-table-column>
               <el-table-column label="时间" width="170">
                 <template #default="s">{{ fmtTime(s.row.created_at) }}</template>
               </el-table-column>
@@ -607,7 +607,7 @@
               </el-radio-group>
             </div>
             <el-table :data="events" stripe style="width: 100%">
-              <el-table-column prop="id" label="#" width="70" />
+              <el-table-column prop="id" label="#" width="70"></el-table-column>
               <el-table-column label="类型" width="90">
                 <template #default="s">
                   <el-tag size="small" :type="s.row.kind === 'verify' ? 'warning' : 'info'" effect="plain">
@@ -615,10 +615,10 @@
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column prop="province" label="省份" width="90" />
-              <el-table-column prop="subject" label="科类" width="90" />
-              <el-table-column prop="user_rank" label="位次" width="110" align="right" />
-              <el-table-column prop="major_name" label="专业" min-width="160" show-overflow-tooltip />
+              <el-table-column prop="province" label="省份" width="90"></el-table-column>
+              <el-table-column prop="subject" label="科类" width="90"></el-table-column>
+              <el-table-column prop="user_rank" label="位次" width="110" align="right"></el-table-column>
+              <el-table-column prop="major_name" label="专业" min-width="160" show-overflow-tooltip></el-table-column>
               <el-table-column label="结论" width="130">
                 <template #default="s">
                   <el-tag v-if="s.row.alignment" size="small"
@@ -629,7 +629,7 @@
                   <span v-else class="muted">—</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="best_tier" label="可达批次" width="110" />
+              <el-table-column prop="best_tier" label="可达批次" width="110"></el-table-column>
               <el-table-column label="时间" width="180">
                 <template #default="s">{{ fmtTime(s.row.created_at) }}</template>
               </el-table-column>
@@ -658,13 +658,13 @@
               <div class="panel-head"><div><h3>修改密码</h3><p>至少 8 位，PBKDF2 加盐存储</p></div></div>
               <el-form label-position="top" class="pwd-form">
                 <el-form-item label="原密码">
-                  <el-input v-model="pwdForm.old_password" type="password" show-password />
+                  <el-input v-model="pwdForm.old_password" type="password" show-password></el-input>
                 </el-form-item>
                 <el-form-item label="新密码">
-                  <el-input v-model="pwdForm.new_password" type="password" show-password />
+                  <el-input v-model="pwdForm.new_password" type="password" show-password></el-input>
                 </el-form-item>
                 <el-form-item label="确认新密码">
-                  <el-input v-model="pwdForm.confirm" type="password" show-password />
+                  <el-input v-model="pwdForm.confirm" type="password" show-password></el-input>
                 </el-form-item>
                 <el-button type="primary" :loading="pwdLoading" @click="changePassword">保存新密码</el-button>
               </el-form>
@@ -681,7 +681,7 @@
               <div class="info"><span>专业图谱</span><b>{{ overview ? overview.kpis.majors : '—' }} 个</b></div>
               <div class="info"><span>内容版本</span><b>{{ meta && meta.content ? meta.content.APP_VERSION : '—' }}</b></div>
             </div>
-            <el-divider />
+            <el-divider ></el-divider>
             <p class="hint">
               生产部署建议：设置 <code>XUEFENG_ADMIN_PASSWORD</code> 覆盖初始密码、设置
               <code>XUEFENG_AUTH_SECRET</code> 固定签名密钥、通过 <code>XUEFENG_DATABASE_URL</code> 切换 PostgreSQL；

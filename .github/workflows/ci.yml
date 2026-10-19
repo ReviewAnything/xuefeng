@@ -62,6 +62,13 @@ jobs:
           node-version: "20"
       - name: Syntax check admin console
         run: node --check backend/admin/app.js
+      - name: Reject self-closing custom tags (Vue in-DOM template pitfall)
+        run: |
+          node -e "const s=require('fs').readFileSync('backend/admin/index.html','utf8');
+          const m=s.match(/<(?:el|app)-[a-z0-9-]+[^<>]*\/>/g);
+          if(m){console.error('自闭合自定义标签会被浏览器当成开标签并吞掉后续兄弟节点（曾导致登录页只剩账号框）:');
+          console.error(m.slice(0,5).join('\n'));process.exit(1);}
+          console.log('ok: 无自闭合自定义标签');"
       - name: Ensure vendor assets are present
         run: |
           test -f backend/admin/vendor/vue.global.prod.js
