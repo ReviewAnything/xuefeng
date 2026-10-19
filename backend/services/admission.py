@@ -148,6 +148,80 @@ def analyze_major(province: str, subject: str, user_rank: int, major_name: str, 
     }
 
 
+_UNI_CACHE = None
+
+
+def _load_universities() -> dict:
+    """加载 985/211 院校完整静态清单（缓存）。"""
+    global _UNI_CACHE
+    if _UNI_CACHE is None:
+        path = os.path.join(_DATA_DIR, "universities.json")
+        with open(path, "r", encoding="utf-8") as f:
+            _UNI_CACHE = json.load(f)
+    return _UNI_CACHE
+
+
+def universities(province: str = None, tier: str = None, category: str = None,
+                 q: str = None, limit: int = 300) -> dict:
+    """按条件筛选 985/211 院校完整静态清单（教育部官方名单，112 所）。
+
+    tier: "985" 仅返回 985（39 所）；"211" 返回全部 211（112 所，含 985）。
+    q: 校名/简称模糊匹配。
+    """
+    data = _load_universities()
+    items = data["universities"]
+    if province:
+        items = [u for u in items if u["province"] == province]
+    if tier == "985":
+        items = [u for u in items if u["is_985"]]
+    elif tier == "211":
+        items = [u for u in items if u["is_211"]]
+    if category:
+        items = [u for u in items if u["category"] == category]
+    if q:
+        q = q.strip()
+        items = [u for u in items if q in u["name"] or q in u["short"]]
+    items = items[:limit]
+    return {"ok": True, "count": len(items), "total": data["meta"]["count"],
+            "count_985": data["meta"]["count_985"],
+            "universities": items, "data_source": "static_official"}
+
+
+def universities_by_tier(tier: str) -> list:
+    """返回某层次（985/211）的全部院校名（用于核验页按层次展示可触及院校）。"""
+    data = _load_universities()
+    if tier == "985":
+        return [u["name"] for u in data["universities"] if u["is_985"]]
+    if tier == "211":
+        return [u["name"] for u in data["universities"] if u["is_211"]]
+    return []
+
+
+def analyze_major(province: str, subject: str, user_rank: int, major_name: str, major_cat: str) -> dict:
+    """对某专业做完整的位次可达性分析 + 冲稳保，并附带可触及层次的院校清单。"""
+    if not isinstance(user_rank, int) or user_rank <= 0:
+        return {"ok": False, "error": "位次必须为正整数"}
+    th = major_thresholds(province, subject, major_name, major_cat)
+    if not th["ok"]:
+        return th
+    best = None
+    for t in th["tiers"]:
+        t = dict(t)
+        t["level"] = classify(user_rank, t["min_rank"])
+        if t["level"] != "不可及":
+            if best is None or t["min_rank"] < best["min_rank"]:
+                best = t
+    reachable_schools = universities_by_tier(best["tier"]) if best else []
+    return {
+        "ok": True, "province": province, "subject": subject, "major": major_name,
+        "user_rank": user_rank, "tiers": th["tiers"], "best_reachable": best,
+        "reachable_tier": best["tier"] if best else None,
+        "reachable_tier_schools": reachable_schools,
+        "reachable_tier_school_count": len(reachable_schools),
+        "data_source": data_source(),
+    }
+
+
 def search(province: str, subject: str, user_rank: int, limit: int = 20) -> dict:
     """给定用户位次，从非避坑专业中筛选出可达专业并按 冲稳保 组织（数据侧喂给诊断）。"""
     from .content import MAJORS

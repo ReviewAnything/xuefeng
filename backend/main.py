@@ -6,6 +6,7 @@ FastAPI 应用，提供：
   - GET  /api/majors            专业图谱（含视图/偏见校正）
   - GET  /api/resources         开源资源中心
   - GET  /api/admission/search  按位次筛 冲/稳/保 可达专业（数据侧）
+  - GET  /api/universities       985/211 院校完整静态清单（112 所，可筛选）
   - POST /api/verify            观点×数据 交叉核验（P2 核心）
 
 运行：uvicorn main:app --reload --port 8000
@@ -74,6 +75,15 @@ def admission_search(province: str, subject: str, user_rank: int, limit: int = 2
     if user_rank <= 0:
         raise HTTPException(status_code=400, detail="位次必须为正整数")
     result = A.search(province, subject, user_rank, limit)
+    if not result["ok"]:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
+
+@app.get("/api/universities")
+def universities(province: str = None, tier: str = None, category: str = None, q: str = None):
+    """985/211 院校完整静态清单（教育部官方名单，112 所，可按省/层次/门类/校名筛选）。"""
+    result = A.universities(province=province, tier=tier, category=category, q=q)
     if not result["ok"]:
         raise HTTPException(status_code=404, detail=result["error"])
     return result

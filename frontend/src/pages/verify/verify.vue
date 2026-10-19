@@ -60,6 +60,14 @@
         <text class="dsrc">数据源：{{ res.data_source === 'official_overlay' ? '6省官方省控线 + 其余估算（以考试院为准）' : (res.data_source === 'real' ? '真实录取记录（估算）' : '参数化样例（演示）') }}</text>
       </view>
 
+      <view class="block" v-if="res.reachable_tier && res.reachable_tier_schools && res.reachable_tier_schools.length">
+        <text class="bk">可触及层次院校（{{ res.reachable_tier }} · 共 {{ res.reachable_tier_school_count }} 所）</text>
+        <view class="uni-wrap">
+          <text class="utag" v-for="s in res.reachable_tier_schools" :key="s">{{ s }}</text>
+        </view>
+        <text class="dsrc">以上为教育部官方 {{ res.reachable_tier }} 院校完整清单（静态数据）；同层次内未区分具体录取线，请以各校招生网/考试院为准。</text>
+      </view>
+
       <view class="block msg">
         <rich-text :nodes="res.message"></rich-text>
       </view>
@@ -164,6 +172,8 @@ async function run() {
 .tl.冲 { background: #3a2f12; color: #f0ad4e; }
 .tl.不可及 { background: #23262e; color: #6b7280; }
 .dsrc { font-size: 21rpx; color: #6db3f2; display: block; margin-top: 6rpx; }
+.uni-wrap { display: flex; flex-wrap: wrap; gap: 8rpx; margin-top: 6rpx; }
+.utag { font-size: 20rpx; color: #c7ccd4; background: #0f1115; border: 1px solid #2a2e37; border-radius: 8rpx; padding: 4rpx 10rpx; }
 .msg { background: #1c1f26; border-radius: 12rpx; padding: 16rpx; }
 .sg { font-size: 23rpx; color: #c7ccd4; line-height: 1.8; }
 </style>

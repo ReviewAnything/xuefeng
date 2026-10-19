@@ -99,3 +99,36 @@ def test_official_unsupported_province_falls_back():
     assert r.status_code == 200
     j = r.json()
     assert all(t["data_source"] == "estimated" for t in j["tiers"])
+
+
+def test_universities_full_list():
+    # 完整静态清单：112 所，其中 39 所 985
+    r = c.get("/api/universities")
+    assert r.status_code == 200
+    j = r.json()
+    assert j["ok"] is True
+    assert j["total"] == 112
+    assert j["count_985"] == 39
+    assert j["count"] == 112
+    # 全部 211（含 985）
+    r2 = c.get("/api/universities", params={"tier": "211"})
+    assert r2.json()["count"] == 112
+    # 仅 985
+    r3 = c.get("/api/universities", params={"tier": "985"})
+    assert r3.json()["count"] == 39
+    # 校名模糊搜索
+    r4 = c.get("/api/universities", params={"q": "清华"})
+    assert r4.json()["count"] == 1 and r4.json()["universities"][0]["name"] == "清华大学"
+    # 按省筛选
+    r5 = c.get("/api/universities", params={"province": "北京"})
+    assert r5.json()["count"] == 23  # 北京 985(8) + 211 非985(15) = 23
+
+
+def test_verify_includes_reachable_schools():
+    # 位次足够靠前时，可触及 985 层次并带出院校清单（39 所）
+    r = c.post("/api/verify", json={"province": "河南", "subject": "物理类", "user_rank": 2000, "major_name": "计算机科学与技术"})
+    assert r.status_code == 200
+    j = r.json()
+    assert j["reachable_tier"] == "985"
+    assert j["reachable_tier_school_count"] == 39
+    assert "清华大学" in j["reachable_tier_schools"]

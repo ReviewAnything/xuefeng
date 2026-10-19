@@ -130,6 +130,15 @@ python scripts/ingest_gaokao_advisor.py --sync     # 先拉取 gaokao-advisor �
 - 逐省来源、位次与置信度见 `backend/data/SOURCES.md`。
 - 官方口径为 2024 年；新高考改革省份逐年微调，使用时应以当年省考试院公布数据为准。
 
+### 985/211 院校完整静态清单（112 所）
+
+仓库内置 `backend/data/universities.json`：**教育部官方「211 工程」全部 112 所院校**（含 39 所 985），
+每所带 `省份/城市/门类/主管单位/层次(is_985/is_211/is_dfc)` 等静态属性。数据来自教育部官方名单，属权威、静态、可离线。
+
+- 后端新增 `GET /api/universities`：可按 `province` / `tier(985|211)` / `category` / `q(校名)` 筛选。
+- 交叉核验结果（`/api/verify`）会返回用户位次**可触及层次**的院校清单（`reachable_tier` / `reachable_tier_schools`），前端核验页直接展示该层次全部院校。
+- 说明：清单为院校层级元数据，**不含逐年录取分数**；同层次内各校正取线差异较大，具体请以各校招生网/考试院为准。
+
 ## 六、技术要点
 
 - **跨端**：uni-app Vue3 + Vite，`pages.json` tabBar 一套代码出 H5/小程序/App。

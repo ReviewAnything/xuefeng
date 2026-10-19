@@ -102,4 +102,7 @@ def _pack(province, subject, user_rank, major_name, view, reason, bias, ana,
         "message": message,
         "suggestions": suggestions,
         "data_source": ana["data_source"],
+        "reachable_tier": ana.get("reachable_tier"),
+        "reachable_tier_schools": ana.get("reachable_tier_schools", []),
+        "reachable_tier_school_count": ana.get("reachable_tier_school_count", 0),
     }
