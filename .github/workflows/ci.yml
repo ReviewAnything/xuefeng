@@ -33,3 +33,34 @@ jobs:
           node-version: "20"
       - name: Engine unit test (zero-dep)
         run: node tests/engine.test.mjs
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Build H5 (validates wot-design-uni integration)
+        run: npm run build:h5
+
+  admin-console:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Syntax check admin console
+        run: node --check backend/admin/app.js
+      - name: Ensure vendor assets are present
+        run: |
+          test -f backend/admin/vendor/vue.global.prod.js
+          test -f backend/admin/vendor/index.full.min.js
+          test -f backend/admin/vendor/index.css
+

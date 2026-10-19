@@ -3,7 +3,16 @@ services:
     build: ./backend
     ports:
       - "8000:8000"
+    environment:
+      # 首次建库时创建管理员；请在生产环境改掉默认密码
+      XUEFENG_ADMIN_USER: ${XUEFENG_ADMIN_USER:-admin}
+      XUEFENG_ADMIN_PASSWORD: ${XUEFENG_ADMIN_PASSWORD:-xuefeng@2026}
+      # 多实例部署时固定令牌签名密钥
+      XUEFENG_AUTH_SECRET: ${XUEFENG_AUTH_SECRET:-}
+      XUEFENG_DB_PATH: /app/data/xuefeng.db
+      # 如需 PostgreSQL，取消下行注释并提供 DATABASE_URL
+      # XUEFENG_DATABASE_URL: ${DATABASE_URL:-}
     volumes:
-      # 持久化录取数据（真实基线 / 样例），避免重建容器后丢失
+      # 持久化 SQLite 数据库与数据源（重建容器不丢数据）
       - ./backend/data:/app/data
     restart: unless-stopped

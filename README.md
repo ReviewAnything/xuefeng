@@ -1,12 +1,13 @@
 # 志愿决策助手 v2 · 跨端应用（uni-app + Python）
 
 把张雪峰「普通家庭 + 就业导向」的务实框架，与开源社区资源结合的**志愿决策助手**。
-v2 在 v1 纯前端 PWA 基础上做了两件事：
+v2 在 v1 纯前端 PWA 基础上做了三件事：
 
 1. **架构重构**：前端用 **uni-app (Vue3)** 实现一套代码跨 H5 / 微信小程序 / App；后端引入 **Python FastAPI** 承载数据层。
 2. **完成 P2（观点 × 数据 交叉核验）**：定性观点（推荐/慎选/避坑）与定量录取数据（位次 / 冲稳保）做一致性校验，强化偏见校正。
+3. **数据落库 + 运营管理端**：2868 所院校与 31 省录取基线落 SQLite（可切 PostgreSQL），提供 `/admin` 数据看板、数据浏览、同步与导出。
 
-> 内容来源：张雪峰公开观点（社区整理）+ 开源资源核实。**仅供学习参考，正式填报以各省考试院官方数据为准。**
+> 内容来源：公开观点（社区整理）+ 开源资源核实 + 各省考试院公开数据。**仅供学习参考，正式填报以各省考试院官方数据为准。**
 
 ---
 
@@ -16,32 +17,45 @@ v2 在 v1 纯前端 PWA 基础上做了两件事：
 zhiyuan-app-v2/
 ├── shared/
 │   └── content.json          # 单一数据源：majors / resources / questions / 版本（前端与后端共用）
-├── backend/                  # Python FastAPI 后端（P2 数据层）
-│   ├── main.py               # 路由与 API（/api/health, /api/majors, /api/verify, /api/admission/search ...）
+├── backend/                  # Python FastAPI 后端（P2 数据层 + 管理端 API）
+│   ├── main.py               # 路由与 API（health / majors / verify / admission / universities / admin）
+│   ├── db/                   # 数据落库层（SQLAlchemy）
+│   │   ├── database.py       # 引擎/会话（默认 SQLite，可切 PostgreSQL）
+│   │   ├── models.py         # 院校 / 录取基线 / 精英院校 / 内容 / 查询事件 / 同步任务 / 管理员
+│   │   ├── seed.py           # JSON → DB 幂等播种（SHA-256 签名，未变则跳过）
+│   │   └── repository.py     # 业务查询 + 短 TTL 缓存
+│   ├── routers/
+│   │   └── admin.py          # /api/admin/* 登录、看板、浏览、同步、导出
 │   ├── services/
 │   │   ├── content.py        # 读取 shared/content.json
-│   │   ├── admission.py      # 录取位次模型 + 冲稳保 + 真实/样例基线自动切换
-│   │   └── verify.py         # P2 核心：观点×数据 交叉核验
+│   │   ├── admission.py      # 录取位次模型（DB 优先、JSON 兜底）+ 冲稳保
+│   │   ├── verify.py         # P2 核心：观点×数据 交叉核验
+│   │   └── admin_auth.py     # PBKDF2 密码 + HMAC 令牌
+│   ├── admin/                # 管理端控制台（Vue3 + Element Plus，免构建）
+│   │   ├── index.html / app.js / styles.css
+│   │   └── vendor/           # 本地化 vue / element-plus（不依赖 CDN）
 │   ├── scripts/
 │   │   ├── ingest_gaokao_advisor.py       # 由 gaokao-advisor 生成 31 省真实录取基线
 │   │   └── build_universities_national.py # 由教育部官方 xls 生成全国院校总表
 │   ├── data/
-│   │   ├── admission_real_baseline.json  # 真实基线（31 省，脚本生成，后端优先使用）
+│   │   ├── admission_real_baseline.json  # 真实基线（31 省，脚本生成）
 │   │   ├── admission_official_2024.json  # 6 省官方省控线 + 985/211 入门投档位次
 │   │   ├── universities_national.json    # 全国普通高校静态总表（2868 所）
 │   │   ├── universities.json             # 985/211 权威清单（112 所，含门类/官网）
+│   │   ├── xuefeng.db                    # SQLite 数据库（运行时生成，已 gitignore）
 │   │   ├── SOURCES.md                    # 录取数据来源与置信度
 │   │   └── admission_sample.json         # 参数化样例录取数据（演示/fallback，非官方）
-│   ├── tests/test_api.py     # 后端测试（pytest + TestClient）
+│   ├── tests/                # pytest：API / 落库 / 管理端
 │   └── requirements.txt
-├── frontend/                 # uni-app (Vue3) 前端
+├── frontend/                 # uni-app (Vue3) + wot-design-uni
 │   ├── src/
 │   │   ├── pages/            # diagnose 诊断 / majors 专业 / verify 核验(P2) / resources 资源 / about 关于
 │   │   ├── utils/
 │   │   │   ├── content.js    # 引入 shared/content.json
 │   │   │   ├── engine.js     # 决策引擎（纯函数，可 Node 单测）
+│   │   │   ├── theme.js      # wot-design-uni 深色主题 token
 │   │   │   └── api.js        # 调用 Python 后端
-│   │   ├── pages.json        # 路由 + tabBar 跨端导航
+│   │   ├── pages.json        # 路由 + tabBar + wot easycom
 │   │   ├── manifest.json     # 多端 manifest
 │   │   └── App.vue / main.js / uni.scss
 │   ├── tests/engine.test.mjs # 前端引擎单测（零依赖）
@@ -62,15 +76,23 @@ zhiyuan-app-v2/
 
 ## 三、运行方式
 
-### 1) 后端（Python，必需：P2 数据层）
+### 1) 后端（Python，必需：P2 数据层 + 管理端）
 ```bash
 cd backend
 pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 # 接口文档：http://localhost:8000/docs
+# 管理端：  http://localhost:8000/admin
 ```
+首次启动会自动建表并播种（2868 所院校 + 280 行录取基线 + 38 专业），耗时约 5–10 秒；之后按文件签名跳过。
 
-### 2) 前端（uni-app，任选目标端）
+### 2) 管理端（数据看板 / 数据同步 / 院校库）
+浏览器打开 `http://localhost:8000/admin`。
+- 初始账号：`admin` / `xuefeng@2026`（可用 `XUEFENG_ADMIN_USER` / `XUEFENG_ADMIN_PASSWORD` 覆盖）
+- **首次登录请立即在「系统设置」修改密码**；管理端会持续提示未改密状态。
+- 功能：数据看板（院校/基线/查询趋势/健康检查）、院校库检索与 CSV 导出、录取基线浏览、数据同步（含强制重灌与任务记录）、查询日志、账号安全。
+
+### 3) 前端（uni-app，任选目标端）
 ```bash
 cd frontend
 npm install
@@ -82,23 +104,82 @@ npm run build:app       # App 包（需 HBuilderX / 云端打包）
 > 前端通过 `src/utils/api.js` 的 `API_BASE` 调用后端。本地 H5 默认 `http://localhost:8000`。
 > 生产/小程序请改为你的后端域名（HTTPS + 小程序后台配置 request 合法域名）。
 
-### 3) 单一数据源
+### 4) 单一数据源
 `shared/content.json` 同时被 `frontend/src/utils/content.js`（vite `@shared` 别名）和
-`backend/services/content.py` 读取。**年度更新只改这一个文件并 bump `APP_VERSION`。**
+`backend/services/content.py` 读取。**年度更新只改这一个文件并 bump `APP_VERSION`**，
+再在管理端点「数据同步 → 内容数据」即写入数据库。
+
+### 5) 环境变量
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `XUEFENG_DB_PATH` | `backend/data/xuefeng.db` | SQLite 文件路径 |
+| `XUEFENG_DATABASE_URL` | — | 完整 SQLAlchemy URL，设置后优先（如 `postgresql+psycopg://...`） |
+| `XUEFENG_ADMIN_USER` | `admin` | 初始管理员账号（仅首次建库生效） |
+| `XUEFENG_ADMIN_PASSWORD` | `xuefeng@2026` | 初始管理员密码（仅首次建库生效） |
+| `XUEFENG_AUTH_SECRET` | 自动生成并存入 DB | 令牌签名密钥，多实例部署时应固定 |
+| `XUEFENG_TOKEN_TTL` | `43200` | 管理端登录有效期（秒） |
 
 ## 四、本地测试
 
 ```bash
 # 后端：pytest（FastAPI TestClient，无需起服务）
 cd backend && pip install -r requirements.txt pytest && pytest -q
-# 期望：8 passed
+# 期望：23 passed（API 13 + 落库/管理端 10）
 
 # 前端：决策引擎单测（零依赖 Node ESM）
 cd frontend && node tests/engine.test.mjs
 # 期望：8 通过 / 0 失败
 ```
 
-## 五、P2 交叉核验逻辑
+## 五、数据落库与管理端
+
+### 1) 为什么要落库
+此前录取基线/院校清单是「每次请求读 JSON」，无法支撑筛选、分页、统计与运营。现在统一落库：
+
+| 表 | 内容 | 规模 |
+|---|---|---|
+| `universities` | 教育部全国普通高校 | 2868 |
+| `elite_universities` | 985/211 权威清单（含军校） | 112 |
+| `admission_baselines` | (省, 科类, 批次) 录取门槛，官方值已合并 | 280 行（官方 48） |
+| `majors` / `resources` | 专业图谱 / 开源资源 | 38 / 10 |
+| `query_events` | 匿名查询事件（省/科类/位次/结论） | 持续增长 |
+| `sync_jobs` | 同步任务与结果 | 持续增长 |
+| `admin_users` / `settings` | 管理员（PBKDF2）与配置 | — |
+
+设计要点：
+- **幂等播种**：`db/seed.py` 以源文件 SHA-256 为签名，未变化则跳过；重复同步只 upsert，不产生重复行。
+- **单一事实源**：官方省控线/985·211 入门位次在播种时**合并进同一行**并标注 `data_source=official`，查询侧不再分支。
+- **DB 优先、JSON 兜底**：`services/admission.py` 优先查库；数据库不可用时自动回落 JSON，服务不中断。
+- **短 TTL 缓存**：录取基线缓存 30s，院校计数缓存 60s；管理端同步后立即失效。
+- **可切 PostgreSQL**：设置 `XUEFENG_DATABASE_URL` 即可，无需改代码。
+
+### 2) 管理端能力
+- **登录鉴权**：PBKDF2-HMAC-SHA256（20 万次）+ HMAC-SHA256 签名令牌（默认 12h），无第三方 JWT 依赖。
+- **数据看板**：院校/985·211/基线/今日查询 4 张 KPI、14 天查询趋势、层次分布、省份 Top10、数据健康检查、最近同步。
+- **院校库**：按省/层次/性质/校名筛选 + 分页 + CSV 导出（带 BOM，Excel 直接打开）。
+- **录取基线**：逐行查看分数/位次/来源，官方与估算用徽标区分，可导出。
+- **数据同步**：展示 5 个数据源文件的条数/大小/更新时间；选择目标（院校/录取/内容/管理员）+ 可选强制重灌；写入任务记录。
+- **查询日志**：核验/检索的匿名片省、科类、位次、结论，用于产品分析。
+- **系统设置**：修改密码、运行环境、数据规模。
+
+管理端为 **Vue 3 + Element Plus** 的免构建 SPA，`vendor/` 内已本地化依赖，部署不依赖 CDN。
+
+### 3) 管理端 API（摘要）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/admin/login` | 登录，返回 Bearer token |
+| GET | `/api/admin/overview` | 看板数据（KPI/趋势/分布/健康检查） |
+| GET | `/api/admin/universities` | 院校分页检索 |
+| GET | `/api/admin/baselines` | 录取基线 |
+| GET | `/api/admin/sources` | 数据源文件状态 + 待同步项 |
+| POST | `/api/admin/sync` | 执行同步（记录 SyncJob） |
+| GET | `/api/admin/events` | 查询日志 |
+| GET | `/api/admin/export/*.csv` | 导出院校/基线 |
+| POST | `/api/admin/change-password` | 修改密码 |
+
+## 六、P2 交叉核验逻辑
 
 `/api/verify` 把专业 `view`（recommend/caution/avoid）与用户位次可达批次做一致性判定：
 
@@ -155,15 +236,19 @@ python scripts/ingest_gaokao_advisor.py --sync     # 先拉取 gaokao-advisor �
 > 说明：军校（国防科技大学、海军/空军军医大学等）不列入教育部「普通高等学校」名单，故 985 计 38、211 计 112；
 > 清单为院校元数据，**不含逐年录取分数**，具体以各校招生网/考试院为准。
 
-## 六、技术要点
+## 七、技术要点
 
+- **UI 组件库（客户端）**：选用 **wot-design-uni**（Vue3 原生、uni-app 跨端、70+ 组件、按需 easycom、支持深色主题变量）。
+  五个页面统一使用 `wd-config-provider` + `theme.js` 品牌 token；表单/选择器/标签/折叠面板/搜索/Toast 均来自组件库，
+  不再手写原生控件样式。
+- **UI 组件库（管理端）**：**Element Plus**（Vue3 生态最成熟的桌面端组件库），本地 vendor 免构建、免 CDN。
 - **跨端**：uni-app Vue3 + Vite，`pages.json` tabBar 一套代码出 H5/小程序/App。
 - **前后端分离 + 单数据源**：内容零重复，避免"第十一个仓库"式同质化。
 - **偏见校准层**：每个专业带反方/长期主义/官方评估提示；诊断与核验均动态提示框架边界。
 - **隐私**：诊断输入仅存端侧 `uni.storage`，可导出；核验联机但只传省份/科类/位次/专业名，无个人身份信息。
-- **P2 数据可插拔**：样例数据演示，真实数据一行 CSV 切换。
+- **数据可插拔**：JSON 静态数据为源，数据库为运行时事实源；同步幂等、可回放。
 
-## 七、已知边界
+## 八、已知边界
 
 - 录取数据：河南/广东/四川/山东/河北/江苏 的**批次线**与 **985/211 入门投档位次**均已用 2024 官方数据（高置信）；其余 25 省仍为 gaokao-advisor 参数推算（标注 estimated），**非官方数据**；正式填报以各省考试院为准（逐省来源见 `backend/data/SOURCES.md`）。
 - 院校清单：全国 2868 所普通高校为教育部官方静态名单；军校不列入（故 985 计 38）；**不含逐年录取分数**。

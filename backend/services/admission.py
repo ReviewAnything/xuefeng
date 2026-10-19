@@ -1,14 +1,15 @@
 """录取数据层（P2 数据侧）。
 
-数据来源（按优先级，结构一致：{ meta, tier_order, tier_baseline, category_default, major_overrides }）：
-  - backend/data/admission_real_baseline.json  （由 scripts/ingest_gaokao_advisor.py 从
-    chenxuyaun/gaokao-advisor 的真实一分一段表/院校层次生成，覆盖 31 省；存在时自动启用）
-  - backend/data/admission_sample.json         （参数化样例，fallback / 演示用）
+数据来源优先级：
+  1. 数据库（backend/db）：universities / admission_baselines 等表，由 seed 从 JSON 幂等灌入；
+     官方值已在播种时合并进同一行，并标注 data_source=official / estimated。
+  2. JSON 文件（backend/data/*.json）：数据库不可用时的兜底，保证服务永不因落库失败而中断。
 
 提供：
   - 给定 (省份, 科类, 专业) 计算各批次录取门槛（最低分/最低位次）
   - 给定用户位次，对某一专业做 冲/稳/保 梯度判定
   - 按位次筛选可达专业（数据侧喂给诊断）
+  - 全国院校总表检索（2868 所）
 """
 import json
 import os
@@ -27,6 +28,9 @@ REACH_HI = 1.20       # 1.00~1.20 冲；>1.20 不可及
 # 科类别名归一化：内容侧用「综合/未改革」，基线侧用「综合」
 SUBJECT_ALIASES = {"综合/未改革": "综合", "综合类": "综合"}
 
+_BASELINE_CACHE = None
+_OFFICIAL_CACHE = None
+
 
 def _norm_subject(subject: str) -> str:
     return SUBJECT_ALIASES.get(subject, subject)
@@ -34,21 +38,58 @@ def _norm_subject(subject: str) -> str:
 
 def _load_baseline() -> dict:
     """优先加载真实基线；不存在时回退到样例。"""
-    path = _REAL if os.path.exists(_REAL) else _SAMPLE
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    global _BASELINE_CACHE
+    if _BASELINE_CACHE is None:
+        path = _REAL if os.path.exists(_REAL) else _SAMPLE
+        with open(path, "r", encoding="utf-8") as f:
+            _BASELINE_CACHE = json.load(f)
+    return _BASELINE_CACHE
 
 
 def _load_official() -> dict:
     """加载 6 省官方省控线覆盖层（不存在返回空 dict）。"""
-    if os.path.exists(_OFFICIAL):
-        with open(_OFFICIAL, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {}
+    global _OFFICIAL_CACHE
+    if _OFFICIAL_CACHE is None:
+        if os.path.exists(_OFFICIAL):
+            with open(_OFFICIAL, "r", encoding="utf-8") as f:
+                _OFFICIAL_CACHE = json.load(f)
+        else:
+            _OFFICIAL_CACHE = {}
+    return _OFFICIAL_CACHE
+
+
+def _db():
+    """返回仓储模块；数据库不可用时返回 None（不抛错）。"""
+    try:
+        from db import repository as repo
+        return repo
+    except Exception:
+        return None
+
+
+def invalidate_cache() -> None:
+    """同步后调用：清空进程内缓存。"""
+    global _BASELINE_CACHE, _OFFICIAL_CACHE
+    _BASELINE_CACHE = None
+    _OFFICIAL_CACHE = None
+    repo = _db()
+    if repo:
+        try:
+            repo.invalidate()
+        except Exception:
+            pass
 
 
 def official_coverage() -> list:
     """已接入官方省控线的省份列表。"""
+    repo = _db()
+    if repo:
+        try:
+            cov = repo.official_coverage()
+            if cov:
+                return cov
+        except Exception:
+            pass
     return _load_official().get("meta", {}).get("coverage", [])
 
 
@@ -75,20 +116,33 @@ def _difficulty(major_cat: str, major_name: str, baseline: dict) -> dict:
     return baseline.get("category_default", {}).get(major_cat, {"score_add": 0, "rank_factor": 1.0})
 
 
-def major_thresholds(province: str, subject: str, major_name: str, major_cat: str) -> dict:
-    """返回某专业在指定省/科类下各批次的录取门槛（含专业难度系数）。
+def _tier_order(baseline: dict) -> list:
+    repo = _db()
+    if repo:
+        try:
+            order = repo.tier_order()
+            if order:
+                return order
+        except Exception:
+            pass
+    return baseline.get("tier_order", [])
 
-    命中官方覆盖层时优先采用官方值并标注 data_source=official：
-      - 批次线层级（普通一本/普通二本/专科）：6 省官方省控线 + 一分一段表位次
-      - 学校层级（985/211）：6 省真实入门投档位次
-    其余层级/省份维持估算基线并标注 estimated。
-    """
-    subject = _norm_subject(subject)
-    baseline = _load_baseline()
+
+def _thresholds_from_db(province: str, subject: str):
+    repo = _db()
+    if not repo:
+        return None
+    try:
+        return repo.thresholds(province, subject)
+    except Exception:
+        return None
+
+
+def _thresholds_from_json(province: str, subject: str, diff: dict, baseline: dict) -> list:
+    """JSON 兜底：估算基线 + 官方覆盖层。"""
     tiers = baseline["tier_baseline"].get(province, {}).get(subject)
     if not tiers:
-        return {"ok": False, "error": f"暂无 {province}/{subject} 的录取基线数据"}
-    diff = _difficulty(major_cat, major_name, baseline)
+        return []
     official = _load_official()
     official_batch = official.get("batch_lines", {}).get(province, {}).get(subject, {})
     official_school = official.get("school_tier_lines", {}).get(province, {}).get(subject, {})
@@ -97,28 +151,60 @@ def major_thresholds(province: str, subject: str, major_name: str, major_cat: st
         base = tiers.get(tier)
         if not base:
             continue
-        # 默认：估算基线
         min_score = base["min_score"] + diff["score_add"]
         min_rank = max(1, round(base["min_rank"] * diff["rank_factor"]))
-        src = "estimated"
-        line = None
-        # 官方覆盖：批次线优先（普通一本/二本/专科）
+        src, line, school = "estimated", None, None
         ov = official_batch.get(tier)
         if ov:
             min_score = ov["score"] + diff["score_add"]
             min_rank = max(1, round(ov["rank"] * diff["rank_factor"]))
-            src = "official"
-            line = ov.get("line")
-        # 官方覆盖：985/211 学校层级入门投档位次优先（仅 6 省）
+            src, line = "official", ov.get("line")
         if tier in ("985", "211"):
             sv = official_school.get(tier)
             if sv:
                 min_score = sv["score"] + diff["score_add"]
                 min_rank = max(1, round(sv["rank"] * diff["rank_factor"]))
-                src = "official"
-                line = sv.get("line")
+                src, line, school = "official", sv.get("line"), sv.get("school")
         out.append({"tier": tier, "min_score": min_score, "min_rank": min_rank,
-                    "data_source": src, "line": line})
+                    "data_source": src, "line": line, "school": school})
+    return out
+
+
+def major_thresholds(province: str, subject: str, major_name: str, major_cat: str) -> dict:
+    """返回某专业在指定省/科类下各批次的录取门槛（含专业难度系数）。
+
+    官方值（6 省省控线 / 985·211 入门投档位次）已在落库时合并，逐层返回 data_source。
+    """
+    subject = _norm_subject(subject)
+    baseline = _load_baseline()
+    diff = _difficulty(major_cat, major_name, baseline)
+
+    rows = _thresholds_from_db(province, subject)
+    if rows:
+        out = []
+        for tier in _tier_order(baseline):
+            r = rows.get(tier)
+            if not r:
+                continue
+            out.append({
+                "tier": tier,
+                "min_score": r["min_score"] + diff["score_add"],
+                "min_rank": max(1, round(r["min_rank"] * diff["rank_factor"])),
+                "data_source": r["data_source"],
+                "line": r["line"],
+                "school": r["school"],
+            })
+        if out:
+            return {"ok": True, "province": province, "subject": subject, "major": major_name,
+                    "tiers": out, "data_source": data_source()}
+    else:
+        # 数据库无该省数据时，先判断 JSON 是否有（用于错误提示）
+        if not baseline["tier_baseline"].get(province, {}).get(subject):
+            return {"ok": False, "error": f"暂无 {province}/{subject} 的录取基线数据"}
+
+    out = _thresholds_from_json(province, subject, diff, baseline)
+    if not out:
+        return {"ok": False, "error": f"暂无 {province}/{subject} 的录取基线数据"}
     return {"ok": True, "province": province, "subject": subject, "major": major_name,
             "tiers": out, "data_source": data_source()}
 
@@ -137,61 +223,45 @@ def classify(user_rank: int, min_rank: int) -> str:
     return "不可及"
 
 
-def analyze_major(province: str, subject: str, user_rank: int, major_name: str, major_cat: str) -> dict:
-    """对某专业做完整的位次可达性分析 + 冲稳保。"""
-    if not isinstance(user_rank, int) or user_rank <= 0:
-        return {"ok": False, "error": "位次必须为正整数"}
-    th = major_thresholds(province, subject, major_name, major_cat)
-    if not th["ok"]:
-        return th
-    best = None
-    for t in th["tiers"]:
-        t = dict(t)
-        t["level"] = classify(user_rank, t["min_rank"])
-        if t["level"] != "不可及":
-            # 记录用户能达到的最优（门槛最高/位次最小）批次
-            if best is None or t["min_rank"] < best["min_rank"]:
-                best = t
-    return {
-        "ok": True, "province": province, "subject": subject, "major": major_name,
-        "user_rank": user_rank, "tiers": th["tiers"], "best_reachable": best,
-        "data_source": data_source(),
-    }
-
+# ---------------------------------------------------------------- 院校
 
 _UNI_CACHE = None
+_NAT_CACHE = None
 
 
 def _load_universities() -> dict:
-    """加载 985/211 院校完整静态清单（缓存）。"""
+    """加载 985/211 院校权威清单（JSON 兜底用，缓存）。"""
     global _UNI_CACHE
     if _UNI_CACHE is None:
-        path = os.path.join(_DATA_DIR, "universities.json")
-        with open(path, "r", encoding="utf-8") as f:
+        with open(os.path.join(_DATA_DIR, "universities.json"), "r", encoding="utf-8") as f:
             _UNI_CACHE = json.load(f)
     return _UNI_CACHE
 
 
-_NAT_CACHE = None
-
-
 def _load_national() -> dict:
-    """加载全国普通高等学校静态总表（教育部官方名单，2868 所，缓存）。"""
+    """加载全国普通高等学校静态总表（JSON 兜底用，缓存）。"""
     global _NAT_CACHE
     if _NAT_CACHE is None:
-        path = os.path.join(_DATA_DIR, "universities_national.json")
-        with open(path, "r", encoding="utf-8") as f:
+        with open(os.path.join(_DATA_DIR, "universities_national.json"), "r", encoding="utf-8") as f:
             _NAT_CACHE = json.load(f)
     return _NAT_CACHE
 
 
 def universities(province: str = None, tier: str = None, category: str = None,
-                 level: str = None, q: str = None, limit: int = 500, offset: int = 0) -> dict:
-    """按条件筛选全国普通高等学校静态总表（教育部官方名单，2868 所：本科 1308 + 专科 1560）。
+                 level: str = None, q: str = None, limit: int = 500, offset: int = 0,
+                 nature: str = None) -> dict:
+    """按条件筛选全国普通高等学校静态总表（教育部官方名单，2868 所）。
 
-    level: "本科" / "专科"；tier: "985" / "211" / "dfc"(双一流近似)；
-    q: 校名模糊匹配。返回 total_matched 为过滤后总数，count 为本次返回条数。
+    数据库优先；不可用时回落到 JSON。
     """
+    repo = _db()
+    if repo:
+        try:
+            return repo.universities(province=province, tier=tier, category=category,
+                                     level=level, q=q, nature=nature, limit=limit, offset=offset)
+        except Exception:
+            pass
+
     data = _load_national()
     items = data["universities"]
     if province:
@@ -206,6 +276,8 @@ def universities(province: str = None, tier: str = None, category: str = None,
         items = [u for u in items if u["is_dfc"]]
     if category:
         items = [u for u in items if u.get("category") == category]
+    if nature:
+        items = [u for u in items if u.get("nature") == nature]
     if q:
         q = q.strip()
         items = [u for u in items if q in u["name"]]
@@ -223,6 +295,14 @@ def universities(province: str = None, tier: str = None, category: str = None,
 
 def universities_by_tier(tier: str) -> list:
     """返回某层次（985/211）的全部院校名（用于核验页按层次展示可触及院校）。"""
+    repo = _db()
+    if repo:
+        try:
+            names = repo.elite_names(tier)
+            if names:
+                return names
+        except Exception:
+            pass
     data = _load_universities()
     if tier == "985":
         return [u["name"] for u in data["universities"] if u["is_985"]]
@@ -263,8 +343,9 @@ def search(province: str, subject: str, user_rank: int, limit: int = 20) -> dict
     if not isinstance(user_rank, int) or user_rank <= 0:
         return {"ok": False, "error": "位次必须为正整数"}
     baseline = _load_baseline()
-    tiers = baseline["tier_baseline"].get(province, {}).get(_norm_subject(subject))
-    if not tiers:
+    subject_n = _norm_subject(subject)
+    has_db = _thresholds_from_db(province, subject_n) is not None
+    if not has_db and not baseline["tier_baseline"].get(province, {}).get(subject_n):
         return {"ok": False, "error": f"暂无 {province}/{subject} 的录取基线数据"}
     reach, match, safe = [], [], []
     for m in MAJORS:
@@ -277,7 +358,8 @@ def search(province: str, subject: str, user_rank: int, limit: int = 20) -> dict
                 "best_tier": th["best_reachable"]["tier"],
                 "best_rank": th["best_reachable"]["min_rank"],
                 "best_score": th["best_reachable"]["min_score"],
-                "level": th["best_reachable"]["level"]}
+                "level": th["best_reachable"]["level"],
+                "data_source": th["best_reachable"].get("data_source", "estimated")}
         if item["level"] == "冲":
             reach.append(item)
         elif item["level"] == "稳":

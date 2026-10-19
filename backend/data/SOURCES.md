@@ -58,6 +58,22 @@
 > 军校（国防科技大学、海军/空军军医大学等）不列入教育部「普通高等学校」名单，故 `universities_national.json` 中 985 计 38；
 > `universities.json`（985/211 权威清单）计 39 所 985、112 所 211，用于核验页按层次展示。清单不含逐年录取分数。
 
+## 运行时落库说明
+
+服务启动时由 `backend/db/seed.py` 将上述 JSON **幂等播种**到 SQLite（默认 `backend/data/xuefeng.db`，已 gitignore）：
+
+| 表 | 来源文件 | 说明 |
+| --- | --- | --- |
+| `universities` | `universities_national.json` | 2868 所，含省/市/层次/性质/主管部门/标识码/985·211·双一流 |
+| `elite_universities` | `universities.json` | 112 所权威清单（含军校与拆分校区），用于核验页按层次展示 |
+| `admission_baselines` | `admission_real_baseline.json` + `admission_official_2024.json` | 每 (省, 科类, 批次) 一行；官方值覆盖估算值，保留 `data_source/line/school/year/source_url` |
+| `majors` / `resources` | `shared/content.json` | 专业图谱与开源资源 |
+
+- 播种以源文件 SHA-256 为签名，未变化则跳过；管理端「数据同步」可强制重灌（force）。
+- 官方覆盖行在库中 `data_source='official'`（当前 48 行），其余为 `estimated`；接口逐层透出。
+- 更换源文件（新增省份官方数据）后，重启服务或点一次同步即可生效，无需手工改库。
+- 切换 PostgreSQL：设置 `XUEFENG_DATABASE_URL`，表结构由 SQLAlchemy 自动创建。
+
 ## 重要声明
 
 所有数据仅供学习与研究参考，**正式填报请以考生所在省教育考试院公布的官方数据为准**。

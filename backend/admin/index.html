@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>志愿决策助手 · 数据运营控制台</title>
+  <link rel="stylesheet" href="./vendor/index.css" />
+  <link rel="stylesheet" href="./vendor/css-vars.css" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+<div id="app" v-cloak>
+
+  <!-- ==================== 登录 ==================== -->
+  <div v-if="!token" class="login">
+    <div class="login-glow"></div>
+    <div class="login-card">
+      <div class="brand-block">
+        <div class="logo">志</div>
+        <div>
+          <h1>志愿决策助手</h1>
+          <p>数据运营控制台 · Admin Console</p>
+        </div>
+      </div>
+      <div class="login-form">
+        <label>管理员账号</label>
+        <el-input v-model="loginForm.username" size="large" placeholder="请输入账号" @keyup.enter="doLogin" />
+        <label>密码</label>
+        <el-input v-model="loginForm.password" type="password" show-password size="large"
+                  placeholder="请输入密码" @keyup.enter="doLogin" />
+        <el-button type="primary" size="large" class="login-btn" :loading="loginLoading" @click="doLogin">
+          登录控制台
+        </el-button>
+        <p class="login-tip">
+          初始账号见项目 README（<code>XUEFENG_ADMIN_USER</code> / <code>XUEFENG_ADMIN_PASSWORD</code> 可覆盖）。
+          登录后请立即在「系统设置」修改密码。
+        </p>
+      </div>
+    </div>
+    <p class="login-foot">数据仅供学习参考 · 正式填报以各省考试院为准</p>
+  </div>
+
+  <!-- ==================== 主体 ==================== -->
+  <el-container v-else class="shell">
+    <el-aside width="236px" class="side">
+      <div class="side-brand">
+        <div class="logo small">志</div>
+        <div>
+          <b>志愿决策助手</b>
+          <span>数据运营控制台</span>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <a v-for="item in navItems" :key="item.key"
+           :class="['nav-item', { active: page === item.key }]" @click="go(item.key)">
+          <app-icon :name="item.icon" />
+          <span>{{ item.label }}</span>
+          <em v-if="item.key === 'sync' && overview && overview.kpis.pending_sync" class="dot">{{ overview.kpis.pending_sync }}</em>
+        </a>
+      </nav>
+
+      <div class="side-foot">
+        <div class="status-line">
+          <i class="dot-ok"></i>
+          <span>SQLite · {{ overview ? overview.kpis.db_size_kb : '—' }} KB</span>
+        </div>
+        <div class="status-line">
+          <i class="dot-ok"></i>
+          <span>{{ overview ? overview.kpis.universities : '—' }} 所院校已入库</span>
+        </div>
+        <a class="side-link" href="/docs" target="_blank">API 文档 ↗</a>
+      </div>
+    </el-aside>
+
+    <el-container>
+      <el-header class="topbar">
+        <div class="topbar-title">
+          <h2>{{ currentTitle }}</h2>
+          <p>{{ currentDesc }}</p>
+        </div>
+        <div class="topbar-actions">
+          <el-tag v-if="overview && overview.kpis.pending_sync" type="warning" effect="dark" round>
+            {{ overview.kpis.pending_sync }} 项数据待同步
+          </el-tag>
+          <el-tag v-else type="success" effect="plain" round>数据已同步</el-tag>
+          <el-button size="small" :loading="loading" @click="refreshAll">
+            <app-icon name="refresh" /> 刷新
+          </el-button>
+          <el-dropdown trigger="click" @command="onUserCommand">
+            <span class="user-chip">
+              <i class="avatar">{{ (user && user.username || 'A').slice(0, 1).toUpperCase() }}</i>
+              <span>{{ user ? user.username : 'admin' }}</span>
+              <app-icon name="chevron" />
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="settings">系统设置</el-dropdown-item>
+                <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
+      </el-header>
+
+      <el-main class="main">
+        <el-alert v-if="user && user.must_change_password" type="warning" show-icon :closable="false"
+                  class="pwd-alert" title="当前仍在使用初始密码"
+                  description="为保障数据安全，请前往「系统设置」修改管理员密码。" />
+
+        <!-- ---------------- 概览 ---------------- -->
+        <section v-if="page === 'dashboard'" class="page">
+          <div class="kpi-grid">
+            <div class="kpi" v-for="k in kpiCards" :key="k.label">
+              <div class="kpi-top"><span>{{ k.label }}</span><app-icon :name="k.icon" /></div>
+              <div class="kpi-value">{{ k.value }}<em v-if="k.unit">{{ k.unit }}</em></div>
+              <div class="kpi-sub">{{ k.sub }}</div>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="panel">
+              <div class="panel-head">
+                <div>
+                  <h3>近 14 天查询趋势</h3>
+                  <p>核验 / 检索调用量（匿名统计，不含身份信息）</p>
+                </div>
+                <div class="legend">
+                  <span><i class="lg verify"></i>核验</span>
+                  <span><i class="lg search"></i>检索</span>
+                </div>
+              </div>
+              <line-chart :data="overview ? overview.trend : []" />
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <div>
+                  <h3>数据健康检查</h3>
+                  <p>落库完整性、官方覆盖与同步状态</p>
+                </div>
+              </div>
+              <div class="checks">
+                <div class="check" v-for="c in (overview ? overview.checks : [])" :key="c.key">
+                  <i :class="['dot-' + c.status]"></i>
+                  <div>
+                    <b>{{ c.label }}</b>
+                    <span>{{ c.detail }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-3">
+            <div class="panel">
+              <div class="panel-head"><div><h3>院校层次分布</h3><p>共 {{ overview ? overview.kpis.universities : 0 }} 所</p></div></div>
+              <donut-chart :data="overview ? overview.tier_dist : []" />
+            </div>
+            <div class="panel">
+              <div class="panel-head"><div><h3>省份 Top 10</h3><p>按院校数量</p></div></div>
+              <bar-list :data="overview ? overview.province_dist : []" />
+            </div>
+            <div class="panel">
+              <div class="panel-head">
+                <div><h3>最近同步任务</h3><p>数据源变更会留下记录</p></div>
+                <el-button link type="primary" @click="go('sync')">全部 →</el-button>
+              </div>
+              <div class="jobs-mini">
+                <div class="job-mini" v-for="j in (overview ? overview.jobs : [])" :key="j.id">
+                  <div class="job-line">
+                    <b>{{ j.kind }}</b>
+                    <el-tag size="small" :type="jobTag(j.status)" effect="plain">{{ jobLabel(j.status) }}</el-tag>
+                  </div>
+                  <span>{{ j.message || '—' }}</span>
+                  <em>{{ fmtTime(j.created_at) }}</em>
+                </div>
+                <el-empty v-if="overview && !overview.jobs.length" description="暂无同步记录" :image-size="72" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ---------------- 院校库 ---------------- -->
+        <section v-if="page === 'universities'" class="page">
+          <div class="panel">
+            <div class="toolbar">
+              <el-input v-model="uniFilters.q" placeholder="搜索校名 / 城市" clearable
+                        style="width: 220px" @keyup.enter="loadUniversities(1)" />
+              <el-select v-model="uniFilters.province" placeholder="全部省份" clearable filterable style="width: 140px">
+                <el-option v-for="p in (meta ? meta.provinces : [])" :key="p" :label="p" :value="p" />
+              </el-select>
+              <el-select v-model="uniFilters.level" placeholder="办学层次" clearable style="width: 120px">
+                <el-option label="本科" value="本科" />
+                <el-option label="专科" value="专科" />
+              </el-select>
+              <el-select v-model="uniFilters.tier" placeholder="院校层次" clearable style="width: 120px">
+                <el-option label="985" value="985" />
+                <el-option label="211" value="211" />
+                <el-option label="双一流" value="dfc" />
+              </el-select>
+              <el-select v-model="uniFilters.nature" placeholder="办学性质" clearable style="width: 130px">
+                <el-option v-for="n in (meta ? meta.natures : [])" :key="n" :label="n" :value="n" />
+              </el-select>
+              <el-button type="primary" @click="loadUniversities(1)">查询</el-button>
+              <el-button @click="resetUniFilters">重置</el-button>
+              <span class="toolbar-spacer"></span>
+              <el-button plain @click="exportCsv('universities')"><app-icon name="download" /> 导出 CSV</el-button>
+            </div>
+
+            <div class="table-meta">
+              共 <b>{{ uniTotal }}</b> 条匹配结果 · 第 {{ uniPage }} / {{ uniPages }} 页
+            </div>
+
+            <el-table :data="uniRows" v-loading="uniLoading" stripe height="560" style="width: 100%">
+              <el-table-column prop="name" label="院校名称" min-width="220" show-overflow-tooltip />
+              <el-table-column prop="province" label="省份" width="90" />
+              <el-table-column prop="city" label="城市" width="110" show-overflow-tooltip />
+              <el-table-column prop="level" label="层次" width="80" />
+              <el-table-column prop="nature" label="性质" width="100" />
+              <el-table-column prop="supervisor" label="主管部门" min-width="150" show-overflow-tooltip />
+              <el-table-column label="标签" width="150">
+                <template #default="s">
+                  <el-tag v-if="s.row.is_985" size="small" type="danger" effect="dark">985</el-tag>
+                  <el-tag v-else-if="s.row.is_211" size="small" type="warning">211</el-tag>
+                  <el-tag v-if="s.row.is_dfc" size="small" type="info" effect="plain">双一流</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="code" label="标识码" width="130" />
+            </el-table>
+
+            <div class="pager">
+              <el-pagination background layout="prev, pager, next, jumper" :total="uniTotal"
+                             :page-size="uniPageSize" :current-page="uniPage"
+                             @current-change="loadUniversities" />
+            </div>
+          </div>
+        </section>
+
+        <!-- ---------------- 录取基线 ---------------- -->
+        <section v-if="page === 'baselines'" class="page">
+          <div class="panel">
+            <div class="toolbar">
+              <el-select v-model="baseFilters.province" placeholder="全部省份" clearable filterable
+                         style="width: 160px" @change="loadBaselines">
+                <el-option v-for="p in (meta ? meta.provinces : [])" :key="p" :label="p" :value="p" />
+              </el-select>
+              <el-select v-model="baseFilters.subject" placeholder="全部科类" clearable
+                         style="width: 140px" @change="loadBaselines">
+                <el-option label="物理类" value="物理类" />
+                <el-option label="历史类" value="历史类" />
+                <el-option label="综合" value="综合" />
+              </el-select>
+              <el-button @click="loadBaselines">刷新</el-button>
+              <span class="toolbar-spacer"></span>
+              <el-tag type="success" effect="plain">官方 {{ baseOfficialCount }} 行</el-tag>
+              <el-tag type="warning" effect="plain">估算 {{ baseRows.length - baseOfficialCount }} 行</el-tag>
+              <el-button plain @click="exportCsv('baselines')"><app-icon name="download" /> 导出 CSV</el-button>
+            </div>
+
+            <el-table :data="baseRows" v-loading="baseLoading" stripe height="600" style="width: 100%">
+              <el-table-column prop="province" label="省份" width="90" />
+              <el-table-column prop="subject" label="科类" width="90" />
+              <el-table-column prop="tier" label="批次" width="100" />
+              <el-table-column prop="min_score" label="最低分" width="90" align="right" />
+              <el-table-column prop="min_rank" label="最低位次" width="120" align="right" />
+              <el-table-column label="数据来源" width="110">
+                <template #default="s">
+                  <el-tag size="small" :type="s.row.data_source === 'official' ? 'success' : 'warning'" effect="plain">
+                    {{ s.row.data_source === 'official' ? '官方' : '估算' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="line" label="官方线" min-width="150" show-overflow-tooltip />
+              <el-table-column prop="school" label="入门院校" min-width="180" show-overflow-tooltip />
+              <el-table-column prop="year" label="年份" width="80" />
+              <el-table-column label="来源" width="90">
+                <template #default="s">
+                  <a v-if="s.row.source_url" :href="s.row.source_url" target="_blank" class="link">查看 ↗</a>
+                  <span v-else class="muted">—</span>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </section>
+
+        <!-- ---------------- 数据同步 ---------------- -->
+        <section v-if="page === 'sync'" class="page">
+          <div class="grid-2 sync-top">
+            <div class="panel">
+              <div class="panel-head">
+                <div><h3>数据源文件</h3><p>仓库内静态数据 → 数据库的同步来源</p></div>
+                <el-button size="small" @click="loadSources">重新检测</el-button>
+              </div>
+              <div class="source-list">
+                <div class="source" v-for="f in sources" :key="f.key">
+                  <div class="source-main">
+                    <div class="source-title">
+                      <b>{{ f.label }}</b>
+                      <el-tag size="small" :type="f.exists ? 'success' : 'danger'" effect="plain">
+                        {{ f.exists ? (f.rows + ' 条') : '缺失' }}
+                      </el-tag>
+                    </div>
+                    <code>{{ f.path }}</code>
+                    <span>{{ f.size_kb }} KB · 更新于 {{ fmtTime(f.modified_at) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <div><h3>执行同步</h3><p>幂等 upsert：重复执行不会产生重复数据</p></div>
+              </div>
+              <div class="sync-form">
+                <el-checkbox-group v-model="syncTargets">
+                  <el-checkbox v-for="(label, key) in (meta ? meta.targets : {})" :key="key" :value="key">
+                    {{ label }}
+                  </el-checkbox>
+                </el-checkbox-group>
+                <div class="switch-row">
+                  <div>
+                    <b>强制重灌</b>
+                    <span>忽略文件签名，全量覆盖写入（用于修复数据）</span>
+                  </div>
+                  <el-switch v-model="syncForce" />
+                </div>
+                <el-button type="primary" size="large" :loading="syncing" class="sync-btn" @click="runSync">
+                  <app-icon name="refresh" /> {{ syncing ? '同步中…' : '开始同步' }}
+                </el-button>
+                <el-alert v-if="lastSync" :type="lastSync.ok ? 'success' : 'error'" :closable="false" show-icon
+                          :title="lastSync.ok ? '同步完成' : '同步失败'"
+                          :description="lastSync.message" />
+                <p class="hint">
+                  同步会写入「同步任务」记录；完成后业务缓存立即失效，核验/检索接口自动使用最新数据。
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <div><h3>同步历史</h3><p>最近 20 次任务</p></div>
+            </div>
+            <el-table :data="jobs" stripe style="width: 100%">
+              <el-table-column prop="id" label="#" width="70" />
+              <el-table-column prop="kind" label="同步目标" min-width="180" />
+              <el-table-column label="状态" width="100">
+                <template #default="s">
+                  <el-tag size="small" :type="jobTag(s.row.status)" effect="plain">{{ jobLabel(s.row.status) }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="total" label="总行数" width="90" align="right" />
+              <el-table-column prop="inserted" label="新增" width="80" align="right" />
+              <el-table-column prop="updated" label="更新" width="80" align="right" />
+              <el-table-column prop="skipped" label="跳过" width="80" align="right" />
+              <el-table-column prop="message" label="结果" min-width="280" show-overflow-tooltip />
+              <el-table-column prop="operator" label="操作人" width="100" />
+              <el-table-column label="时间" width="170">
+                <template #default="s">{{ fmtTime(s.row.created_at) }}</template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </section>
+
+        <!-- ---------------- 查询日志 ---------------- -->
+        <section v-if="page === 'events'" class="page">
+          <div class="mini-stats">
+            <div class="mini-stat"><span>累计查询</span><b>{{ eventStats.total }}</b></div>
+            <div class="mini-stat"><span>今日</span><b>{{ eventStats.today }}</b></div>
+            <div class="mini-stat"><span>近 7 天</span><b>{{ eventStats.week }}</b></div>
+            <div class="mini-stat"><span>核验 / 检索</span><b>{{ eventStats.verify }} / {{ eventStats.search }}</b></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <div><h3>最近查询事件</h3><p>仅记录省份 / 科类 / 位次与结论，用于产品分析</p></div>
+              <el-radio-group v-model="eventKind" size="small" @change="loadEvents">
+                <el-radio-button value="">全部</el-radio-button>
+                <el-radio-button value="verify">核验</el-radio-button>
+                <el-radio-button value="search">检索</el-radio-button>
+              </el-radio-group>
+            </div>
+            <el-table :data="events" stripe style="width: 100%">
+              <el-table-column prop="id" label="#" width="70" />
+              <el-table-column label="类型" width="90">
+                <template #default="s">
+                  <el-tag size="small" :type="s.row.kind === 'verify' ? 'warning' : 'info'" effect="plain">
+                    {{ s.row.kind === 'verify' ? '核验' : '检索' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="province" label="省份" width="90" />
+              <el-table-column prop="subject" label="科类" width="90" />
+              <el-table-column prop="user_rank" label="位次" width="110" align="right" />
+              <el-table-column prop="major_name" label="专业" min-width="160" show-overflow-tooltip />
+              <el-table-column label="结论" width="130">
+                <template #default="s">
+                  <el-tag v-if="s.row.alignment" size="small"
+                          :type="s.row.alignment === 'aligned' ? 'success' : (s.row.alignment === 'conflict' ? 'danger' : 'warning')"
+                          effect="plain">
+                    {{ alignLabel(s.row.alignment) }}
+                  </el-tag>
+                  <span v-else class="muted">—</span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="best_tier" label="可达批次" width="110" />
+              <el-table-column label="时间" width="180">
+                <template #default="s">{{ fmtTime(s.row.created_at) }}</template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </section>
+
+        <!-- ---------------- 系统设置 ---------------- -->
+        <section v-if="page === 'settings'" class="page">
+          <div class="grid-2">
+            <div class="panel">
+              <div class="panel-head"><div><h3>管理员账号</h3><p>当前登录身份</p></div></div>
+              <el-descriptions :column="1" border>
+                <el-descriptions-item label="账号">{{ user ? user.username : '—' }}</el-descriptions-item>
+                <el-descriptions-item label="角色">{{ user ? user.role : '—' }}</el-descriptions-item>
+                <el-descriptions-item label="上次登录">{{ fmtTime(profile.last_login_at) }}</el-descriptions-item>
+                <el-descriptions-item label="密码状态">
+                  <el-tag size="small" :type="user && user.must_change_password ? 'warning' : 'success'" effect="plain">
+                    {{ user && user.must_change_password ? '初始密码（建议修改）' : '已设置自定义密码' }}
+                  </el-tag>
+                </el-descriptions-item>
+              </el-descriptions>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head"><div><h3>修改密码</h3><p>至少 8 位，PBKDF2 加盐存储</p></div></div>
+              <el-form label-position="top" class="pwd-form">
+                <el-form-item label="原密码">
+                  <el-input v-model="pwdForm.old_password" type="password" show-password />
+                </el-form-item>
+                <el-form-item label="新密码">
+                  <el-input v-model="pwdForm.new_password" type="password" show-password />
+                </el-form-item>
+                <el-form-item label="确认新密码">
+                  <el-input v-model="pwdForm.confirm" type="password" show-password />
+                </el-form-item>
+                <el-button type="primary" :loading="pwdLoading" @click="changePassword">保存新密码</el-button>
+              </el-form>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><div><h3>系统信息</h3><p>运行环境与数据概况</p></div></div>
+            <div class="info-grid">
+              <div class="info"><span>数据库</span><b>SQLite · {{ overview ? overview.kpis.db_size_kb : '—' }} KB</b></div>
+              <div class="info"><span>院校总数</span><b>{{ overview ? overview.kpis.universities : '—' }} 所</b></div>
+              <div class="info"><span>录取基线</span><b>{{ overview ? overview.kpis.baseline_rows : '—' }} 行</b></div>
+              <div class="info"><span>官方覆盖</span><b>{{ overview ? overview.kpis.official_provinces : '—' }} 省</b></div>
+              <div class="info"><span>专业图谱</span><b>{{ overview ? overview.kpis.majors : '—' }} 个</b></div>
+              <div class="info"><span>内容版本</span><b>{{ meta && meta.content ? meta.content.APP_VERSION : '—' }}</b></div>
+            </div>
+            <el-divider />
+            <p class="hint">
+              生产部署建议：设置 <code>XUEFENG_ADMIN_PASSWORD</code> 覆盖初始密码、设置
+              <code>XUEFENG_AUTH_SECRET</code> 固定签名密钥、通过 <code>XUEFENG_DATABASE_URL</code> 切换 PostgreSQL；
+              接口文档见 <a href="/docs" target="_blank" class="link">/docs</a>。
+            </p>
+          </div>
+        </section>
+      </el-main>
+    </el-container>
+  </el-container>
+</div>
+
+<script src="./vendor/vue.global.prod.js"></script>
+<script src="./vendor/index.full.min.js"></script>
+<script src="./app.js"></script>
+</body>
+</html>
