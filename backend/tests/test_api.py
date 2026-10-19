@@ -170,3 +170,91 @@ def test_official_coverage_expanded_to_11_provinces():
         t = repo.thresholds(prov, sub)
         assert t["普通一本"]["min_rank"] < t["普通二本"]["min_rank"] < t["专科"]["min_rank"], (prov, sub)
         assert t["普通一本"]["min_score"] > t["普通二本"]["min_score"] > t["专科"]["min_score"], (prov, sub)
+
+
+# ---------------------------------------------------------------- P1→P2 批量核验
+
+def test_verify_batch_returns_summary_and_risk_first_order():
+    majors = c.get("/api/majors").json()["majors"]
+    names = [m["name"] for m in majors[:8]]
+    r = c.post("/api/verify/batch", json={
+        "province": "河南", "subject": "物理类", "user_rank": 40000, "major_names": names})
+    assert r.status_code == 200, r.text
+    j = r.json()
+    assert j["count"] == 8
+    assert j["summary"]["total"] == 8
+    assert j["summary"]["aligned"] + j["summary"]["caution"] + j["summary"]["conflict"] == 8
+    order = {"conflict": 0, "caution": 1, "aligned": 2}
+    seq = [order[x["alignment"]] for x in j["results"]]
+    assert seq == sorted(seq), "结果应按 冲突 → 需谨慎 → 一致 排序"
+    assert all(x["province"] == "河南" for x in j["results"])
+
+
+def test_verify_batch_rejects_empty_and_too_many():
+    base = {"province": "河南", "subject": "物理类", "user_rank": 40000}
+    assert c.post("/api/verify/batch", json={**base, "major_names": []}).status_code == 400
+    too_many = c.post("/api/verify/batch", json={**base, "major_names": ["法学"] * 21})
+    assert too_many.status_code == 400
+    assert "20" in too_many.json()["detail"]
+
+
+def test_verify_batch_unknown_major_is_reported_not_fatal():
+    r = c.post("/api/verify/batch", json={
+        "province": "河南", "subject": "物理类", "user_rank": 40000,
+        "major_names": ["法学", "不存在的专业"]})
+    assert r.status_code == 200, r.text
+    assert r.json()["count"] == 1
+    assert r.json()["unknown"] == ["不存在的专业"]
+
+
+# ---------------------------------------------------------------- 输入校验
+
+def test_user_rank_upper_bound_is_rejected():
+    too_big = 10 ** 8
+    r1 = c.post("/api/verify", json={"province": "河南", "subject": "物理类",
+                                     "user_rank": too_big, "major_name": "法学"})
+    assert r1.status_code == 422
+    r2 = c.get("/api/admission/search",
+               params={"province": "河南", "subject": "物理类", "user_rank": too_big})
+    assert r2.status_code == 400
+    assert "合理范围" in r2.json()["detail"]
+
+
+def test_classify_rejects_invalid_rank():
+    from services import admission as A
+    assert A.classify(0, 10000) == "不可及"
+    assert A.classify(A.MAX_USER_RANK + 1, 10000) == "不可及"
+    assert A.validate_user_rank(0)
+    assert A.validate_user_rank(A.MAX_USER_RANK + 1)
+    assert A.validate_user_rank(40000) == ""
+
+
+# ---------------------------------------------------------------- CORS 白名单
+
+def test_cors_default_is_localhost_only():
+    assert "*" not in main.CORS_ORIGINS
+    assert "http://localhost:5173" in main.CORS_ORIGINS
+    assert c.get("/api/health").json()["cors_origins"] == main.CORS_ORIGINS
+
+
+def test_cors_origins_from_env(monkeypatch):
+    import importlib
+    monkeypatch.setenv("XUEFENG_CORS_ORIGINS", "https://a.example.com, https://b.example.com")
+    try:
+        m = importlib.reload(main)
+        assert m.CORS_ORIGINS == ["https://a.example.com", "https://b.example.com"]
+    finally:
+        monkeypatch.delenv("XUEFENG_CORS_ORIGINS", raising=False)
+        importlib.reload(main)
+
+
+# ---------------------------------------------------------------- 内容可溯
+
+def test_content_provenance_is_exposed():
+    j = c.get("/api/content").json()
+    cs = j["content_source"]
+    assert cs["compiled_year"] >= 2026
+    assert cs["view_basis"] and cs["data_basis"] and cs["caveat"]
+    majors = c.get("/api/majors").json()["majors"]
+    assert len(majors) == 38
+    assert all(m.get("source_year") and m.get("source_note") for m in majors)

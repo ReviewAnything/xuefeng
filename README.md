@@ -18,9 +18,9 @@ zhiyuan-app-v2/
 ├── docs/
 │   └── data-management.md     # 后端数据管理方案（数据分层 / 年度更新 SOP / 校验规则）
 ├── shared/
-│   └── content.json          # 单一数据源：majors / resources / questions / 版本（前端与后端共用）
+│   └── content.json          # 单一数据源：majors / resources / questions / 版本 / CONTENT_SOURCE（前端与后端共用）
 ├── backend/                  # Python FastAPI 后端（P2 数据层 + 管理端 API）
-│   ├── main.py               # 路由与 API（health / majors / verify / admission / universities / admin）
+│   ├── main.py               # 路由与 API（health / content / majors / verify / verify/batch / admission / universities / admin）
 │   ├── db/                   # 数据落库层（SQLAlchemy）
 │   │   ├── database.py       # 引擎/会话（默认 SQLite，可切 PostgreSQL）
 │   │   ├── models.py         # 院校 / 录取基线 / 精英院校 / 内容 / 查询事件 / 同步任务 / 管理员
@@ -31,7 +31,7 @@ zhiyuan-app-v2/
 │   ├── services/
 │   │   ├── content.py        # 读取 shared/content.json
 │   │   ├── admission.py      # 录取位次模型（DB 优先、JSON 兜底）+ 冲稳保
-│   │   ├── verify.py         # P2 核心：观点×数据 交叉核验
+│   │   ├── verify.py         # P2 核心：观点×数据 交叉核验（含批量 verify_many）
 │   │   └── admin_auth.py     # PBKDF2 密码 + HMAC 令牌
 │   ├── admin/                # 管理端控制台（Vue3 + Element Plus，免构建）
 │   │   ├── index.html / app.js / styles.css
@@ -63,7 +63,9 @@ zhiyuan-app-v2/
 │   │   ├── pages.json        # 路由 + tabBar + wot easycom
 │   │   ├── manifest.json     # 多端 manifest
 │   │   └── App.vue / main.js / uni.scss
-│   ├── tests/engine.test.mjs # 前端引擎单测（零依赖）
+│   ├── tests/
+│   │   ├── engine.test.mjs    # 前端引擎单测（零依赖）
+│   │   └── template.test.mjs  # SFC 模板编译校验（零依赖，复用管理端 vendor 的 Vue）
 │   ├── vite.config.js        # 含 @shared 别名（前后端共用数据源）
 │   └── package.json
 └── README.md
@@ -74,8 +76,8 @@ zhiyuan-app-v2/
 | 模块 | 功能 | 跨端 / 后端 |
 |---|---|---|
 | **① 自我诊断画布** | 灵魂八连问 → 透明规则生成决策框架（策略 + 方向清单 + 偏见校正 + 避坑 + 下一步），不下录取结论 | uni-app |
-| **② 专业图谱库** | 38 个专业，每条含张雪峰观点 + 理由 + 偏见校正层 + 数据核验入口 | uni-app（离线读本地数据） |
-| **③ 观点×数据核验（P2）** | 输入省份/科类/位次/专业 → 后端返回 各批次门槛 + 冲稳保 + 一致性结论（一致/需谨慎/冲突） | **uni-app + Python** |
+| **② 专业图谱库** | 38 个专业，每条含张雪峰观点 + 理由 + 偏见校正层 + 数据核验入口 + **内容可溯**（source_year / source_note） | uni-app（离线读本地数据） |
+| **③ 观点×数据核验（P2）** | 输入省份/科类/位次/专业 → 后端返回 各批次门槛 + 冲稳保 + 一致性结论（一致/需谨慎/冲突）；支持**批量核验**（诊断画布的推荐方向一次算完，按「冲突→需谨慎→一致」排序） | **uni-app + Python** |
 | **④ 开源资源中心** | 10 个真实仓库，按「思想/语料」「数据/工具」筛选，直达 GitHub / 在线体验 | uni-app |
 | **⑤ 关于** | 架构说明 + 五个方向落地 + 免责声明 | uni-app |
 
@@ -115,6 +117,31 @@ npm run build:app       # App 包（需 HBuilderX / 云端打包）
 `backend/services/content.py` 读取。**年度更新只改这一个文件并 bump `APP_VERSION`**，
 再在管理端点「数据同步 → 内容数据」即写入数据库。
 
+### 4.1) P1 → P2 一键批量核验
+
+诊断画布算出的推荐方向，可一键带入核验页批量计算，不再逐个手填：
+
+1. 诊断页填好省份 / 科类 / 位次 → 生成决策画布；
+2. 点「**批量核验全部 N 个方向**」（画布结果写入端侧 `zhiyuan_canvas_v2`，仅存本机）；
+3. 核验页自动进入批量模式，可增删待核验专业 → `POST /api/verify/batch` 一次算完；
+4. 结果按 **冲突 → 需谨慎 → 一致** 排序，先看风险项；点任一条展开完整核验详情。
+
+```bash
+curl -X POST http://localhost:8000/api/verify/batch -H 'Content-Type: application/json' \
+  -d '{"province":"河南","subject":"物理类","user_rank":40000,
+       "major_names":["计算机科学与技术","临床医学","法学","土木工程"]}'
+# → {count, summary:{aligned,caution,conflict}, results:[...], unknown:[...]}
+```
+
+单次最多 20 个专业；未收录的专业放进 `unknown` 而不失败。**入口校验**：位次必须是 1 ~ 2,000,000 的整数
+（早期只判 >0，位次填 0 会被误判成「保」）。
+
+### 4.2) 内容可溯
+
+`shared/content.json` 新增 `CONTENT_SOURCE`（观点依据 / 数据依据 / 整理年份 / 口径提示），
+38 个专业逐个带 `source_year`（观点整理年份）与 `source_note`（该大类证据口径），
+专业图谱页与「关于」页可见；`/api/content` 一并返回 `content_source`。
+
 ### 5) 数据版本与年度更新
 录取基线以「年份」为版本：多年数据并存，只有**生效版本**对外提供服务。完整方案见
 [`docs/data-management.md`](docs/data-management.md)。
@@ -143,17 +170,18 @@ python scripts/manage_data.py rollback 2026                 # 回滚到历史版
 | `XUEFENG_ADMIN_PASSWORD` | `xuefeng@2026` | 初始管理员密码（仅首次建库生效） |
 | `XUEFENG_AUTH_SECRET` | 自动生成并存入 DB | 令牌签名密钥，多实例部署时应固定 |
 | `XUEFENG_TOKEN_TTL` | `43200` | 管理端登录有效期（秒） |
+| `XUEFENG_CORS_ORIGINS` | 本地开发端口白名单 | 逗号分隔的允许来源；设为 `*` 恢复全开（**生产环境请显式配置**） |
 
 ## 四、本地测试
 
 ```bash
 # 后端：pytest（FastAPI TestClient，无需起服务）
 cd backend && pip install -r requirements.txt pytest && pytest -q
-# 期望：23 passed（API 13 + 落库/管理端 10）
+# 期望：45 passed（API / 落库 / 管理端 / 数据版本 / 批量核验 / 输入校验 / CORS / 内容可溯）
 
-# 前端：决策引擎单测（零依赖 Node ESM）
-cd frontend && node tests/engine.test.mjs
-# 期望：8 通过 / 0 失败
+# 前端：决策引擎单测 + SFC 模板编译校验（均零依赖，无需 npm install）
+cd frontend && node tests/engine.test.mjs && node tests/template.test.mjs
+# 期望：8 通过 / 0 失败；模板 6 通过 / 0 失败（复用管理端 vendor 的 Vue 编译器在 Node 内编译）
 ```
 
 ## 五、数据落库与管理端

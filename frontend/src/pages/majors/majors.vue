@@ -35,6 +35,10 @@
             <text class="k">⚖ 偏见校正：</text>
             <text class="t">{{ m.bias }}</text>
           </view>
+          <view class="src">
+            <text class="src-y">{{ m.source_year }} 年整理</text>
+            <text class="src-n">{{ m.source_note }}</text>
+          </view>
           <view class="verify" @click="copyVerify(m.verify)">
             <text>🔗 核验口径：{{ shortVerify(m.verify) }}</text>
             <text class="copy">复制</text>
@@ -102,6 +106,9 @@ function copyVerify(s) {
 .t { color: #c7ccd4; }
 .tags { display: flex; flex-wrap: wrap; gap: 10rpx; margin: 12rpx 0; }
 .bias { font-size: 23rpx; color: #9aa0aa; line-height: 1.7; background: #1c1f26; border-radius: 10rpx; padding: 14rpx; margin-top: 8rpx; }
+.src { display: flex; align-items: baseline; gap: 10rpx; margin-top: 12rpx; font-size: 20rpx; line-height: 1.6; }
+.src-y { flex: 0 0 auto; color: #6db3f2; border: 1px solid #233042; border-radius: 6rpx; padding: 2rpx 8rpx; }
+.src-n { flex: 1; color: #6b7280; }
 .verify { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; margin-top: 14rpx; padding-top: 12rpx; border-top: 1px dashed #2a2e37; }
 .verify text { font-size: 21rpx; color: #6db3f2; }
 .verify .copy { color: #ffd24d; flex: 0 0 auto; }

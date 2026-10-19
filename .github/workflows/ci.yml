@@ -37,6 +37,21 @@ jobs:
           node-version: "20"
       - name: Engine unit test (zero-dep)
         run: node tests/engine.test.mjs
+      - name: SFC template compile check (zero-dep)
+        run: node tests/template.test.mjs
+      - name: "Single lockfile guard - npm only"
+        run: |
+          node -e "
+          const fs=require('fs');
+          const files=['package-lock.json','pnpm-lock.yaml','yarn.lock','bun.lockb'].filter(f=>fs.existsSync(f));
+          if(files.length!==1){console.error('lockfile 必须唯一（本项目用 npm），当前存在:'+files.join(', '));process.exit(1);}
+          const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));
+          const lock=JSON.parse(fs.readFileSync('package-lock.json','utf8'));
+          const a=Object.keys(pkg.dependencies||{}).sort().join(',');
+          const b=Object.keys((lock.packages&&lock.packages['']&&lock.packages[''].dependencies)||{}).sort().join(',');
+          if(a!==b){console.error('package.json 与 package-lock.json 依赖不一致:\n  package.json: '+a+'\n  lock: '+b);process.exit(1);}
+          console.log('ok: 唯一 npm lockfile 且与 package.json 同步');
+          "
 
   frontend-build:
     runs-on: ubuntu-latest

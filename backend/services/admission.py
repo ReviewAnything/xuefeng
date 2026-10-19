@@ -209,9 +209,30 @@ def major_thresholds(province: str, subject: str, major_name: str, major_cat: st
             "tiers": out, "data_source": data_source()}
 
 
+# 位次合理上界：全国高考报名人数千万级，但任一省任一科类的有效位次远低于此；
+# 超过该值基本是误填（多打几个 0），直接拒绝而不是给出误导性的「保」判定。
+MAX_USER_RANK = 2_000_000
+
+
+def validate_user_rank(user_rank) -> str:
+    """校验位次输入，返回错误串（空串表示合法）。
+
+    说明：早期版本只判 `user_rank > 0`，此时 `classify()` 会因 ratio≈0 一律判「保」，
+    给出完全错误的结论；这里补上整数类型、正数与合理上界三重校验。
+    """
+    if isinstance(user_rank, bool) or not isinstance(user_rank, int):
+        return "位次必须为整数"
+    if user_rank <= 0:
+        return "位次必须为正整数"
+    if user_rank > MAX_USER_RANK:
+        return f"位次超出合理范围（上限 {MAX_USER_RANK}），请核对后重填"
+    return ""
+
+
 def classify(user_rank: int, min_rank: int) -> str:
     """根据用户位次与某批次门槛，判定 冲/稳/保/不可及。"""
-    if min_rank <= 0:
+    err = validate_user_rank(user_rank)
+    if err or min_rank <= 0:
         return "不可及"
     ratio = user_rank / min_rank
     if ratio < SAFETY_RATIO:
@@ -313,8 +334,9 @@ def universities_by_tier(tier: str) -> list:
 
 def analyze_major(province: str, subject: str, user_rank: int, major_name: str, major_cat: str) -> dict:
     """对某专业做完整的位次可达性分析 + 冲稳保，并附带可触及层次的院校清单。"""
-    if not isinstance(user_rank, int) or user_rank <= 0:
-        return {"ok": False, "error": "位次必须为正整数"}
+    err = validate_user_rank(user_rank)
+    if err:
+        return {"ok": False, "error": err}
     th = major_thresholds(province, subject, major_name, major_cat)
     if not th["ok"]:
         return th
@@ -340,8 +362,9 @@ def search(province: str, subject: str, user_rank: int, limit: int = 20) -> dict
     """给定用户位次，从非避坑专业中筛选出可达专业并按 冲稳保 组织（数据侧喂给诊断）。"""
     from .content import MAJORS
 
-    if not isinstance(user_rank, int) or user_rank <= 0:
-        return {"ok": False, "error": "位次必须为正整数"}
+    err = validate_user_rank(user_rank)
+    if err:
+        return {"ok": False, "error": err}
     baseline = _load_baseline()
     subject_n = _norm_subject(subject)
     has_db = _thresholds_from_db(province, subject_n) is not None

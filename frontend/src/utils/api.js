@@ -24,4 +24,7 @@ export const api = {
   search: (province, subject, user_rank, limit = 20) =>
     request("GET", `/api/admission/search`, { province, subject, user_rank, limit }),
   verify: (payload) => request("POST", "/api/verify", payload),
+  // P1→P2 打通：一次核验多个专业（画布推荐方向 / 冲稳保列表）
+  verifyBatch: (province, subject, user_rank, major_names) =>
+    request("POST", "/api/verify/batch", { province, subject, user_rank, major_names }),
 };

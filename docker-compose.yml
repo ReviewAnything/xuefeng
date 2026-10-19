@@ -10,6 +10,8 @@ services:
       # 多实例部署时固定令牌签名密钥
       XUEFENG_AUTH_SECRET: ${XUEFENG_AUTH_SECRET:-}
       XUEFENG_DB_PATH: /app/data/xuefeng.db
+      # 允许跨域访问的前端来源（逗号分隔）；生产环境务必显式配置，不要用 *
+      XUEFENG_CORS_ORIGINS: ${XUEFENG_CORS_ORIGINS:-http://localhost:5173,http://localhost:8000}
       # 如需 PostgreSQL，取消下行注释并提供 DATABASE_URL
       # XUEFENG_DATABASE_URL: ${DATABASE_URL:-}
     volumes:

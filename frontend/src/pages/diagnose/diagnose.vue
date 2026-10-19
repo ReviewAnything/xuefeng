@@ -50,7 +50,10 @@
                     :type="p.view === 'recommend' ? 'success' : 'primary'" plain
                     @click="goVerify(p.name)">{{ p.name }}</wd-tag>
           </view>
-          <text class="small">点击任一专业可直接带入「核验」页做观点×数据交叉核验（需先填省份/科类/位次）。</text>
+          <view class="pick-actions">
+            <wd-button size="small" type="primary" plain @click="goVerifyBatch">批量核验全部 {{ canvas.picks.length }} 个方向</wd-button>
+          </view>
+          <text class="small">点击任一专业可单独带入「核验」页；点上方按钮可把全部推荐方向一次性批量核验（需先填省份/科类/位次）。</text>
         </view>
         <view class="cv-block warn">
           <text class="cv-k">偏见校正</text>
@@ -146,13 +149,43 @@ function clear() {
   toast.show("已清空");
 }
 
-// 一键把诊断画布里的专业带入「核验」页（观点×数据交叉核验）
-function goVerify(name) {
+// 条件齐备性检查：省份/科类/位次是数据侧计算的必需输入
+function requireConditions() {
   if (!form.province || !form.subject || !rankInput.value) {
     toast.show("请先填写省份 / 科类 / 位次");
+    return false;
+  }
+  return true;
+}
+
+// 把「画布推荐方向」落盘，供核验页读取（P1→P2 打通的桥梁，仍仅存本机）
+function persistPicks() {
+  uni.setStorageSync("zhiyuan_canvas_v2", {
+    province: form.province,
+    subject: form.subject,
+    user_rank: rankInput.value,
+    picks: (canvas.value && canvas.value.picks ? canvas.value.picks : []).map((x) => x.name),
+    at: Date.now(),
+  });
+}
+
+// 一键把诊断画布里的专业带入「核验」页（观点×数据交叉核验）
+function goVerify(name) {
+  if (!requireConditions()) return;
+  persistPicks();
+  const q = `province=${encodeURIComponent(form.province)}&subject=${encodeURIComponent(form.subject)}&user_rank=${encodeURIComponent(rankInput.value)}&major_name=${encodeURIComponent(name)}`;
+  uni.navigateTo({ url: `/pages/verify/verify?${q}` });
+}
+
+// 批量：把画布全部推荐方向带入核验页，一次算完 一致/需谨慎/冲突
+function goVerifyBatch() {
+  if (!requireConditions()) return;
+  if (!canvas.value || !canvas.value.picks || !canvas.value.picks.length) {
+    toast.show("画布暂无推荐方向");
     return;
   }
-  const q = `province=${encodeURIComponent(form.province)}&subject=${encodeURIComponent(form.subject)}&user_rank=${encodeURIComponent(rankInput.value)}&major_name=${encodeURIComponent(name)}`;
+  persistPicks();
+  const q = `province=${encodeURIComponent(form.province)}&subject=${encodeURIComponent(form.subject)}&user_rank=${encodeURIComponent(rankInput.value)}&batch=1`;
   uni.navigateTo({ url: `/pages/verify/verify?${q}` });
 }
 
@@ -190,6 +223,7 @@ async function enrich() {
 .cv-k { font-size: 24rpx; color: #ffd24d; font-weight: 600; display: block; margin-bottom: 6rpx; }
 .cv-t { font-size: 24rpx; color: #c7ccd4; line-height: 1.6; }
 .tags { display: flex; flex-wrap: wrap; gap: 12rpx; margin: 6rpx 0; }
+.pick-actions { margin: 14rpx 0 2rpx; }
 .small { font-size: 21rpx; color: #6b7280; display: block; margin-top: 10rpx; line-height: 1.6; }
 .next { font-size: 24rpx; color: #c7ccd4; line-height: 1.8; }
 .cv-foot { font-size: 21rpx; color: #f0ad4e; margin-top: 6rpx; }

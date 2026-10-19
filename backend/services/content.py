@@ -17,6 +17,8 @@ RESOURCES = CONTENT["RESOURCES"]
 QUESTIONS = CONTENT["QUESTIONS"]
 APP_VERSION = CONTENT.get("APP_VERSION", "2.0.0")
 DATA_DATE = CONTENT.get("DATA_DATE", "")
+# 内容可溯：观点整理年份/证据口径（每个专业另带 source_year / source_note）
+CONTENT_SOURCE = CONTENT.get("CONTENT_SOURCE", {})
 
 # 视图标签映射
 VIEW_LABEL = {"recommend": "推荐", "caution": "慎选", "avoid": "避坑"}

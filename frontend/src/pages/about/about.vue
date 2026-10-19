@@ -49,6 +49,17 @@
         </wd-collapse>
       </view>
 
+      <view class="section">
+        <text class="h3">内容可溯</text>
+        <wd-cell-group border>
+          <wd-cell title="观点依据" :value="src.view_basis" />
+          <wd-cell title="数据依据" :value="src.data_basis" />
+          <wd-cell title="整理年份" :value="src.compiled_year + ' 年（' + src.compiled_date + '）'" />
+        </wd-cell-group>
+        <text class="p small">{{ src.caveat }}</text>
+        <text class="p small">专业图谱内每个专业均标注 source_year（观点整理年份）与 source_note（该大类证据口径）。</text>
+      </view>
+
       <view class="section warn">
         <text class="h3">免责声明</text>
         <text class="p">本应用由 AI 基于公开资料与开源社区内容整理，<text class="strong">仅供学习参考，不构成正式升学/志愿填报建议</text>。实际填报请以各省教育考试院官方数据为准。收录的开源项目多为社区自发纪念与二次创作，与商业主体无关联。录取基线中 11 省为官方省控线/投档位次，其余为模型推算，已在接口逐条标注来源。</text>
@@ -59,12 +70,13 @@
 
 <script setup>
 import { ref } from "vue";
-import { APP_VERSION, DATA_DATE } from "@/utils/content.js";
+import { APP_VERSION, DATA_DATE, CONTENT_SOURCE } from "@/utils/content.js";
 import { themeVars } from "@/utils/theme.js";
 
 const version = APP_VERSION;
 const date = DATA_DATE;
 const open = ref("1");
+const src = CONTENT_SOURCE;
 
 function openAdmin() {
   // #ifdef H5
@@ -87,5 +99,6 @@ function openAdmin() {
 .section.warn { border: 1px solid #5a4a1a; border-radius: 16rpx; padding: 20rpx; background: #1b1811; }
 .h3 { font-size: 30rpx; font-weight: 600; color: #e6e8ec; display: block; margin-bottom: 12rpx; }
 .p { font-size: 24rpx; color: #c7ccd4; line-height: 1.75; }
+.p.small { display: block; margin-top: 12rpx; font-size: 21rpx; color: #8a909c; }
 .strong { color: #ffd24d; font-weight: 600; }
 </style>

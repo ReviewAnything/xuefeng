@@ -1,67 +1,788 @@
 {
-  "APP_VERSION": "2.0.0",
-  "DATA_DATE": "2026-10-19",
+  "APP_VERSION": "2.2.0",
+  "DATA_DATE": "2026-10-20",
   "NOTE": "单一数据源：uni-app 前端与 Python 后端共用。年度更新只改本文件并 bump APP_VERSION。内容来源：张雪峰公开观点(社区整理) + 开源资源核实，仅供学习参考。",
   "QUESTIONS": [
-    { "id": "province", "label": "高考省份", "type": "text", "placeholder": "如：河南 / 广东", "hint": "用于后续核验各省录取位次" },
-    { "id": "subject", "label": "选科方向", "type": "select", "options": ["物理类", "历史类", "综合/未改革"], "hint": "新高考物理/历史分流决定可报专业池" },
-    { "id": "tier", "label": "大致能摸到的院校层次", "type": "select", "options": ["冲刺985", "211线附近", "普通一本/二本", "专科/高职"], "hint": "自我评估，用于匹配张雪峰分层次策略" },
-    { "id": "familyBg", "label": "家庭背景", "type": "select", "options": ["资源型(有人脉/可试错)", "普通家庭", "寒门(容错率低)"], "hint": "阶层现实主义：容错率决定策略" },
-    { "id": "interest", "label": "有明确的专业兴趣吗", "type": "select", "options": ["有明确热爱", "大致有方向", "完全没方向"], "hint": "兴趣不能作为第一标准，但需被记录与平衡" },
-    { "id": "riskPref", "label": "风险偏好", "type": "select", "options": ["求稳优先", "平衡", "愿意冲高风险高回报"], "hint": "体制内/技术壁垒 = 稳；冷门/创业 = 险" },
-    { "id": "further", "label": "深造意愿", "type": "select", "options": ["坚定读研/读博", "看情况", "本科直接就业"], "hint": "天坑专业多依赖深造，会显著影响建议" },
-    { "id": "goal", "label": "最看重什么", "type": "select", "options": ["稳定/有编有岗", "薪资上限", "兴趣热爱", "考公考编便利"], "hint": "目标倒推：先问想要什么保障，再选最短路径" }
+    {
+      "id": "province",
+      "label": "高考省份",
+      "type": "text",
+      "placeholder": "如：河南 / 广东",
+      "hint": "用于后续核验各省录取位次"
+    },
+    {
+      "id": "subject",
+      "label": "选科方向",
+      "type": "select",
+      "options": [
+        "物理类",
+        "历史类",
+        "综合/未改革"
+      ],
+      "hint": "新高考物理/历史分流决定可报专业池"
+    },
+    {
+      "id": "tier",
+      "label": "大致能摸到的院校层次",
+      "type": "select",
+      "options": [
+        "冲刺985",
+        "211线附近",
+        "普通一本/二本",
+        "专科/高职"
+      ],
+      "hint": "自我评估，用于匹配张雪峰分层次策略"
+    },
+    {
+      "id": "familyBg",
+      "label": "家庭背景",
+      "type": "select",
+      "options": [
+        "资源型(有人脉/可试错)",
+        "普通家庭",
+        "寒门(容错率低)"
+      ],
+      "hint": "阶层现实主义：容错率决定策略"
+    },
+    {
+      "id": "interest",
+      "label": "有明确的专业兴趣吗",
+      "type": "select",
+      "options": [
+        "有明确热爱",
+        "大致有方向",
+        "完全没方向"
+      ],
+      "hint": "兴趣不能作为第一标准，但需被记录与平衡"
+    },
+    {
+      "id": "riskPref",
+      "label": "风险偏好",
+      "type": "select",
+      "options": [
+        "求稳优先",
+        "平衡",
+        "愿意冲高风险高回报"
+      ],
+      "hint": "体制内/技术壁垒 = 稳；冷门/创业 = 险"
+    },
+    {
+      "id": "further",
+      "label": "深造意愿",
+      "type": "select",
+      "options": [
+        "坚定读研/读博",
+        "看情况",
+        "本科直接就业"
+      ],
+      "hint": "天坑专业多依赖深造，会显著影响建议"
+    },
+    {
+      "id": "goal",
+      "label": "最看重什么",
+      "type": "select",
+      "options": [
+        "稳定/有编有岗",
+        "薪资上限",
+        "兴趣热爱",
+        "考公考编便利"
+      ],
+      "hint": "目标倒推：先问想要什么保障，再选最短路径"
+    }
   ],
   "MAJORS": [
-    { "name": "计算机科学与技术", "cat": "理工硬核", "view": "recommend", "tags": ["技术壁垒","就业广","考公岗多"], "reason": "数字化时代各行各业都需要，不依赖家庭资源，优秀本科生即可获得不错薪资。", "bias": "行业内卷明显、需持续学新技术；AI 编码工具会压缩初级岗位，应往系统/算法/垂直行业纵深走。", "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "软件工程", "cat": "理工硬核", "view": "recommend", "tags": ["技术壁垒","就业广"], "reason": "与计算机同源，重工程实践，本科就业友好。", "bias": "同计算机，警惕纯 CRUD 岗位被外包/AI 替代，需积累架构与领域经验。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "电子信息类", "cat": "理工硬核", "view": "recommend", "tags": ["硬核工科","行业前景"], "reason": "芯片、通信、智能硬件需求长期存在，专业壁垒高。", "bias": "课程难度大、数理要求高，普通家庭无背景也能靠技术立足，但需能啃硬课。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "电气工程及其自动化", "cat": "理工硬核", "view": "recommend", "tags": ["国网校招","越老越香"], "reason": "国家电网/南方电网年校招超2万人，2026录取分暴涨成黑马专业。", "bias": "并非所有去向都进国网，县局/私企待遇差异大；仍是普通家庭确定性极高的选择。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "自动化", "cat": "理工硬核", "view": "recommend", "tags": ["万金油工科","就业广"], "reason": "软硬结合，制造业升级与机器人方向需求稳。", "bias": "方向杂需自己聚焦（控制/嵌入式/AI），否则容易样样通样样松。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "机械类", "cat": "理工硬核", "view": "caution", "tags": ["传统工科","需深造"], "reason": "就业面尚可但起薪偏低，智能制造方向有改善。", "bias": "传统机械黄金期已过，须往机电一体化/机器人/新能源方向靠，否则易沦为车间岗。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "临床医学", "cat": "医学类", "view": "recommend", "tags": ["越老越香","社会地位"], "reason": "职业生命周期长、社会地位高，但周期极长(5+3+规培)。", "bias": "低分院校临床就业极差、前期倒贴钱；普通家庭需评估时间成本，能接受长周期才选。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "口腔医学", "cat": "医学类", "view": "recommend", "tags": ["无需夜班","可创业"], "reason": "无需频繁急诊夜班、医患矛盾少，可进公立医院或自主开诊所。", "bias": "分数已不低、竞争加剧；开办诊所需资金与资质，并非轻松致富。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "医学影像技术", "cat": "医学类", "view": "recommend", "tags": ["二本性价比","稳定"], "reason": "二本分数段性价比远超临床，就业稳定、竞争压力小。", "bias": "属技术岗非医师，晋升与薪资天花板低于临床，但确定性高。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "医学检验技术", "cat": "医学类", "view": "recommend", "tags": ["二本性价比","稳定"], "reason": "同影像，二本分数段稳妥就业，工作环境相对好。", "bias": "AI 辅助诊断会替代部分常规操作，需向复合型检验人才发展。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "护理学", "cat": "医学类", "view": "recommend", "tags": ["一技之长","需求大"], "reason": "掌握一技之长，就业不愁，专科层次也「香」。", "bias": "工作强度大、夜班多、职业尊重度参差；男护需求更旺但需心理准备。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "口腔医学技术", "cat": "医学类", "view": "caution", "tags": ["技工岗","非医师"], "reason": "做义齿/修复体，二本分数段就业稳。", "bias": "注意与口腔医学区别：这是技工岗不是医师，不能考医师证开诊所。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "法学", "cat": "文科保底", "view": "recommend", "tags": ["考公优势","红牌预警"], "reason": "考公考编岗位多，是普通人保底选择之一。", "bias": "连续多年红牌、司考难、普通院校内卷；需名校或过硬实力，否则易沦为廉价劳动力。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "汉语言文学", "cat": "文科保底", "view": "recommend", "tags": ["考公优势","文职广"], "reason": "考公岗多、文职通用，求稳时期的稳妥选项。", "bias": "纯文科上限靠个人能力，需叠加写作/新媒体等可迁移技能。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "会计学/财务管理", "cat": "文科保底", "view": "recommend", "tags": ["考公优势","通用"], "reason": "企业刚需、考公岗多，越老越有经验价值。", "bias": "基础核算受财务软件/AI 冲击，须往CPA/管理会计/审计纵深。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "师范类", "cat": "文科保底", "view": "recommend", "tags": ["稳定","有编"], "reason": "公费师范/普通师范进学校体系，稳定性强。", "bias": "人口下行致教师编竞争加剧、部分学科饱和；优先选理科/紧缺学科师范。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "经济学类", "cat": "文科保底", "view": "caution", "tags": ["考公岗多","名校效应"], "reason": "考公岗尚可，但普通院校无资源背景就业一般。", "bias": "金融本质资源变现，普通家庭无背景难立足；慎选无特色的经济专业。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "公费师范生", "cat": "体制内", "view": "recommend", "tags": ["有编有岗","免学费"], "reason": "有编有岗、确定性极强，近年分数线持续走高。", "bias": "需签订服务期、定向就业，违约成本高；适合求稳且接受基层者。", "verify": "各省教育考试院公费师范招生简章" },
-    { "name": "警校/公安类", "cat": "体制内", "view": "recommend", "tags": ["有编","体测"], "reason": "入警率高、有编有岗，普通家庭首选方向之一。", "bias": "需政审+体测+面试，身体条件不符直接出局，提前核验资格。", "verify": "各省警校招生体检面试标准" },
-    { "name": "定向士官", "cat": "体制内", "view": "recommend", "tags": ["专科逆袭","包分配"], "reason": "专科层次包分配方向，性价比高。", "bias": "服役年限与转业安置需了解清楚，并非人人适合军旅。", "verify": "各省征兵办/军校招生网" },
-    { "name": "军校", "cat": "体制内", "view": "recommend", "tags": ["免学费","包分配"], "reason": "免学费、包分配、待遇好，竞争激烈。", "bias": "体检政审极严、管理军事化，须确认自己适配。", "verify": "军校招生官方平台" },
-    { "name": "生物工程", "cat": "避坑天坑", "view": "avoid", "tags": ["四大天坑","深造无底洞"], "reason": "本科对口少、普遍要求硕博，普通家庭试错成本极高。", "bias": "若真热爱科研且规划读博可走；否则本科就业面窄、转行率高。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "化学/应用化学", "cat": "避坑天坑", "view": "avoid", "tags": ["工厂倒班","薪资低"], "reason": "工厂倒班、环境差、本科难找好工作，读研依旧难进高薪岗。", "bias": "新能源/半导体材料方向例外，传统化学方向慎选。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "环境工程", "cat": "避坑天坑", "view": "avoid", "tags": ["薪资低","不吃学历"], "reason": "私企工资低、事业单位门槛高，行业不吃学历。", "bias": "双碳政策长期有利，但短期薪酬与岗位仍有限。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "材料科学与工程", "cat": "避坑天坑", "view": "avoid", "tags": ["研发卡博士","本科进厂"], "reason": "全产业链薪资偏低，研发岗卡博士，本科多进厂。", "bias": "半导体/新能源前沿材料例外，传统金属/无机材料慎重。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "新闻学", "cat": "避坑天坑", "view": "avoid", "tags": ["自媒体消解壁垒","内卷"], "reason": "自媒体时代科班优势荡然无存，传统媒体缩编。", "bias": "家境优渥、坚定做内容者可酌情；同等分数选硬核工科选择更广。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "金融学(无背景)", "cat": "避坑天坑", "view": "avoid", "tags": ["资源变现","普本喝汤"], "reason": "金融本质资源变现，普通家庭无背景难立足。", "bias": "名校+资源型家庭另说；普通家庭除非能进顶尖院校，否则慎碰。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "工商管理", "cat": "避坑天坑", "view": "avoid", "tags": ["万金油","无壁垒"], "reason": "课程泛而不精，缺实操，企业更看经验。", "bias": "家里有企业可学管理；普通家庭优先选有技术壁垒的专业。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "市场营销", "cat": "避坑天坑", "view": "avoid", "tags": ["销售无门槛","学历枷锁"], "reason": "80%毕业生做基础销售，与初高中生同台竞争。", "bias": "若叠加数据分析/品牌能力可突围，但单靠专业难。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "哲学", "cat": "避坑天坑", "view": "avoid", "tags": ["冷门","考公岗少"], "reason": "除非家境优渥或走学术，否则就业面窄。", "bias": "逻辑训练有价值，但需自学可迁移技能，不能当饭吃。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "历史学", "cat": "避坑天坑", "view": "avoid", "tags": ["冷门","转行率高"], "reason": "对口岗位少、薪资偏低，转行率高达90%。", "bias": "师范/文博方向尚可；纯历史研究需读博。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "心理学", "cat": "避坑天坑", "view": "avoid", "tags": ["岗位少","需硕博"], "reason": "心理咨询未成熟，岗位集中一线且要求硕博。", "bias": "可走HR/用户体验方向，但纯咨询难变现。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "考古学", "cat": "避坑天坑", "view": "avoid", "tags": ["极冷门","岗位极少"], "reason": "岗位极少，专业优势难发挥。", "bias": "文博热带动少量需求，但仍属极小众。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "土木工程", "cat": "避坑天坑", "view": "avoid", "tags": ["行业下行","环境苦"], "reason": "房地产萎缩、招聘锐减，985也难逃工地。", "bias": "基建/水利/交通方向仍有需求，但整体黄金期已过。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "建筑学", "cat": "避坑天坑", "view": "avoid", "tags": ["行业下行","加班多"], "reason": "与土木类似，行业收缩、薪资低。", "bias": "转城市规划/景观需再定位；设计院竞争极烈。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "旅游管理", "cat": "避坑天坑", "view": "avoid", "tags": ["门槛低","青春饭"], "reason": "专科都能做，本科从服务员做起，流动性大。", "bias": "可走会展/数字文旅，但单靠专业无壁垒。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "酒店管理", "cat": "避坑天坑", "view": "avoid", "tags": ["门槛低","薪资低"], "reason": "行业门槛极低，本科无优势。", "bias": "国际品牌管培生路径尚可，但起薪与强度不友好。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" },
-    { "name": "公共管理/社工", "cat": "避坑天坑", "view": "avoid", "tags": ["万金油","考公卷"], "reason": "无专属对口岗，考公竞争卷到极致。", "bias": "考公定向岗可走，但普通方向缺乏技术壁垒。", "verify": "https://github.com/chenxuyaun/gaokao-advisor" }
+    {
+      "name": "计算机科学与技术",
+      "cat": "理工硬核",
+      "view": "recommend",
+      "tags": [
+        "技术壁垒",
+        "就业广",
+        "考公岗多"
+      ],
+      "reason": "数字化时代各行各业都需要，不依赖家庭资源，优秀本科生即可获得不错薪资。",
+      "bias": "行业内卷明显、需持续学新技术；AI 编码工具会压缩初级岗位，应往系统/算法/垂直行业纵深走。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。"
+    },
+    {
+      "name": "软件工程",
+      "cat": "理工硬核",
+      "view": "recommend",
+      "tags": [
+        "技术壁垒",
+        "就业广"
+      ],
+      "reason": "与计算机同源，重工程实践，本科就业友好。",
+      "bias": "同计算机，警惕纯 CRUD 岗位被外包/AI 替代，需积累架构与领域经验。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。"
+    },
+    {
+      "name": "电子信息类",
+      "cat": "理工硬核",
+      "view": "recommend",
+      "tags": [
+        "硬核工科",
+        "行业前景"
+      ],
+      "reason": "芯片、通信、智能硬件需求长期存在，专业壁垒高。",
+      "bias": "课程难度大、数理要求高，普通家庭无背景也能靠技术立足，但需能啃硬课。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。"
+    },
+    {
+      "name": "电气工程及其自动化",
+      "cat": "理工硬核",
+      "view": "recommend",
+      "tags": [
+        "国网校招",
+        "越老越香"
+      ],
+      "reason": "国家电网/南方电网年校招超2万人，2026录取分暴涨成黑马专业。",
+      "bias": "并非所有去向都进国网，县局/私企待遇差异大；仍是普通家庭确定性极高的选择。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。"
+    },
+    {
+      "name": "自动化",
+      "cat": "理工硬核",
+      "view": "recommend",
+      "tags": [
+        "万金油工科",
+        "就业广"
+      ],
+      "reason": "软硬结合，制造业升级与机器人方向需求稳。",
+      "bias": "方向杂需自己聚焦（控制/嵌入式/AI），否则容易样样通样样松。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。"
+    },
+    {
+      "name": "机械类",
+      "cat": "理工硬核",
+      "view": "caution",
+      "tags": [
+        "传统工科",
+        "需深造"
+      ],
+      "reason": "就业面尚可但起薪偏低，智能制造方向有改善。",
+      "bias": "传统机械黄金期已过，须往机电一体化/机器人/新能源方向靠，否则易沦为车间岗。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。"
+    },
+    {
+      "name": "临床医学",
+      "cat": "医学类",
+      "view": "recommend",
+      "tags": [
+        "越老越香",
+        "社会地位"
+      ],
+      "reason": "职业生命周期长、社会地位高，但周期极长(5+3+规培)。",
+      "bias": "低分院校临床就业极差、前期倒贴钱；普通家庭需评估时间成本，能接受长周期才选。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "培养周期与执业门槛参考国家医师资格考试、住院医师规范化培训等公开制度规定。"
+    },
+    {
+      "name": "口腔医学",
+      "cat": "医学类",
+      "view": "recommend",
+      "tags": [
+        "无需夜班",
+        "可创业"
+      ],
+      "reason": "无需频繁急诊夜班、医患矛盾少，可进公立医院或自主开诊所。",
+      "bias": "分数已不低、竞争加剧；开办诊所需资金与资质，并非轻松致富。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "培养周期与执业门槛参考国家医师资格考试、住院医师规范化培训等公开制度规定。"
+    },
+    {
+      "name": "医学影像技术",
+      "cat": "医学类",
+      "view": "recommend",
+      "tags": [
+        "二本性价比",
+        "稳定"
+      ],
+      "reason": "二本分数段性价比远超临床，就业稳定、竞争压力小。",
+      "bias": "属技术岗非医师，晋升与薪资天花板低于临床，但确定性高。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "培养周期与执业门槛参考国家医师资格考试、住院医师规范化培训等公开制度规定。"
+    },
+    {
+      "name": "医学检验技术",
+      "cat": "医学类",
+      "view": "recommend",
+      "tags": [
+        "二本性价比",
+        "稳定"
+      ],
+      "reason": "同影像，二本分数段稳妥就业，工作环境相对好。",
+      "bias": "AI 辅助诊断会替代部分常规操作，需向复合型检验人才发展。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "培养周期与执业门槛参考国家医师资格考试、住院医师规范化培训等公开制度规定。"
+    },
+    {
+      "name": "护理学",
+      "cat": "医学类",
+      "view": "recommend",
+      "tags": [
+        "一技之长",
+        "需求大"
+      ],
+      "reason": "掌握一技之长，就业不愁，专科层次也「香」。",
+      "bias": "工作强度大、夜班多、职业尊重度参差；男护需求更旺但需心理准备。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "培养周期与执业门槛参考国家医师资格考试、住院医师规范化培训等公开制度规定。"
+    },
+    {
+      "name": "口腔医学技术",
+      "cat": "医学类",
+      "view": "caution",
+      "tags": [
+        "技工岗",
+        "非医师"
+      ],
+      "reason": "做义齿/修复体，二本分数段就业稳。",
+      "bias": "注意与口腔医学区别：这是技工岗不是医师，不能考医师证开诊所。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "培养周期与执业门槛参考国家医师资格考试、住院医师规范化培训等公开制度规定。"
+    },
+    {
+      "name": "法学",
+      "cat": "文科保底",
+      "view": "recommend",
+      "tags": [
+        "考公优势",
+        "红牌预警"
+      ],
+      "reason": "考公考编岗位多，是普通人保底选择之一。",
+      "bias": "连续多年红牌、司考难、普通院校内卷；需名校或过硬实力，否则易沦为廉价劳动力。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "考公/考编岗位参考公开招录职位表；「就业面窄」为观点性判断，个体差异较大。"
+    },
+    {
+      "name": "汉语言文学",
+      "cat": "文科保底",
+      "view": "recommend",
+      "tags": [
+        "考公优势",
+        "文职广"
+      ],
+      "reason": "考公岗多、文职通用，求稳时期的稳妥选项。",
+      "bias": "纯文科上限靠个人能力，需叠加写作/新媒体等可迁移技能。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "考公/考编岗位参考公开招录职位表；「就业面窄」为观点性判断，个体差异较大。"
+    },
+    {
+      "name": "会计学/财务管理",
+      "cat": "文科保底",
+      "view": "recommend",
+      "tags": [
+        "考公优势",
+        "通用"
+      ],
+      "reason": "企业刚需、考公岗多，越老越有经验价值。",
+      "bias": "基础核算受财务软件/AI 冲击，须往CPA/管理会计/审计纵深。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "考公/考编岗位参考公开招录职位表；「就业面窄」为观点性判断，个体差异较大。"
+    },
+    {
+      "name": "师范类",
+      "cat": "文科保底",
+      "view": "recommend",
+      "tags": [
+        "稳定",
+        "有编"
+      ],
+      "reason": "公费师范/普通师范进学校体系，稳定性强。",
+      "bias": "人口下行致教师编竞争加剧、部分学科饱和；优先选理科/紧缺学科师范。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "考公/考编岗位参考公开招录职位表；「就业面窄」为观点性判断，个体差异较大。"
+    },
+    {
+      "name": "经济学类",
+      "cat": "文科保底",
+      "view": "caution",
+      "tags": [
+        "考公岗多",
+        "名校效应"
+      ],
+      "reason": "考公岗尚可，但普通院校无资源背景就业一般。",
+      "bias": "金融本质资源变现，普通家庭无背景难立足；慎选无特色的经济专业。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "考公/考编岗位参考公开招录职位表；「就业面窄」为观点性判断，个体差异较大。"
+    },
+    {
+      "name": "公费师范生",
+      "cat": "体制内",
+      "view": "recommend",
+      "tags": [
+        "有编有岗",
+        "免学费"
+      ],
+      "reason": "有编有岗、确定性极强，近年分数线持续走高。",
+      "bias": "需签订服务期、定向就业，违约成本高；适合求稳且接受基层者。",
+      "verify": "各省教育考试院公费师范招生简章",
+      "source_year": 2026,
+      "source_note": "参考公务员 / 事业单位公开招录条件与专业要求，各地口径可能不同。"
+    },
+    {
+      "name": "警校/公安类",
+      "cat": "体制内",
+      "view": "recommend",
+      "tags": [
+        "有编",
+        "体测"
+      ],
+      "reason": "入警率高、有编有岗，普通家庭首选方向之一。",
+      "bias": "需政审+体测+面试，身体条件不符直接出局，提前核验资格。",
+      "verify": "各省警校招生体检面试标准",
+      "source_year": 2026,
+      "source_note": "参考公务员 / 事业单位公开招录条件与专业要求，各地口径可能不同。"
+    },
+    {
+      "name": "定向士官",
+      "cat": "体制内",
+      "view": "recommend",
+      "tags": [
+        "专科逆袭",
+        "包分配"
+      ],
+      "reason": "专科层次包分配方向，性价比高。",
+      "bias": "服役年限与转业安置需了解清楚，并非人人适合军旅。",
+      "verify": "各省征兵办/军校招生网",
+      "source_year": 2026,
+      "source_note": "参考公务员 / 事业单位公开招录条件与专业要求，各地口径可能不同。"
+    },
+    {
+      "name": "军校",
+      "cat": "体制内",
+      "view": "recommend",
+      "tags": [
+        "免学费",
+        "包分配"
+      ],
+      "reason": "免学费、包分配、待遇好，竞争激烈。",
+      "bias": "体检政审极严、管理军事化，须确认自己适配。",
+      "verify": "军校招生官方平台",
+      "source_year": 2026,
+      "source_note": "参考公务员 / 事业单位公开招录条件与专业要求，各地口径可能不同。"
+    },
+    {
+      "name": "生物工程",
+      "cat": "避坑天坑",
+      "view": "avoid",
+      "tags": [
+        "四大天坑",
+        "深造无底洞"
+      ],
+      "reason": "本科对口少、普遍要求硕博，普通家庭试错成本极高。",
+      "bias": "若真热爱科研且规划读博可走；否则本科就业面窄、转行率高。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+    },
+    {
+      "name": "化学/应用化学",
+      "cat": "避坑天坑",
+      "view": "avoid",
+      "tags": [
+        "工厂倒班",
+        "薪资低"
+      ],
+      "reason": "工厂倒班、环境差、本科难找好工作，读研依旧难进高薪岗。",
+      "bias": "新能源/半导体材料方向例外，传统化学方向慎选。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+    },
+    {
+      "name": "环境工程",
+      "cat": "避坑天坑",
+      "view": "avoid",
+      "tags": [
+        "薪资低",
+        "不吃学历"
+      ],
+      "reason": "私企工资低、事业单位门槛高，行业不吃学历。",
+      "bias": "双碳政策长期有利，但短期薪酬与岗位仍有限。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+    },
+    {
+      "name": "材料科学与工程",
+      "cat": "避坑天坑",
+      "view": "avoid",
+      "tags": [
+        "研发卡博士",
+        "本科进厂"
+      ],
+      "reason": "全产业链薪资偏低，研发岗卡博士，本科多进厂。",
+      "bias": "半导体/新能源前沿材料例外，传统金属/无机材料慎重。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+    },
+    {
+      "name": "新闻学",
+      "cat": "避坑天坑",
+      "view": "avoid",
+      "tags": [
+        "自媒体消解壁垒",
+        "内卷"
+      ],
+      "reason": "自媒体时代科班优势荡然无存，传统媒体缩编。",
+      "bias": "家境优渥、坚定做内容者可酌情；同等分数选硬核工科选择更广。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+    },
+    {
+      "name": "金融学(无背景)",
+      "cat": "避坑天坑",
+      "view": "avoid",
+      "tags": [
+        "资源变现",
+        "普本喝汤"
+      ],
+      "reason": "金融本质资源变现，普通家庭无背景难立足。",
+      "bias": "名校+资源型家庭另说；普通家庭除非能进顶尖院校，否则慎碰。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+    },
+    {
+      "name": "工商管理",
+      "cat": "避坑天坑",
+      "view": "avoid",
+      "tags": [
+        "万金油",
+        "无壁垒"
+      ],
+      "reason": "课程泛而不精，缺实操，企业更看经验。",
+      "bias": "家里有企业可学管理；普通家庭优先选有技术壁垒的专业。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+    },
+    {
+      "name": "市场营销",
+      "cat": "避坑天坑",
+      "view": "avoid",
+      "tags": [
+        "销售无门槛",
+        "学历枷锁"
+      ],
+      "reason": "80%毕业生做基础销售，与初高中生同台竞争。",
+      "bias": "若叠加数据分析/品牌能力可突围，但单靠专业难。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+    },
+    {
+      "name": "哲学",
+      "cat": "避坑天坑",
+      "view": "avoid",
+      "tags": [
+        "冷门",
+        "考公岗少"
+      ],
+      "reason": "除非家境优渥或走学术，否则就业面窄。",
+      "bias": "逻辑训练有价值，但需自学可迁移技能，不能当饭吃。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+    },
+    {
+      "name": "历史学",
+      "cat": "避坑天坑",
+      "view": "avoid",
+      "tags": [
+        "冷门",
+        "转行率高"
+      ],
+      "reason": "对口岗位少、薪资偏低，转行率高达90%。",
+      "bias": "师范/文博方向尚可；纯历史研究需读博。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+    },
+    {
+      "name": "心理学",
+      "cat": "避坑天坑",
+      "view": "avoid",
+      "tags": [
+        "岗位少",
+        "需硕博"
+      ],
+      "reason": "心理咨询未成熟，岗位集中一线且要求硕博。",
+      "bias": "可走HR/用户体验方向，但纯咨询难变现。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+    },
+    {
+      "name": "考古学",
+      "cat": "避坑天坑",
+      "view": "avoid",
+      "tags": [
+        "极冷门",
+        "岗位极少"
+      ],
+      "reason": "岗位极少，专业优势难发挥。",
+      "bias": "文博热带动少量需求，但仍属极小众。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+    },
+    {
+      "name": "土木工程",
+      "cat": "避坑天坑",
+      "view": "avoid",
+      "tags": [
+        "行业下行",
+        "环境苦"
+      ],
+      "reason": "房地产萎缩、招聘锐减，985也难逃工地。",
+      "bias": "基建/水利/交通方向仍有需求，但整体黄金期已过。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+    },
+    {
+      "name": "建筑学",
+      "cat": "避坑天坑",
+      "view": "avoid",
+      "tags": [
+        "行业下行",
+        "加班多"
+      ],
+      "reason": "与土木类似，行业收缩、薪资低。",
+      "bias": "转城市规划/景观需再定位；设计院竞争极烈。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+    },
+    {
+      "name": "旅游管理",
+      "cat": "避坑天坑",
+      "view": "avoid",
+      "tags": [
+        "门槛低",
+        "青春饭"
+      ],
+      "reason": "专科都能做，本科从服务员做起，流动性大。",
+      "bias": "可走会展/数字文旅，但单靠专业无壁垒。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+    },
+    {
+      "name": "酒店管理",
+      "cat": "避坑天坑",
+      "view": "avoid",
+      "tags": [
+        "门槛低",
+        "薪资低"
+      ],
+      "reason": "行业门槛极低，本科无优势。",
+      "bias": "国际品牌管培生路径尚可，但起薪与强度不友好。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+    },
+    {
+      "name": "公共管理/社工",
+      "cat": "避坑天坑",
+      "view": "avoid",
+      "tags": [
+        "万金油",
+        "考公卷"
+      ],
+      "reason": "无专属对口岗，考公竞争卷到极致。",
+      "bias": "考公定向岗可走，但普通方向缺乏技术壁垒。",
+      "verify": "https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+    }
   ],
   "RESOURCES": [
-    { "name": "alchaincyf/zhangxuefeng-skill", "cat": "mind", "lic": "MIT", "meta": "★9.2k", "desc": "「张雪峰.skill」认知操作系统：5心智模型+8决策启发式+表达DNA，兼容50+ runtime。", "links": [ { "t": "GitHub 仓库", "u": "https://github.com/alchaincyf/zhangxuefeng-skill" } ] },
-    { "name": "Eric-Yibo-Shen/zhangxuefeng-skillset", "cat": "mind", "lic": "CC BY 4.0+MIT", "meta": "8模块", "desc": "决策知识库（AI校正/专业/策略/就业/院校/备考/规划/选科），可部署OpenClaw/扣子/RAG。", "links": [ { "t": "GitHub 仓库", "u": "https://github.com/Eric-Yibo-Shen/zhangxuefeng-skillset" }, { "t": "扣子体验", "u": "https://code.coze.cn/web-sdk/7627816552003321883" }, { "t": "Gitee 镜像", "u": "https://gitee.com/ericsam/zhangxuefeng-skillset" } ] },
-    { "name": "bcefghj/zhang-xue-feng-memorial", "cat": "mind", "lic": "CC BY 4.0", "meta": "纪念库", "desc": "纪念项目+4模块知识库+AI Agent提示词，适合直接阅读或导入RAG。", "links": [ { "t": "GitHub 仓库", "u": "https://github.com/bcefghj/zhang-xue-feng-memorial" }, { "t": "知识库入口", "u": "https://github.com/bcefghj/zhang-xue-feng-memorial/blob/main/knowledge/01_major_and_employment.md" } ] },
-    { "name": "dongsheng123132/gaokao-mentor-wisdom", "cat": "mind", "lic": "语料整理", "meta": "六类框架", "desc": "张雪峰语录系统整理，六大分类框架，被多个知识库引用。", "links": [ { "t": "GitHub 仓库", "u": "https://github.com/dongsheng123132/gaokao-mentor-wisdom" } ] },
-    { "name": "SPA3K/Xue-Feng-Skill", "cat": "mind", "lic": "语料转录", "meta": "137视频", "desc": "B站视频ASR转录（约29.8万字符），提炼六步决策框架，细分模块一手素材。", "links": [ { "t": "GitHub 仓库", "u": "https://github.com/SPA3K/Xue-Feng-Skill" } ] },
-    { "name": "chenxuyaun/gaokao-advisor", "cat": "tool", "lic": "MIT", "meta": "21.7万条", "desc": "AI志愿顾问：21.7万条真实录取记录、2707所大学、32省，按位次算冲稳保。", "links": [ { "t": "GitHub 仓库", "u": "https://github.com/chenxuyaun/gaokao-advisor" }, { "t": "在线体验", "u": "https://yueshewushuang-gaokao-advisor.hf.space" } ] },
-    { "name": "wonderslife/college-major4hs", "cat": "tool", "lic": "志愿系统", "meta": "本地", "desc": "本地志愿系统：院校/专业分析、位次预测、冲稳保方案生成与导出。", "links": [ { "t": "GitHub 仓库", "u": "https://github.com/wonderslife/college-major4hs" } ] },
-    { "name": "HongLanx/IntelliZhiyuan", "cat": "tool", "lic": "Android", "meta": "TFT预测", "desc": "「智选志愿」Android工具：多因子+TFT时序预测2025录取排名线。", "links": [ { "t": "GitHub 仓库", "u": "https://github.com/HongLanx/IntelliZhiyuan" } ] },
-    { "name": "fangge/gaokaoscore", "cat": "tool", "lic": "在线", "meta": "广东官方", "desc": "广东高考投档位次查询：基于考试院官方数据，分数/排位双向换算，支持PWA。", "links": [ { "t": "GitHub 仓库", "u": "https://github.com/fangge/gaokaoscore" }, { "t": "在线体验", "u": "https://gaokaoscore.mrfangge.com" } ] },
-    { "name": "aime4eve/Gaokao-equivalent-score-calculation", "cat": "tool", "lic": "Python", "meta": "等效分", "desc": "等效分数计算+录取概率(Sigmoid)+软科排名抓取，供数据分析。", "links": [ { "t": "GitHub 仓库", "u": "https://github.com/aime4eve/Gaokao-equivalent-score-calculation" } ] }
-  ]
+    {
+      "name": "alchaincyf/zhangxuefeng-skill",
+      "cat": "mind",
+      "lic": "MIT",
+      "meta": "★9.2k",
+      "desc": "「张雪峰.skill」认知操作系统：5心智模型+8决策启发式+表达DNA，兼容50+ runtime。",
+      "links": [
+        {
+          "t": "GitHub 仓库",
+          "u": "https://github.com/alchaincyf/zhangxuefeng-skill"
+        }
+      ]
+    },
+    {
+      "name": "Eric-Yibo-Shen/zhangxuefeng-skillset",
+      "cat": "mind",
+      "lic": "CC BY 4.0+MIT",
+      "meta": "8模块",
+      "desc": "决策知识库（AI校正/专业/策略/就业/院校/备考/规划/选科），可部署OpenClaw/扣子/RAG。",
+      "links": [
+        {
+          "t": "GitHub 仓库",
+          "u": "https://github.com/Eric-Yibo-Shen/zhangxuefeng-skillset"
+        },
+        {
+          "t": "扣子体验",
+          "u": "https://code.coze.cn/web-sdk/7627816552003321883"
+        },
+        {
+          "t": "Gitee 镜像",
+          "u": "https://gitee.com/ericsam/zhangxuefeng-skillset"
+        }
+      ]
+    },
+    {
+      "name": "bcefghj/zhang-xue-feng-memorial",
+      "cat": "mind",
+      "lic": "CC BY 4.0",
+      "meta": "纪念库",
+      "desc": "纪念项目+4模块知识库+AI Agent提示词，适合直接阅读或导入RAG。",
+      "links": [
+        {
+          "t": "GitHub 仓库",
+          "u": "https://github.com/bcefghj/zhang-xue-feng-memorial"
+        },
+        {
+          "t": "知识库入口",
+          "u": "https://github.com/bcefghj/zhang-xue-feng-memorial/blob/main/knowledge/01_major_and_employment.md"
+        }
+      ]
+    },
+    {
+      "name": "dongsheng123132/gaokao-mentor-wisdom",
+      "cat": "mind",
+      "lic": "语料整理",
+      "meta": "六类框架",
+      "desc": "张雪峰语录系统整理，六大分类框架，被多个知识库引用。",
+      "links": [
+        {
+          "t": "GitHub 仓库",
+          "u": "https://github.com/dongsheng123132/gaokao-mentor-wisdom"
+        }
+      ]
+    },
+    {
+      "name": "SPA3K/Xue-Feng-Skill",
+      "cat": "mind",
+      "lic": "语料转录",
+      "meta": "137视频",
+      "desc": "B站视频ASR转录（约29.8万字符），提炼六步决策框架，细分模块一手素材。",
+      "links": [
+        {
+          "t": "GitHub 仓库",
+          "u": "https://github.com/SPA3K/Xue-Feng-Skill"
+        }
+      ]
+    },
+    {
+      "name": "chenxuyaun/gaokao-advisor",
+      "cat": "tool",
+      "lic": "MIT",
+      "meta": "21.7万条",
+      "desc": "AI志愿顾问：21.7万条真实录取记录、2707所大学、32省，按位次算冲稳保。",
+      "links": [
+        {
+          "t": "GitHub 仓库",
+          "u": "https://github.com/chenxuyaun/gaokao-advisor"
+        },
+        {
+          "t": "在线体验",
+          "u": "https://yueshewushuang-gaokao-advisor.hf.space"
+        }
+      ]
+    },
+    {
+      "name": "wonderslife/college-major4hs",
+      "cat": "tool",
+      "lic": "志愿系统",
+      "meta": "本地",
+      "desc": "本地志愿系统：院校/专业分析、位次预测、冲稳保方案生成与导出。",
+      "links": [
+        {
+          "t": "GitHub 仓库",
+          "u": "https://github.com/wonderslife/college-major4hs"
+        }
+      ]
+    },
+    {
+      "name": "HongLanx/IntelliZhiyuan",
+      "cat": "tool",
+      "lic": "Android",
+      "meta": "TFT预测",
+      "desc": "「智选志愿」Android工具：多因子+TFT时序预测2025录取排名线。",
+      "links": [
+        {
+          "t": "GitHub 仓库",
+          "u": "https://github.com/HongLanx/IntelliZhiyuan"
+        }
+      ]
+    },
+    {
+      "name": "fangge/gaokaoscore",
+      "cat": "tool",
+      "lic": "在线",
+      "meta": "广东官方",
+      "desc": "广东高考投档位次查询：基于考试院官方数据，分数/排位双向换算，支持PWA。",
+      "links": [
+        {
+          "t": "GitHub 仓库",
+          "u": "https://github.com/fangge/gaokaoscore"
+        },
+        {
+          "t": "在线体验",
+          "u": "https://gaokaoscore.mrfangge.com"
+        }
+      ]
+    },
+    {
+      "name": "aime4eve/Gaokao-equivalent-score-calculation",
+      "cat": "tool",
+      "lic": "Python",
+      "meta": "等效分",
+      "desc": "等效分数计算+录取概率(Sigmoid)+软科排名抓取，供数据分析。",
+      "links": [
+        {
+          "t": "GitHub 仓库",
+          "u": "https://github.com/aime4eve/Gaokao-equivalent-score-calculation"
+        }
+      ]
+    }
+  ],
+  "CONTENT_SOURCE": {
+    "compiled_year": 2026,
+    "compiled_date": "2026-10-20",
+    "view_basis": "张雪峰公开讲座 / 直播观点（社区整理，非官方，属定性判断）",
+    "data_basis": "教育部学科评估、公开就业质量报告、各省教育考试院录取数据（逐省来源见 backend/data/SOURCES.md）",
+    "caveat": "观点为定性判断、数据为定量口径，二者口径不同；交叉核验结果仅供学习参考，正式填报以各省教育考试院为准。",
+    "note": "每个专业的 source_year 为观点整理年份，source_note 为该大类的证据口径说明；后续可逐条细化到具体出处。"
+  }
 }

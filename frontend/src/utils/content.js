@@ -6,6 +6,8 @@ export const DATA_DATE = data.DATA_DATE;
 export const QUESTIONS = data.QUESTIONS;
 export const MAJORS = data.MAJORS;
 export const RESOURCES = data.RESOURCES;
+// 内容可溯：观点整理年份与证据口径（每个专业另带 source_year / source_note）
+export const CONTENT_SOURCE = data.CONTENT_SOURCE || {};
 
 export const VIEW_LABEL = { recommend: "推荐", caution: "慎选", avoid: "避坑" };
 export const CATS = ["理工硬核", "医学类", "文科保底", "体制内", "避坑天坑"];

@@ -3,7 +3,7 @@
 把「张雪峰定性观点（推荐/慎选/避坑）」与「后端定量录取数据（可达批次/冲稳保）」做一致性校验，
 输出 alignment（一致/需谨慎/冲突）与可执行建议，强化偏见校正层。
 """
-from .admission import analyze_major, classify
+from .admission import analyze_major, classify, validate_user_rank
 from .content import VIEW_LABEL
 
 # 高危低位次批次：在这些批次读到"推荐"专业，需提示 bias 风险
@@ -87,6 +87,56 @@ def verify(province: str, subject: str, user_rank: int, major_name: str, major_c
                  alignment, message, suggestions)
 
 
+ALIGNMENT_ORDER = {"conflict": 0, "caution": 1, "aligned": 2}   # 冲突优先，便于用户先看风险
+ALIGNMENT_LABEL = {"aligned": "观点与数据一致", "caution": "需谨慎", "conflict": "存在冲突"}
+
+MAX_BATCH = 20
+
+
+def verify_major_entry(province, subject, user_rank, major) -> dict:
+    """按专业条目（content.json 里的 dict）执行一次核验。"""
+    return verify(
+        province=province, subject=subject, user_rank=user_rank,
+        major_name=major["name"], major_cat=major["cat"], view=major["view"],
+        reason=major["reason"], bias=major["bias"],
+    )
+
+
+def verify_many(province: str, subject: str, user_rank: int, majors: list[dict]) -> dict:
+    """批量交叉核验（P1→P2 打通）：一次算出多个专业的 一致/需谨慎/冲突 判定。
+
+    返回按「冲突 → 需谨慎 → 一致」排序的结果列表 + 汇总计数，供前端一次渲染。
+    """
+    err = validate_user_rank(user_rank)
+    if err:
+        return {"ok": False, "error": err}
+    if not majors:
+        return {"ok": False, "error": "未提供待核验专业"}
+
+    results, missing = [], []
+    for m in majors:
+        r = verify_major_entry(province, subject, user_rank, m)
+        if not r.get("ok"):
+            missing.append({"major": m["name"], "error": r.get("error", "核验失败")})
+            continue
+        results.append(r)
+
+    results.sort(key=lambda r: (ALIGNMENT_ORDER.get(r["alignment"], 9), r["major"]))
+    summary = {"total": len(results), "aligned": 0, "caution": 0, "conflict": 0}
+    for r in results:
+        summary[r["alignment"]] = summary.get(r["alignment"], 0) + 1
+
+    return {
+        "ok": True,
+        "province": province, "subject": subject, "user_rank": user_rank,
+        "count": len(results),
+        "summary": summary,
+        "results": results,
+        "missing": missing,
+        "data_source": results[0]["data_source"] if results else "",
+    }
+
+
 def _pack(province, subject, user_rank, major_name, view, reason, bias, ana,
           alignment, message, suggestions) -> dict:
     return {
@@ -98,7 +148,7 @@ def _pack(province, subject, user_rank, major_name, view, reason, bias, ana,
         "best_reachable": ana["best_reachable"],
         "tiers": ana["tiers"],
         "alignment": alignment,
-        "alignment_label": {"aligned": "观点与数据一致", "caution": "需谨慎", "conflict": "存在冲突"}[alignment],
+        "alignment_label": ALIGNMENT_LABEL[alignment],
         "message": message,
         "suggestions": suggestions,
         "data_source": ana["data_source"],
