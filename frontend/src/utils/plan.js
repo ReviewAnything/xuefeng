@@ -9,6 +9,38 @@ export const LEVELS = [
   { key: "保", title: "保（兜底）" },
 ];
 
+/**
+ * 院校推荐接口返回 → 落盘的志愿表结构（推荐页与结论页共用）。
+ * 校线字段必须原样带过来，否则志愿表里的「去年最低」永远是空的。
+ */
+export function buildPlan(rec) {
+  if (!rec || !Array.isArray(rec.tiers)) return null;
+  return {
+    province: rec.province,
+    subject: rec.subject,
+    user_rank: rec.user_rank,
+    major: rec.major || "",
+    at: Date.now(),
+    tiers: rec.tiers.map((t) => ({
+      tier: t.tier,
+      level: t.level,
+      min_score: t.min_score,
+      min_rank: t.min_rank,
+      data_source: t.data_source,
+      source_year: t.source_year,
+      carried: t.carried,
+      pool_shared_with: t.pool_shared_with || null,
+      schools: (t.schools || []).map((s) => ({
+        name: s.name, province: s.province, nature: s.nature,
+        min_score: s.min_score || null,
+        min_rank: s.min_rank || null,
+        line_year: s.line_year || null,
+        data_source: s.data_source || "",
+      })),
+    })),
+  };
+}
+
 /** 把院校推荐接口返回的 plan 拍平成表格行；「不可及」档直接丢弃。 */
 export function flattenPlan(plan) {
   if (!plan || !Array.isArray(plan.tiers)) return [];

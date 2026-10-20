@@ -12,6 +12,7 @@ FastAPI 应用，提供：
   - GET  /api/equiv/years       等位分换算：某省/科类可用的年份与数据源
   - GET  /api/equiv/curve       等位分换算：某年「位次→分数」锚点曲线
   - GET  /api/equiv/convert     等位分换算：分数/位次 跨年换算（rank / percentile 两法）
+  - GET  /api/verdict           结论：位次 → 一句判断 + 放弃/主攻/保底三个动作（决策入口）
   - GET  /api/recommend/schools 院校推荐：按位次给出 冲/稳/保 院校清单（A3）
   - GET  /api/major-groups/universities 院校选择器（按省/层次/985/211/关键字）
   - GET  /api/major-groups     新高考「院校专业组」推导（专业选科要求 × 院校类别专业池）
@@ -40,6 +41,7 @@ from services import equiv_score as E
 from services import recommend as R
 from services import major_groups as MG
 from services import school_lines as SL
+from services import verdict as VD
 from services import observability as OBS
 from db import init_db
 from db import repository as repo
@@ -295,6 +297,25 @@ def equiv_convert(province: str, subject: str,
         raise HTTPException(status_code=code, detail=r["error"])
     repo.record_event("equiv", province=province, subject=subject,
                       user_rank=r["from"]["rank"], alignment=f"{year}->{target_year}")
+    return r
+
+
+# ---------------------------------------------------------------- 结论（决策入口）
+
+@app.get("/api/verdict")
+def verdict(province: str, subject: str,
+            user_rank: int = Query(..., gt=0, le=A.MAX_USER_RANK)):
+    """位次 → 一句判断 + 放弃/主攻/保底三个动作。
+
+    与 `/api/recommend/schools` 的区别：那个给「池子」，这个给「结论」。
+    结论页不铺口径，来源与沿用年份收在 basis 一行。
+    """
+    r = VD.build(province=province, subject=subject, user_rank=user_rank)
+    if not r["ok"]:
+        code = 404 if "暂无" in r["error"] else 400
+        raise HTTPException(status_code=code, detail=r["error"])
+    repo.record_event("verdict", province=province, subject=subject, user_rank=user_rank,
+                      best_tier=r.get("case") or "")
     return r
 
 

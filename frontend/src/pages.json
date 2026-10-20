@@ -6,6 +6,7 @@
     }
   },
   "pages": [
+    { "path": "pages/verdict/verdict", "style": { "navigationBarTitleText": "结论" } },
     { "path": "pages/diagnose/diagnose", "style": { "navigationBarTitleText": "自我诊断" } },
     { "path": "pages/majors/majors", "style": { "navigationBarTitleText": "专业图谱" } },
     { "path": "pages/verify/verify", "style": { "navigationBarTitleText": "观点×数据核验" } },
@@ -27,7 +28,7 @@
     "backgroundColor": "#16191f",
     "borderStyle": "black",
     "list": [
-      { "pagePath": "pages/diagnose/diagnose", "text": "诊断" },
+      { "pagePath": "pages/verdict/verdict", "text": "结论" },
       { "pagePath": "pages/majors/majors", "text": "专业" },
       { "pagePath": "pages/verify/verify", "text": "核验" },
       { "pagePath": "pages/resources/resources", "text": "资源" },

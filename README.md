@@ -56,7 +56,7 @@ zhiyuan-app-v2/
 │   └── requirements.txt
 ├── frontend/                 # uni-app (Vue3) + wot-design-uni
 │   ├── src/
-│   │   ├── pages/            # diagnose 诊断 / majors 专业 / verify 核验(P2) / resources 资源 / about 关于
+│   │   ├── pages/            # verdict 结论(入口) / diagnose 诊断 / majors 专业 / verify 核验(P2) / recommend 推荐 / plan 志愿表 / majorGroup 专业组 / resources 资源 / about 关于
 │   │   ├── utils/
 │   │   │   ├── content.js    # 引入 shared/content.json
 │   │   │   ├── engine.js     # 决策引擎（纯函数，可 Node 单测）
@@ -77,6 +77,7 @@ zhiyuan-app-v2/
 
 | 模块 | 功能 | 跨端 / 后端 |
 |---|---|---|
+| **⓪ 结论（决策入口）** | 输省份/科类/位次，直接给一句判断 + 放弃/主攻/保底三个动作 + 保底红线；985/211/本科/专科四道门只有一道说得准，就只说那一道。结论面禁止出现「可能/大概/仅供参考」 | **Python + uni-app** |
 | **① 自我诊断画布** | 灵魂八连问 → 透明规则生成决策框架（策略 + 方向清单 + 偏见校正 + 避坑 + 下一步），不下录取结论 | uni-app |
 | **② 专业图谱库** | 38 个专业，每条含张雪峰观点 + 理由 + 偏见校正层 + 数据核验入口 + **内容可溯**（source_year / source_note） | uni-app（离线读本地数据） |
 | **③ 观点×数据核验（P2）** | 输入省份/科类/位次/专业 → 后端返回 各批次门槛 + 冲稳保 + 一致性结论（一致/需谨慎/冲突）；支持**批量核验**（诊断画布的推荐方向一次算完，按「冲突→需谨慎→一致」排序） | **uni-app + Python** |
@@ -102,6 +103,7 @@ zhiyuan-app-v2/
 | GET | `/api/equiv/years` | 等位分：可用年份与数据源 |
 | GET | `/api/equiv/curve` | 等位分：某年位次→分数锚点曲线 |
 | GET | `/api/equiv/convert` | 等位分：跨年分数/位次换算（rank / percentile） |
+| GET | `/api/verdict` | 结论：位次 → 一句判断 + 三个动作（决策入口，先于推荐池） |
 | GET | `/api/recommend/schools` | 院校推荐：冲/稳/保 院校池（A3） |
 | GET | `/api/major-groups/universities` | 院校选择器（省/层次/985·211/关键字） |
 | GET | `/api/major-groups` | 院校专业组推导（P4，规则估算） |
@@ -212,12 +214,12 @@ python scripts/manage_data.py rollback 2026                 # 回滚到历史版
 ```bash
 # 后端：pytest（FastAPI TestClient，无需起服务）
 cd backend && pip install -r requirements.txt pytest && pytest -q
-# 期望：112 passed（API / 落库 / 管理端 / 数据版本 / 批量核验 / 输入校验 / CORS / 内容可溯 /
-#        等位分 / 院校推荐 / 专业组 / 登录限流锁定 / 校线导入 / 可观测与备份 / 回归用例）
+# 期望：126 passed（API / 落库 / 管理端 / 数据版本 / 批量核验 / 输入校验 / CORS / 内容可溯 /
+#        等位分 / 院校推荐 / 专业组 / 登录限流锁定 / 校线导入 / 可观测与备份 / 回归用例 / 结论页）
 
 # 前端：决策引擎 + 志愿表工具 + 模板编译校验（均零依赖，无需 npm install）
 cd frontend && npm test
-# 期望：引擎 9 通过、志愿表 35 通过、模板 9 通过 / 0 失败
+# 期望：引擎 9 通过、志愿表 41 通过、模板 10 通过 / 0 失败
 #       （模板项复用管理端 vendor 的 Vue 编译器在 Node 内编译 SFC 与 admin/index.html）
 ```
 

@@ -44,6 +44,9 @@ export const api = {
   equivCurve: (province, subject, year) =>
     request("GET", "/api/equiv/curve", { province, subject, year }),
   equivConvert: (params) => request("GET", "/api/equiv/convert", params),
+  // 结论页：位次 → 一句判断 + 三个动作（决策入口，先于推荐池）
+  verdict: (province, subject, user_rank) =>
+    request("GET", "/api/verdict", { province, subject, user_rank }),
   // A3 院校推荐：按位次给 冲/稳/保 院校池
   recommendSchools: (params) => request("GET", "/api/recommend/schools", params),
   // P4 院校专业组：按选科要求推导专业组

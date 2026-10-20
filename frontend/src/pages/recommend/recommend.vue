@@ -60,11 +60,11 @@
               </view>
               <text class="school-meta">{{ s.province }}<text v-if="s.city"> · {{ s.city }}</text><text v-if="s.category"> · {{ s.category }}</text></text>
               <text v-if="s.min_score" class="school-line">去年最低 {{ s.min_score }} 分<text v-if="s.min_rank"> · 位次 {{ s.min_rank }}</text><text v-if="s.line_year">（{{ s.line_year }} 年投档线）</text></text>
-              <text v-else class="school-line muted">该省未导入该校投档线，仅按层次估算</text>
             </view>
           </view>
-          <text v-else-if="t.pool_shared_with" class="small">院校已在上方「{{ t.pool_shared_with }}」档展示（同一院校池）。</text>
-          <text v-else class="small">该层次暂无匹配院校（请放宽筛选条件）。</text>
+          <text v-if="noLine(t)" class="basis">本档还没有院校投档线，行内不显示「去年最低」，只按层次归类。</text>
+          <text v-if="isShared(t)" class="small">院校已在上方「{{ t.pool_shared_with }}」档展示（同一院校池）。</text>
+          <text v-if="isEmptyTier(t)" class="small">该层次暂无匹配院校（请放宽筛选条件）。</text>
         </view>
       </view>
 
@@ -87,6 +87,7 @@ import { onLoad } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
 import { MAJORS } from "@/utils/content.js";
 import { api } from "@/utils/api.js";
+import { PLAN_KEY, buildPlan } from "@/utils/plan.js";
 import { themeVars } from "@/utils/theme.js";
 
 const toast = useToast();
@@ -124,6 +125,20 @@ function levelType(level) {
   if (level === "稳") return "primary";
   if (level === "保") return "success";
   return "info";
+}
+
+// 模板里不写复合表达式（Vue in-DOM 编译器对 && 支持不稳），统一抽成方法
+function hasSchools(t) {
+  return !!(t && t.schools && t.schools.length);
+}
+function noLine(t) {
+  return hasSchools(t) && !t.school_line_hits;
+}
+function isShared(t) {
+  return !hasSchools(t) && !!t.pool_shared_with;
+}
+function isEmptyTier(t) {
+  return !hasSchools(t) && !t.pool_shared_with;
 }
 
 function dsType(ds) {
@@ -164,33 +179,8 @@ async function run() {
 
 // 落盘本机的「志愿表草稿」，供导出页读取（仅存本机，不上传）
 function savePlan() {
-  const r = result.value;
-  if (!r) return;
-  uni.setStorageSync("zhiyuan_plan_v1", {
-    province: r.province,
-    subject: r.subject,
-    user_rank: r.user_rank,
-    major: r.major,
-    at: Date.now(),
-    tiers: r.tiers.map((t) => ({
-      tier: t.tier,
-      level: t.level,
-      min_score: t.min_score,
-      min_rank: t.min_rank,
-      data_source: t.data_source,
-      source_year: t.source_year,
-      carried: t.carried,
-      pool_shared_with: t.pool_shared_with || null,
-      schools: t.schools.map((s) => ({
-        name: s.name, province: s.province, nature: s.nature,
-        // D1 校线字段必须一起落盘，否则志愿表里的「去年最低」永远是空的
-        min_score: s.min_score || null,
-        min_rank: s.min_rank || null,
-        line_year: s.line_year || null,
-        data_source: s.data_source || "",
-      })),
-    })),
-  });
+  const p = buildPlan(result.value);
+  if (p) uni.setStorageSync(PLAN_KEY, p);
 }
 
 function goPlan() {

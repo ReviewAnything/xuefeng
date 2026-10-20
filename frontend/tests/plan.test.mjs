@@ -9,6 +9,7 @@ import {
   buildPlanText,
   applyMajors,
   collectMajors,
+  buildPlan,
 } from "../src/utils/plan.js";
 import { resolveBase } from "../src/utils/api.js";
 
@@ -102,6 +103,22 @@ eq(lineRows[0].line_rank, 29731, "投档位次透传");
 eq(lineRows[0].line_year, 2024, "投档年份透传");
 const lineText = buildPlanText({ province: "河南", subject: "物理类", user_rank: 1 }, groupRows(lineRows), "-");
 eq(lineText.includes("去年最低 589 分（2024） / 位次 29731"), true, "导出文本带年份");
+
+console.log("\n▎结论页 → 志愿表 plan.js#buildPlan");
+const built = buildPlan({
+  province: "广东", subject: "物理类", user_rank: 40000, major: "",
+  tiers: [{
+    tier: "211", level: "稳", min_score: 529, min_rank: 100604,
+    data_source: "official", source_year: 2024, carried: true,
+    schools: [{ name: "暨南大学", province: "广东", min_score: 590, min_rank: 28000, line_year: 2024, data_source: "school_line" }],
+  }],
+});
+eq(built.tiers.length, 1, "按档落盘");
+eq(built.tiers[0].schools[0].min_score, 590, "校线分数带进志愿表");
+eq(built.tiers[0].carried, true, "沿用标记带进志愿表");
+eq(built.tiers[0].pool_shared_with, null, "缺省共享池为 null");
+eq(buildPlan(null), null, "空输入不落盘");
+eq(typeof built.at, "number", "时间戳为毫秒数");
 
 console.log("\n▎API 地址解析 api.js");
 const savedWindow = globalThis.window;

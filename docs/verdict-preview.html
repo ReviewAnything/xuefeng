@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>结论页 · 静态复刻</title>
+<!--
+  这是 frontend/src/pages/verdict/verdict.vue 的静态复刻，用途只有一个：
+  在没有 H5 构建产物的情况下目视验收「输入 → 结论页」这一屏长什么样。
+  样式与 verdict.vue 同步（rpx 按 750 设计宽度折半），逻辑以页面为准。
+  数据来自 GET /api/verdict；后端未启动时回落到内嵌的 广东/物理类/40000 样例。
+-->
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; background: #0a0c10; color: #e6e8ec;
+    font: 15px/1.5 -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    display: flex; justify-content: center; padding: 28px 12px 48px;
+  }
+  .phone {
+    width: 100%; max-width: 414px; background: #0f1115; border-radius: 22px;
+    border: 1px solid #1f242c; padding: 26px 22px 34px; min-height: 640px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.5);
+  }
+  .nav { font-size: 11px; color: #5a606b; letter-spacing: .08em; margin-bottom: 22px; }
+
+  /* 输入 */
+  .ask-h1 { font-size: 32px; font-weight: 700; letter-spacing: .02em; margin: 12px 0 0; }
+  .ask-sub { font-size: 13px; color: #8a909c; margin-top: 8px; }
+  .fields { margin: 28px 0 20px; border: 1px solid #22262e; border-radius: 8px; overflow: hidden; }
+  .row { display: flex; align-items: center; gap: 10px; padding: 13px 14px; border-bottom: 1px solid #1c2027; }
+  .row:last-child { border-bottom: 0; }
+  .row label { font-size: 13px; color: #8a909c; width: 46px; flex: none; }
+  .row select, .row input {
+    flex: 1; background: transparent; border: 0; outline: 0; color: #e6e8ec;
+    font: inherit; font-size: 15px; appearance: none;
+  }
+  .row input::placeholder { color: #4b515b; }
+  .btn {
+    display: block; width: 100%; padding: 13px; border: 0; border-radius: 8px;
+    background: #ffd24d; color: #14171c; font: inherit; font-size: 16px; font-weight: 700;
+    cursor: pointer;
+  }
+  .btn.ghost { background: transparent; border: 1px solid #2a2e37; color: #c7ccd4; font-weight: 500; }
+  .err { color: #ff6b6b; font-size: 13px; margin-top: 10px; }
+  .foot { margin-top: 22px; }
+
+  /* 结论 */
+  .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .cond { font-size: 11px; color: #8a909c; letter-spacing: .04em; }
+  .lk { font-size: 12px; color: #6db3f2; cursor: pointer; }
+  .headline { font-size: 21px; line-height: 1.52; font-weight: 700; color: #ffd24d; letter-spacing: .01em; }
+
+  .ruler { margin: 22px 0 4px; }
+  .zones { position: relative; height: 28px; border-radius: 4px; overflow: hidden; background: #1a1e25; }
+  .zone { position: absolute; top: 0; bottom: 0; border-right: 1px solid #0f1115; }
+  .zone.open { background: rgba(95,216,127,.16); }
+  .zone.closed { background: rgba(107,114,128,.18); }
+  .me { position: absolute; top: 0; bottom: 0; transform: translateX(-50%); }
+  .me-dot {
+    position: absolute; top: 50%; left: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px;
+    border-radius: 50%; background: #ffd24d; box-shadow: 0 0 0 3px rgba(255,210,77,.18);
+  }
+  .me-label { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+    font-size: 10px; color: #ffd24d; font-weight: 600; }
+  .legend { margin-top: 8px; }
+  .lg { display: flex; align-items: baseline; padding: 3px 0; }
+  .lg-k { width: 42px; font-size: 11px; font-weight: 600; flex: none; }
+  .lg-k.open { color: #5fd87f; } .lg-k.closed { color: #6b7280; }
+  .lg-r { width: 76px; font-size: 11px; color: #8a909c; font-variant-numeric: tabular-nums; flex: none; }
+  .lg-g { font-size: 11px; }
+  .lg-g.open { color: #4f8f63; } .lg-g.closed { color: #8a5c5c; }
+
+  .stance { margin-top: 14px; }
+  .st { padding: 12px 0; border-top: 1px solid #1c2027; }
+  .st-k { font-size: 11px; color: #6db3f2; font-weight: 600; margin-bottom: 4px; }
+  .st-t { font-size: 14px; color: #d5d9e0; line-height: 1.7; }
+
+  .guard {
+    margin-top: 8px; padding: 12px 13px; border-left: 2px solid #ff6b6b;
+    background: rgba(255,107,107,.07); border-radius: 0 6px 6px 0;
+    font-size: 13px; color: #ff9d9d; line-height: 1.6;
+  }
+
+  .blk-title { font-size: 11px; color: #8a909c; margin: 22px 0 6px; }
+  .band { display: flex; gap: 10px; align-items: baseline; padding: 5px 0; }
+  .band-k { font-size: 13px; font-weight: 600; width: 20px; }
+  .band-k.reach { color: #f0ad4e; } .band-k.match { color: #6db3f2; } .band-k.safe { color: #5fd87f; }
+  .band-v { font-size: 13px; color: #d5d9e0; font-variant-numeric: tabular-nums; }
+
+  .facts { margin-top: 16px; }
+  .fact { font-size: 11px; color: #6b7280; line-height: 1.8; }
+
+  .actions { display: flex; flex-direction: column; gap: 8px; margin-top: 22px; }
+  .basis { font-size: 10px; color: #4b515b; margin-top: 14px; line-height: 1.6; }
+  .demo-note {
+    margin-top: 18px; font-size: 10px; color: #4b515b; border-top: 1px dashed #1f242c; padding-top: 10px;
+  }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="nav" id="nav">结论 · 志愿决策助手</div>
+  <div id="app"></div>
+</div>
+
+<script>
+const DEMO = {"ok":true,"case":"has_211","province":"广东","subject":"物理类","user_rank":40000,"headline":"40000 名。985 关门——全省最低的一所（西北农林科技大学）去年卡在 29731 名，你差 10269 位，一个志愿都别浪费在上面。","stance":[{"k":"主攻","t":"你的战场是 211。广东全省 4 所 211，扣掉 985 只剩 2 所（暨南大学、华南师范大学）——一个省填不满你的志愿表，必须往外省放。"},{"k":"换位次","t":"同样牌子的学校，在生源弱的省投档位次更低 —— 拿你的位次出省，买到的是同一个校名，不是同一个概率。"},{"k":"保底","t":"保底卡在 44800–60000 名。再往下，你的分就白扔了。"}],"guard":"保底最远填到 60000 名：再往后的学校，你的分是白扔的。","bands":[{"key":"reach","label":"冲","from":28000,"to":36800},{"key":"match","label":"稳","from":36800,"to":44800},{"key":"safe","label":"保","from":44800,"to":60000}],"gates":[{"tier":"985","label":"985","min_rank":29731,"min_score":589,"school":"西北农林科技大学","state":"closed","gap":-10269},{"tier":"211","label":"211","min_rank":100604,"min_score":529,"school":"西藏大学","state":"open","gap":60604},{"tier":"普通一本","label":"一本","min_rank":96443,"min_score":532,"state":"open","gap":56443},{"tier":"普通二本","label":"本科","min_rank":253809,"min_score":442,"state":"open","gap":213809},{"tier":"专科","label":"专科","min_rank":448804,"min_score":200,"state":"open","gap":408804}],"facts":["在 广东物理类本科线内的考生里，你排前 15.8%。","广东全省 211 共 4 所：中山大学、暨南大学、华南理工大学、华南师范大学；其中 2 所不是 985。","985 的入门线（西北农林科技大学）：29731 名 / 589 分。","211 的入门线（西藏大学）：100604 名 / 529 分。"],"basis":"依据 2024 年广东省控线与 985/211 入门投档位次（当年未更新，沿用值）","data_source":"official_overlay"};
+
+const PROVINCES = ["北京","天津","河北","山西","内蒙古","辽宁","吉林","黑龙江","上海","江苏","浙江","安徽","福建","江西","山东","河南","湖北","湖南","广东","广西","海南","重庆","四川","贵州","云南","西藏","陕西","甘肃","青海","宁夏","新疆"];
+const SUBJECTS = ["物理类","历史类","综合/未改革"];
+const API = "http://127.0.0.1:8010";
+const app = document.getElementById("app");
+
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function inputView() {
+  document.getElementById("nav").textContent = "结论 · 志愿决策助手";
+  app.innerHTML = `
+    <div class="ask-h1">你多少名？</div>
+    <div class="ask-sub">省份、科类、位次。输完直接给你结论。</div>
+    <div class="fields">
+      <div class="row"><label>省份</label><select id="p">${PROVINCES.map((x) => `<option ${x === "广东" ? "selected" : ""}>${x}</option>`).join("")}</select></div>
+      <div class="row"><label>科类</label><select id="s">${SUBJECTS.map((x) => `<option>${x}</option>`).join("")}</select></div>
+      <div class="row"><label>位次</label><input id="r" type="number" placeholder="如 40000" value="40000"></div>
+    </div>
+    <button class="btn" id="go">出结论</button>
+    <div class="err" id="err"></div>
+    <div class="foot"><span class="lk">说不清自己要什么？先做八连问 ›</span></div>`;
+  document.getElementById("go").onclick = run;
+  document.getElementById("r").addEventListener("keydown", (e) => { if (e.key === "Enter") run(); });
+}
+
+async function run() {
+  const p = document.getElementById("p").value;
+  const s = document.getElementById("s").value;
+  const rk = Number(document.getElementById("r").value);
+  const err = document.getElementById("err");
+  err.textContent = "";
+  if (!(rk > 0)) { err.textContent = "位次填正整数"; return; }
+  let d, live = true;
+  try {
+    const res = await fetch(`${API}/api/verdict?province=${encodeURIComponent(p)}&subject=${encodeURIComponent(s)}&user_rank=${rk}`);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    d = await res.json();
+  } catch (e) {
+    live = false;
+    d = DEMO;
+  }
+  render(d, live);
+}
+
+function render(d, live) {
+  document.getElementById("nav").textContent = "结论 · " + d.province + " " + d.subject;
+  const RULER = ["985", "211", "普通二本", "专科"];
+  const gs = RULER.map((t) => d.gates.find((g) => g.tier === t)).filter(Boolean);
+  const full = gs.length ? gs[gs.length - 1].min_rank : 1;
+  let prev = 0;
+  const zones = gs.map((g) => {
+    const z = `<div class="zone ${g.state}" style="left:${(prev / full) * 100}%;width:${((g.min_rank - prev) / full) * 100}%"></div>`;
+    prev = g.min_rank;
+    return z;
+  }).join("");
+  const me = Math.min(100, (d.user_rank / full) * 100);
+  const legend = gs.map((g) => `
+    <div class="lg">
+      <div class="lg-k ${g.state}">${g.label}</div>
+      <div class="lg-r">${g.min_rank}</div>
+      <div class="lg-g ${g.state}">${g.gap < 0 ? "差 " + -g.gap + " 位" : "在门内"}</div>
+    </div>`).join("");
+
+  app.innerHTML = `
+    <div class="topbar">
+      <div class="cond">${esc(d.province)} · ${esc(d.subject)} · ${d.user_rank} 名</div>
+      <div class="lk" id="back">改条件</div>
+    </div>
+    <div class="headline">${esc(d.headline)}</div>
+
+    <div class="ruler">
+      <div class="zones">${zones}<div class="me" style="left:${me}%"><div class="me-label">你</div><div class="me-dot"></div></div></div>
+      <div class="legend">${legend}</div>
+    </div>
+
+    <div class="stance">
+      ${d.stance.map((s) => `<div class="st"><div class="st-k">${esc(s.k)}</div><div class="st-t">${esc(s.t)}</div></div>`).join("")}
+    </div>
+
+    <div class="guard">${esc(d.guard)}</div>
+
+    ${d.bands.length ? `<div class="blk-title">照这个区间去筛学校</div>` + d.bands.map((b) =>
+      `<div class="band"><div class="band-k ${b.key}">${b.label}</div><div class="band-v">${b.from} – ${b.to} 名</div></div>`).join("") : ""}
+
+    <div class="facts">${d.facts.map((f) => `<div class="fact">· ${esc(f)}</div>`).join("")}</div>
+
+    <div class="actions">
+      <button class="btn">生成志愿表</button>
+      <button class="btn ghost">看院校池</button>
+    </div>
+    <div class="basis">${esc(d.basis)}</div>
+    <div class="demo-note">${live ? "实时数据：GET /api/verdict" : "后端未启动，显示内嵌样例（广东 物理类 40000）"} · 静态复刻，非正式构建产物</div>`;
+
+  document.getElementById("back").onclick = inputView;
+}
+
+inputView();
+// 带 ?auto=1 打开时直接出结论（截图/演示用）
+if (location.search.indexOf("auto") >= 0) run();
+</script>
+</body>
+</html>
