@@ -79,6 +79,7 @@
         <view class="actions">
           <wd-button type="primary" block :loading="making" @click="goPlan">生成志愿表</wd-button>
           <wd-button plain block @click="goRecommend">看院校池</wd-button>
+          <wd-button plain block @click="goVerify">你能上哪档 · 哪些专业值得读 ›</wd-button>
         </view>
 
         <text class="basis">{{ r.basis }}</text>
@@ -194,6 +195,12 @@ function goRecommend() {
   uni.navigateTo({
     url: `/pages/recommend/recommend?province=${encodeURIComponent(f.province)}&subject=${encodeURIComponent(f.subject)}&user_rank=${encodeURIComponent(f.rank)}`,
   });
+}
+
+// S3 下钻：带着条件进核验页（批量模式），「你能上哪档 → 哪些专业值得读」复用 verify 引擎
+function goVerify() {
+  const q = `province=${encodeURIComponent(f.province)}&subject=${encodeURIComponent(f.subject)}&user_rank=${encodeURIComponent(f.rank)}&batch=1`;
+  uni.navigateTo({ url: `/pages/verify/verify?${q}` });
 }
 
 function goDiagnose() {

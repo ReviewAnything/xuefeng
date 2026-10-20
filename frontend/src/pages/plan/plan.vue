@@ -22,6 +22,17 @@
       </view>
 
       <view v-if="hasPlan" class="section">
+        <view class="safe-net" :class="breach.cls">
+          <view class="safe-head">
+            <text class="safe-dot" :class="breach.cls"></text>
+            <text class="safe-title">保底安全网</text>
+            <text class="safe-count" :class="breach.cls">{{ breach.text }}</text>
+          </view>
+          <text class="safe-desc">{{ breach.desc }}</text>
+        </view>
+      </view>
+
+      <view v-if="hasPlan" class="section">
         <view v-for="g in groups" :key="g.level" class="grp">
           <view class="grp-head">
             <text class="grp-title" :class="levelClass(g.level)">{{ g.title }}（{{ g.rows.length }}）</text>
@@ -31,8 +42,9 @@
             <view class="row-left">
               <text class="row-idx">{{ i + 1 }}</text>
               <view class="row-info">
-                <text class="row-name">{{ r.name }}</text>
+                <text class="row-name">{{ r.name }}<text v-if="rowBreach(r) === 'breach'" class="row-breach">失守</text></text>
                 <text class="row-meta">{{ r.tier }} · {{ r.province }}<text v-if="r.line"> · 去年 {{ r.line }} 分<text v-if="r.line_rank"> / 位次 {{ r.line_rank }}</text><text v-if="r.line_year">（{{ r.line_year }}）</text></text></text>
+                <text v-if="rowBreach(r) === 'breach'" class="row-breach-tip">你的位次 {{ plan.user_rank }} 比该校最低投档位次 {{ r.line_rank }} 更靠后，够不上</text>
               </view>
             </view>
             <input class="row-major" v-model="r.major" placeholder="拟报专业" />
@@ -63,7 +75,7 @@ import { computed, ref, watch } from "vue";
 import { onLoad } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
 import { themeVars } from "@/utils/theme.js";
-import { PLAN_KEY, applyMajors, buildPlanText, collectMajors, fillStats, flattenPlan, formatTime, groupRows } from "@/utils/plan.js";
+import { PLAN_KEY, applyMajors, breachStats, breachStatus, buildPlanText, collectMajors, fillStats, flattenPlan, formatTime, groupRows } from "@/utils/plan.js";
 
 const toast = useToast();
 const plan = ref(null);
@@ -74,6 +86,36 @@ const isEmpty = computed(() => !plan.value);
 const groups = computed(() => groupRows(rows.value));
 const stats = computed(() => fillStats(rows.value));
 const timeLabel = computed(() => formatTime(plan.value && plan.value.at));
+
+// S4 验收点：保底安全网红灯数可见。
+// cls —— danger(有失守) / ok(全部核验且安全) / muted(无数据未核验)
+// text —— 红灯计数文案；desc —— 处置建议
+const breach = computed(() => {
+  const s = breachStats(plan.value, rows.value);
+  if (s.breach > 0) {
+    return {
+      cls: "danger",
+      text: `保底失守 ${s.breach} 所`,
+      desc: `${s.breach} 所「保底」院校的最低投档位次比你更靠前，按当前位次实际够不上。请补充更低层次的保底院校，或下调保底预期，避免滑档。`,
+    };
+  }
+  if (s.covered > 0) {
+    return {
+      cls: "ok",
+      text: `保底安全（${s.covered} 所已核验）`,
+      desc: "所有带投档线的保底院校，你的位次均优于其最低投档位次。",
+    };
+  }
+  return {
+    cls: "muted",
+    text: `保底未核验（${s.total} 所缺投档线）`,
+    desc: "保底院校暂无院校级投档线，无法判定是否真能兜底；请以本省考试院/院校招生网公布的往年投档位次为准。",
+  };
+});
+
+function rowBreach(r) {
+  return breachStatus(plan.value && plan.value.user_rank, r);
+}
 
 onLoad(() => {
   const p = uni.getStorageSync(PLAN_KEY);
@@ -143,6 +185,26 @@ function print() {
 
 .meta-card { border: 1px solid #22262e; border-radius: 16rpx; padding: 20rpx; }
 .meta-line { display: block; font-size: 24rpx; color: #c7ccd4; line-height: 1.8; }
+
+.safe-net { border-radius: 16rpx; padding: 20rpx; border: 1px solid #22262e; }
+.safe-net.danger { border-color: #e5484d; background: rgba(229, 72, 77, 0.12); }
+.safe-net.ok { border-color: #2f7d4f; background: rgba(95, 216, 127, 0.08); }
+.safe-net.muted { border-color: #3a3f48; background: rgba(138, 144, 156, 0.06); }
+.safe-head { display: flex; align-items: center; }
+.safe-dot { width: 18rpx; height: 18rpx; border-radius: 50%; margin-right: 12rpx; flex: 0 0 auto; }
+.safe-dot.danger { background: #e5484d; box-shadow: 0 0 10rpx 2rpx rgba(229, 72, 77, 0.6); animation: blink 1.2s infinite; }
+.safe-dot.ok { background: #5fd87f; }
+.safe-dot.muted { background: #6b7280; }
+.safe-title { font-size: 26rpx; font-weight: 600; color: #c7ccd4; margin-right: auto; }
+.safe-count { font-size: 26rpx; font-weight: 700; }
+.safe-count.danger { color: #ff6b6b; }
+.safe-count.ok { color: #5fd87f; }
+.safe-count.muted { color: #8a909c; }
+.safe-desc { display: block; margin-top: 10rpx; font-size: 21rpx; color: #9aa0aa; line-height: 1.6; }
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+.row-breach { font-size: 18rpx; color: #fff; background: #e5484d; border-radius: 6rpx; padding: 1rpx 8rpx; margin-left: 10rpx; vertical-align: middle; }
+.row-breach-tip { display: block; font-size: 19rpx; color: #ff8787; margin-top: 3rpx; line-height: 1.5; }
 
 .grp { margin-bottom: 22rpx; }
 .grp-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10rpx; }

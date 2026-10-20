@@ -113,6 +113,48 @@ export function fillStats(rows) {
   return { filled, total: list.length };
 }
 
+/**
+ * 保底档「失守」(breach) 判定（S4 验收点：志愿表红灯数可见）。
+ *
+ * 语义：位次数字越小越靠前。落到「保底」档的院校，其最低投档位次为 `line_rank`；
+ * 若用户位次 `user_rank` > `line_rank`，说明用户比该校最低录取位次还靠后，
+ * 这所"保底"实际够不上 → 失守（红灯）。
+ *
+ * 只有带真实投档位次（`line_rank`）的保底行才有判定意义；缺数据一律视为
+ * `unknown`，**绝不**把"没数据"误判成"安全"。
+ *
+ * @param {number|string} userRank 用户位次
+ * @param {object} row 拍平后的行（含 level、line_rank）
+ * @returns {'breach'|'safe'|'unknown'}
+ */
+export function breachStatus(userRank, row) {
+  if (!row || row.level !== "保") return "unknown";
+  const lr = Number(row.line_rank);
+  const ur = Number(userRank);
+  if (!(lr > 0) || !(ur > 0)) return "unknown";
+  return ur > lr ? "breach" : "safe";
+}
+
+/**
+ * 保底档失守统计。
+ * @param {object} plan 志愿表（取 plan.user_rank）
+ * @param {Array} rows 拍平后的行
+ * @returns {{breach:number, covered:number, total:number}}
+ *   breach   —— 已失守（红灯）的保底院校数
+ *   covered  —— 有真实投档位次、可判定的保底院校数
+ *   total    —— 保底院校总数（含无投档线数据的）
+ */
+export function breachStats(plan, rows) {
+  const safeRows = (Array.isArray(rows) ? rows : []).filter((r) => r && r.level === "保");
+  let breach = 0, covered = 0;
+  safeRows.forEach((r) => {
+    const st = breachStatus(plan && plan.user_rank, r);
+    if (st !== "unknown") covered++;
+    if (st === "breach") breach++;
+  });
+  return { breach, covered, total: safeRows.length };
+}
+
 /** 导出的纯文本志愿表（复制/打印共用）。 */
 export function buildPlanText(plan, groups, timeLabel) {
   const p = plan || {};

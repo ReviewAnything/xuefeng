@@ -106,10 +106,18 @@
           <text class="sum-i mid">一本 {{ batch.summary.mid }}</text>
           <text class="sum-i high">高层次 {{ batch.summary.high }}</text>
         </view>
+        <view class="sum align-sum">
+          <text class="sum-i refuted">数据不可及 {{ batch.summary.alignment.refuted }}</text>
+          <text class="sum-i unverified">数据未覆盖 {{ batch.summary.alignment.unverified }}</text>
+          <text class="sum-i supported">数据可及 {{ batch.summary.alignment.supported }}</text>
+        </view>
         <view v-for="r in batch.results" :key="r.major" class="brow" @click="openOne(r.major)">
           <view class="brow-head">
             <text class="brow-name">{{ r.major }}</text>
-            <wd-tag :type="reachType(r.reachability)" plain>{{ r.reachability_label }}</wd-tag>
+            <view class="brow-tags">
+              <wd-tag :type="alignType(r.alignment)" plain>{{ r.alignment_label }}</wd-tag>
+              <wd-tag :type="reachType(r.reachability)" plain>{{ r.reachability_label }}</wd-tag>
+            </view>
           </view>
           <text class="brow-meta">
             {{ r.view_label }} · 最易触及 {{ r.best_reachable ? r.best_reachable.tier : "不可及" }}
@@ -129,6 +137,54 @@
         <view class="align unverified">
           <text class="align-label">{{ res.alignment_label }}</text>
           <text class="align-sub">{{ res.alignment_message }}</text>
+        </view>
+
+        <!-- S2 对置版式：观点 × 真实校线，双来源 + 原始数据点击可达 -->
+        <view class="oppo" v-if="res.sources && res.sources.length">
+          <view class="section-head">
+            <text class="h3">对置核验 · 两种来源</text>
+            <wd-tag type="primary" plain>真实校线已接入</wd-tag>
+          </view>
+          <view class="oppo-grid">
+            <view class="oppo-col">
+              <text class="oppo-tag opinion">① 观点来源</text>
+              <text class="oppo-src">{{ res.sources[0].source }}</text>
+              <text v-if="res.sources[0].evidence_grade" class="oppo-g">证据等级：{{ res.sources[0].evidence_grade }}</text>
+              <text class="oppo-note">{{ res.sources[0].note }}</text>
+              <text v-if="res.sources[0].url" class="dsrc link" @click="openRaw(res.sources[0].url)">查看观点出处 ↗</text>
+            </view>
+            <view class="oppo-col data">
+              <text class="oppo-tag data">② 数据来源（真实校线）</text>
+              <text class="oppo-src">{{ res.sources[1].source }}</text>
+              <text class="oppo-note">{{ res.sources[1].note }}</text>
+              <view class="oppo-tiers" v-if="res.sources[1].tiers">
+                <text class="ot">985 {{ res.sources[1].tiers['985'] }}</text>
+                <text class="ot">211 {{ res.sources[1].tiers['211'] }}</text>
+                <text class="ot">本科 {{ res.sources[1].tiers['benke'] }}</text>
+                <text class="ot">专科 {{ res.sources[1].tiers['zhuanke'] }}</text>
+              </view>
+              <text v-if="res.sources[1].url" class="dsrc link" @click="openRaw(res.sources[1].url)">查看数据入口 ↗</text>
+            </view>
+          </view>
+
+          <!-- 原始数据点击可达：逐条真实校线 -->
+          <view class="raw" v-if="res.raw_records && res.raw_records.length">
+            <view class="section-head">
+              <text class="h3">真实校线（逐条 · 点开即原始数据）</text>
+              <text class="bk-sub" v-if="res.real_data">共 {{ res.real_data.total_lines }} 条 / 可触及 {{ res.real_data.reachable }}</text>
+            </view>
+            <view class="raw-row" v-for="(rec, i) in res.raw_records" :key="i" @click="openRaw(rec.source_url)">
+              <text class="raw-u">{{ rec.university }}</text>
+              <text class="raw-t" v-if="rec.tier">{{ rec.tier }}</text>
+              <text class="raw-r">位次 {{ rec.min_rank }} · {{ rec.min_score }}分</text>
+              <text class="raw-go">原始↗</text>
+            </view>
+            <text class="dsrc">每条均为掌上高考 2025 真实录取记录（data_source=estimated_real）；点击任意行打开该院校原始 JSON 核验（GitHub 公开仓库，MIT）。</text>
+          </view>
+          <view class="data-missing" v-else-if="res.real_data && !res.real_data.has_data">
+            <text class="dm-label">⚠ 数据未覆盖（单侧降级）</text>
+            <text class="dm-sub">该 (省/科类) 暂无真实校线，仅展示观点侧；不出现「一致/冲突」横幅，不编造数据。</text>
+          </view>
         </view>
 
         <view class="reach" :class="res.reachability">
@@ -355,6 +411,10 @@ function reachType(reach) {
   return { out_of_reach: "danger", low: "warning", mid: "primary", high: "success" }[reach] || "default";
 }
 
+function alignType(alignment) {
+  return { refuted: "danger", unverified: "warning", supported: "success" }[alignment] || "default";
+}
+
 function dataGradeLabel(ds) {
   if (ds === "official_overlay" || ds === "real") return "官方/真实";
   if (ds === "estimated") return "估算";
@@ -444,6 +504,22 @@ function goRecommend() {
   uni.navigateTo({ url: `/pages/recommend/recommend?${q}` });
 }
 
+// S2：原始数据点击可达——跳应用内 web-view 承载真实源（GitHub 原始 JSON / 观点出处）
+function openRaw(url) {
+  if (!url) {
+    toast.show("该来源暂无可点击的原始链接");
+    return;
+  }
+  uni.navigateTo({
+    url: "/pages/webview/webview?src=" + encodeURIComponent(url),
+    fail: () => {
+      // 兜底：复制到剪贴板，便于在浏览器核验
+      uni.setClipboardData({ data: url });
+      toast.show("原始数据链接已复制到剪贴板");
+    },
+  });
+}
+
 async function run() {
   if (!p.province || !p.subject || !p.user_rank || !p.major_name) {
     err.value = "请完整填写省份 / 科类 / 位次 / 专业";
@@ -494,6 +570,32 @@ async function run() {
 .reach.high { background: #142a1a; border-color: #224a2c; }
 .reach.high .reach-label { color: #5fd87f; }
 
+/* S2 对置版式：观点 × 真实校线 */
+.oppo { margin-bottom: 20rpx; background: #16191f; border: 1px solid #23262e; border-radius: 12rpx; padding: 16rpx; }
+.oppo-grid { display: flex; gap: 14rpx; margin-bottom: 14rpx; }
+.oppo-col { flex: 1; background: #0f1115; border: 1px solid #2a2e37; border-radius: 12rpx; padding: 14rpx; display: flex; flex-direction: column; }
+.oppo-col.data { border-color: #243a55; }
+.oppo-tag { font-size: 23rpx; font-weight: 700; padding: 4rpx 10rpx; border-radius: 8rpx; align-self: flex-start; margin-bottom: 10rpx; }
+.oppo-tag.opinion { color: #ffd24d; background: #2a2410; }
+.oppo-tag.data { color: #6db3f2; background: #15233a; }
+.oppo-src { font-size: 22rpx; color: #e6e8ec; line-height: 1.6; }
+.oppo-g { font-size: 20rpx; color: #5fd87f; margin-top: 6rpx; }
+.oppo-note { font-size: 20rpx; color: #8a909c; line-height: 1.6; margin-top: 8rpx; }
+.oppo-tiers { display: flex; flex-wrap: wrap; gap: 8rpx; margin-top: 10rpx; }
+.ot { font-size: 19rpx; padding: 4rpx 10rpx; border-radius: 999rpx; border: 1px solid #2a3a55; color: #6db3f2; background: #0f1115; }
+.link { text-decoration: underline; cursor: pointer; }
+
+.raw { margin-top: 6rpx; }
+.raw-row { display: flex; align-items: center; gap: 10rpx; padding: 10rpx 12rpx; background: #0f1115; border: 1px solid #2a2e37; border-radius: 10rpx; margin-bottom: 8rpx; }
+.raw-row:active { border-color: #6db3f2; }
+.raw-u { font-size: 23rpx; color: #e6e8ec; font-weight: 600; flex: 1; }
+.raw-t { font-size: 19rpx; color: #ffd24d; padding: 2rpx 8rpx; border-radius: 6rpx; background: #2a2410; }
+.raw-r { font-size: 20rpx; color: #8a909c; }
+.raw-go { font-size: 20rpx; color: #6db3f2; }
+.data-missing { margin-top: 6rpx; padding: 14rpx 16rpx; background: #1c1f26; border: 1px dashed #4a3a18; border-radius: 12rpx; }
+.dm-label { display: block; font-size: 24rpx; color: #f0ad4e; font-weight: 700; }
+.dm-sub { display: block; margin-top: 6rpx; font-size: 21rpx; color: #8a909c; line-height: 1.6; }
+
 .block { margin-bottom: 20rpx; }
 .block.warn { background: #1c1f26; border-radius: 12rpx; padding: 14rpx 16rpx; }
 .block-head { display: flex; align-items: baseline; justify-content: space-between; }
@@ -515,9 +617,14 @@ async function run() {
 .sum-i.low { color: #f0ad4e; border-color: #4a3a18; background: #2a2214; }
 .sum-i.mid { color: #6db3f2; border-color: #243a55; background: #15233a; }
 .sum-i.high { color: #5fd87f; border-color: #224a2c; background: #142a1a; }
+.sum-i.refuted { color: #ff6b6b; border-color: #4a2222; background: #2a1414; }
+.sum-i.unverified { color: #f0ad4e; border-color: #4a3a18; background: #2a2214; }
+.sum-i.supported { color: #5fd87f; border-color: #224a2c; background: #142a1a; }
+.align-sum { margin-top: -6rpx; }
 .brow { background: #16191f; border: 1px solid #23262e; border-radius: 12rpx; padding: 14rpx 16rpx; margin-bottom: 10rpx; }
 .brow-head { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; }
 .brow-name { font-size: 26rpx; color: #e6e8ec; font-weight: 600; }
+.brow-tags { display: flex; gap: 8rpx; }
 .brow-meta { display: block; margin-top: 8rpx; font-size: 21rpx; color: #8a909c; line-height: 1.6; }
 
 /* C2 等位分换算 */

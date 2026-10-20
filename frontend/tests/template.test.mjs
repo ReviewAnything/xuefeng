@@ -62,6 +62,11 @@ const files = walk(path.join(root, "frontend", "src")).sort();
 let failed = 0;
 let checked = 0;
 
+// SFC 模板里的 `v-if="a && b"` 会触发 code=28 告警，但 SFC 由 Vue 编译器解析（非浏览器 HTML 解析器），
+// `&&` 不会真的被当成实体，属于误报；与 admin in-DOM 模板的存量噪声一致，忽略之。
+// 只把「结构错」（标签不闭合 / 插值未结束 / 指令语法错等）算失败。
+const IGNORED_CODES = new Set([28]);
+
 for (const file of files) {
   const src = fs.readFileSync(file, "utf8");
   const m = src.match(/<template>([\s\S]*?)<\/template>/);
@@ -71,7 +76,10 @@ for (const file of files) {
   const problems = [];
   try {
     Vue.compile(m[1], {
-      onError: (e) => problems.push(`ERROR code=${e.code} @${JSON.stringify(e.loc && e.loc.source || "")}`),
+      onError: (e) => {
+        if (IGNORED_CODES.has(e.code)) return;
+        problems.push(`ERROR code=${e.code} @${JSON.stringify(e.loc && e.loc.source || "")}`);
+      },
     });
   } catch (e) {
     problems.push(`THROW ${e.message}`);

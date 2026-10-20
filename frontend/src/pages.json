@@ -14,7 +14,8 @@
     { "path": "pages/plan/plan", "style": { "navigationBarTitleText": "志愿表草稿" } },
     { "path": "pages/majorGroup/majorGroup", "style": { "navigationBarTitleText": "院校专业组" } },
     { "path": "pages/resources/resources", "style": { "navigationBarTitleText": "开源资源" } },
-    { "path": "pages/about/about", "style": { "navigationBarTitleText": "关于" } }
+    { "path": "pages/about/about", "style": { "navigationBarTitleText": "关于" } },
+    { "path": "pages/webview/webview", "style": { "navigationBarTitleText": "原始数据", "navigationBarTextStyle": "white", "navigationBarBackgroundColor": "#0f1115" } }
   ],
   "globalStyle": {
     "navigationBarTextStyle": "white",

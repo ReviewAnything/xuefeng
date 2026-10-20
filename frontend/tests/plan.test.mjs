@@ -10,6 +10,8 @@ import {
   applyMajors,
   collectMajors,
   buildPlan,
+  breachStatus,
+  breachStats,
 } from "../src/utils/plan.js";
 import { resolveBase } from "../src/utils/api.js";
 
@@ -119,6 +121,38 @@ eq(built.tiers[0].carried, true, "沿用标记带进志愿表");
 eq(built.tiers[0].pool_shared_with, null, "缺省共享池为 null");
 eq(buildPlan(null), null, "空输入不落盘");
 eq(typeof built.at, "number", "时间戳为毫秒数");
+
+console.log("\n▎S4 保底安全网 breach 红灯（回归：保底失守不可见）");
+// 用户位次 58000；三所"保底"：甲(投档位次 29731,够不上→失守)、乙(投档位次 70000,安全)、
+// 丙(无投档线,不可判定→不计入失守)。
+const breachPlan = {
+  province: "河南", subject: "物理类", user_rank: 58000, at: "2026-10-20T02:30:00.000Z",
+  tiers: [{
+    level: "保", tier: "普通本科",
+    schools: [
+      { name: "甲大学", min_rank: 29731, line_rank: 29731, line_year: 2024 },
+      { name: "乙大学", min_rank: 70000, line_rank: 70000, line_year: 2024 },
+      { name: "丙大学" },
+    ],
+  }],
+};
+const breachRows = flattenPlan(breachPlan);
+eq(breachRows.length, 3, "保底三行拍平");
+eq(breachStatus(58000, { level: "冲", line_rank: 1 }), "unknown", "非保底档永不判定");
+eq(breachStatus(58000, { level: "保", line_rank: 29731 }), "breach", "位次更靠后 → 失守");
+eq(breachStatus(58000, { level: "保", line_rank: 70000 }), "safe", "位次更靠前 → 安全");
+eq(breachStatus(58000, { level: "保" }), "unknown", "缺投档线 → 不误判为安全");
+eq(breachStatus(58000, { level: "保", line_rank: 0 }), "unknown", "投档位次为 0 → 不可判定");
+const bs = breachStats(breachPlan, breachRows);
+eq(bs, { breach: 1, covered: 2, total: 3 }, "失守 1 / 可判定 2 / 共 3");
+// 用户位次足够好 → 全部安全，红灯为 0
+const safePlan = { ...breachPlan, user_rank: 10000 };
+eq(breachStats(safePlan, flattenPlan(safePlan)), { breach: 0, covered: 2, total: 3 }, "位次好时红灯为 0");
+// 全无投档线 → muted（未核验），红灯 0 但 covered 0
+const noLinePlan = { province: "西藏", subject: "理工", user_rank: 5000, at: "x",
+  tiers: [{ level: "保", tier: "普通本科", schools: [{ name: "丁大学" }] }] };
+eq(breachStats(noLinePlan, flattenPlan(noLinePlan)), { breach: 0, covered: 0, total: 1 }, "无投档线时不误判，covered=0");
+eq(breachStats(null, null), { breach: 0, covered: 0, total: 0 }, "空输入安全返回");
 
 console.log("\n▎API 地址解析 api.js");
 const savedWindow = globalThis.window;

@@ -7,10 +7,16 @@ from services import major_groups as G
 c = TestClient(main.app)
 
 
-def test_subject_req_covers_all_majors():
-    """每个专业都必须有选科要求，否则专业组推导会漏专业。"""
+def test_subject_req_covers_known_majors():
+    """专业组模型（SUBJECT_REQ）引用的每个专业都必须存在于专业图谱（content.json），
+    否则 groups_for 会引用到缺失专业。
+
+    注：S4 把专业图谱从 38 扩到 131（学习/展示用）；院校专业组推导只覆盖其中 38 个核心专业，
+    因此这里校验的是「SUBJECT_REQ ⊆ 图谱」，而非全等。
+    """
     _, majors = G._load()
-    assert set(majors.keys()) == set(G.SUBJECT_REQ.keys())
+    missing = [name for name in G.SUBJECT_REQ if name not in majors]
+    assert not missing, f"SUBJECT_REQ 含图谱中不存在的专业：{missing}"
 
 
 def test_category_pool_names_are_valid():

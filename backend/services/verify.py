@@ -1,19 +1,26 @@
 """P2 核心：观点 × 数据 交叉核验。
 
-语义分层（设计评审 S0 落地）
+语义分层（设计评审 S0 / S2 落地）
 ------------------------
   - ``reachability``（可及性）：候选位次能否触及该专业观点所隐含的质量层次。
     这是对「考生自己」的事实陈述，由「观点 × 可达批次门槛」决定，诚实且无歧义。
   - ``alignment``（证据一致性）：数据是否真正支持/反驳观点。
-    这需要逐校投档线的「位次趋势」证据（S2 导入 ``school_lines`` 后才能算）。
-    在缺乏该证据时，``alignment`` 恒为 ``unverified``（数据未覆盖），
-    界面只展示「数据未覆盖」，不出现「一致/冲突」横幅。
-
-设计红线：绝不允许把「可达批次门槛」这张表渲染成「数据反驳/支持观点」——
-那是命题错配（观点答「值不值」，数据答「够不够」）。
+    S2 起，导入真实逐校投档线（``school_lines``，掌上高考 2025 真实录取记录）
+    后，``alignment`` 变为可计算的「可及性核验」：
+      - ``supported``：真实数据显示候选位次可触及开设该专业领域的院校层次；
+      - ``refuted``：真实数据显示候选位次够不到任何开设该专业领域的院校；
+      - ``unverified``：该 (省/科类) 暂无真实校线数据（单侧降级，不出现"一致/冲突"）。
+    设计红线：数据侧（校线）只能核验「能否读到」，**不能**核验专业就业价值本身；
+    所有 alignment 文案都显式声明这一点，绝不把"够不够"伪装成"值不值"。
+  - ``sources``：对置版式的双来源——观点来源（content.json）+ 数据来源（真实校线），
+    每条都带可点击的原始数据链接（``source_url``），满足"逐条展示两种来源、原始数据点击可达"。
 """
 from .admission import analyze_major, validate_user_rank
 from .content import VIEW_LABEL
+from sqlalchemy import select
+from db.database import session_scope
+from db.models import SchoolLine
+from db import repository as _repo
 
 # 高危低位次批次：在这些批次读到「推荐」专业，原 bias 提示的风险会被放大
 LOW_TIERS = {"普通二本", "专科"}
@@ -27,9 +34,13 @@ REACHABILITY_LABEL = {
     "high": "可达高层次",
 }
 
-# 证据一致性：在缺乏校线趋势证据时恒为 unverified（S2 后才可能变）
+# 证据一致性（S2 起可计算；缺真实校线时恒为 unverified）
 ALIGNMENT_UNVERIFIED = "unverified"
-ALIGNMENT_LABEL = {"unverified": "数据未覆盖"}
+ALIGNMENT_LABEL = {
+    "unverified": "数据未覆盖",
+    "supported": "数据可及",
+    "refuted": "数据不可及",
+}
 
 
 def _reachability(view: str, best_tier) -> str:
@@ -113,7 +124,7 @@ def _suggestions(view: str, bias: str, reach: str) -> list:
 def verify(province: str, subject: str, user_rank: int, major_name: str, major_cat: str,
            view: str, reason: str, bias: str,
            view_source: str = "", evidence_grade: str = "", source_url: str = "") -> dict:
-    """交叉核验单个专业（语义分层版）。"""
+    """交叉核验单个专业（语义分层版，S2 起接入真实校线）。"""
     ana = analyze_major(province, subject, user_rank, major_name, major_cat)
     if not ana["ok"]:
         return ana
@@ -122,16 +133,135 @@ def verify(province: str, subject: str, user_rank: int, major_name: str, major_c
     reach = _reachability(view, best["tier"] if best else None)
     reach_msg = _reachability_message(major_name, view, best, reach)
 
-    # 证据一致性：缺乏校线趋势证据，恒为 unverified
-    alignment = ALIGNMENT_UNVERIFIED
-    alignment_label = ALIGNMENT_LABEL[alignment]
-    alignment_msg = ("暂无逐校投档线趋势（school_lines）佐证观点，无法判定证据一致/冲突；"
-                     "以上为可及性提示，不等于数据支持或反驳该观点。")
+    # S2：真实校线可达性 + 可计算的 alignment（证据一致性=可及性核验）
+    real = real_reachability(province, subject, user_rank)
+    alignment, alignment_label, alignment_msg, raw_records = _alignment_of(view, real)
+
+    sources = _build_sources(major_name, view_source, evidence_grade, source_url, real)
 
     suggestions = _suggestions(view, bias, reach)
     return _pack(province, subject, user_rank, major_name, view, reason, bias, ana,
-                 reach, alignment, reach_msg, alignment_msg, suggestions,
-                 view_source, evidence_grade, source_url)
+                 reach, reach_msg, alignment, alignment_label, alignment_msg, suggestions,
+                 view_source, evidence_grade, source_url, real, sources, raw_records)
+
+
+# ---------------------------------------------------------------- 真实校线可达性（S2）
+
+_ELITE_CACHE = None
+
+
+def _elite_sets() -> tuple[set, set]:
+    global _ELITE_CACHE
+    if _ELITE_CACHE is None:
+        try:
+            s985 = set(_repo.elite_names("985"))
+            s211 = set(_repo.elite_names("211"))
+        except Exception:
+            s985, s211 = set(), set()
+        _ELITE_CACHE = (s985, s211)
+    return _ELITE_CACHE
+
+
+def real_reachability(province: str, subject: str, user_rank: int) -> dict | None:
+    """查询真实校线（掌上高考 2025，data_source=estimated_real）下候选位次的可及性。
+
+    返回 None 表示该 (省/科类) 暂无真实校线数据（单侧降级）。
+    返回的 ``reachable`` 为该省/科类下「位次 <= 候选位次」的真实院校清单（按门槛位次升序，
+    即最容易触及的排最前），每条带原始数据链接 ``source_url``，保证"原始数据点击可达"。
+    """
+    s985, s211 = _elite_sets()
+    with session_scope() as s:
+        rows = s.scalars(
+            select(SchoolLine).where(
+                SchoolLine.province == province, SchoolLine.subject == subject,
+                SchoolLine.data_source == "estimated_real")
+        ).all()
+        if not rows:
+            return None
+        reachable = []
+        for r in rows:
+            if not r.min_rank or r.min_rank < user_rank:
+                continue
+            tier = "985" if r.university in s985 else ("211" if r.university in s211 else "")
+            reachable.append({
+                "university": r.university, "min_rank": r.min_rank, "min_score": r.min_score,
+                "year": r.year, "batch": r.batch, "tier": tier,
+                "source_url": r.source_url,
+            })
+    reachable.sort(key=lambda x: x["min_rank"])
+    tiers = {"985": 0, "211": 0, "benke": 0, "zhuanke": 0}
+    for r in reachable:
+        if r["tier"] == "985":
+            tiers["985"] += 1
+        elif r["tier"] == "211":
+            tiers["211"] += 1
+        elif (r["batch"] or "").find("专") >= 0:
+            tiers["zhuanke"] += 1
+        else:
+            tiers["benke"] += 1
+    best = reachable[0] if reachable else None
+    return {
+        "has_data": True, "province": province, "subject": subject,
+        "total_lines": len(rows), "reachable": len(reachable),
+        "tiers": tiers, "best": best, "reachable_sample": reachable[:10],
+        "data_source": "estimated_real",
+        "upstream": "掌上高考 gaokao.cn（2025 真实录取记录，经 gaokao-admission-crawler 整理，MIT）",
+    }
+
+
+def _alignment_of(view: str, real: dict | None):
+    """可计算的 alignment（证据一致性 = 可及性核验）。
+
+    设计红线：数据（校线）只能核验"能否读到"，**不能**核验专业就业价值本身。
+    所有文案显式声明这一点。
+    """
+    if real is None or not real.get("has_data"):
+        return (ALIGNMENT_UNVERIFIED, ALIGNMENT_LABEL[ALIGNMENT_UNVERIFIED],
+                "该 (省/科类) 暂无真实校线佐证，无法核验可及性；以上为批次门槛估算的可及性提示，"
+                "不等于数据支持或反驳该观点。", [])
+    if not real.get("reachable"):
+        msg = ("真实校线显示：你的位次够不到该 (省/科类) 下任何真实院校开设的项目层次。"
+               "这是**可及性**层面的事实，不代表该专业「没有价值」——只是以你当前位次，"
+               "数据侧看不到你能踏入开设它的院校。")
+        return "refuted", ALIGNMENT_LABEL["refuted"], msg, []
+    best = real["best"]
+    best_tier = best["tier"]
+    if best_tier in ("985", "211"):
+        level_note = f"可触及 {best_tier} 层次院校（如 {best['university']}，门槛位次 {best['min_rank']}）"
+    elif real["tiers"]["benke"]:
+        level_note = f"可触及普通本科院校（最易 {best['university']}，门槛位次 {best['min_rank']}）"
+    else:
+        level_note = f"仅可触及专科层次（最易 {best['university']}，门槛位次 {best['min_rank']}）"
+    msg = (f"真实校线显示：{level_note}。数据侧仅核验**可及性**（你能否读到开设该专业的院校），"
+           "**不能**核验专业就业价值本身；以下为事实陈述，观点是否成立仍须结合就业判断。")
+    return "supported", ALIGNMENT_LABEL["supported"], msg, real["reachable_sample"]
+
+
+def _build_sources(major_name, view_source, evidence_grade, source_url, real) -> list:
+    """对置版式双来源：观点来源 + 数据来源。"""
+    opinion = {
+        "kind": "opinion", "label": "观点来源",
+        "source": view_source or "就业确定性优先（观点整理）",
+        "evidence_grade": evidence_grade or "",
+        "url": source_url or "",
+        "note": "观点为「值不值」的价值主张，需结合就业判断；非数据可证伪。",
+    }
+    if real and real.get("has_data"):
+        data = {
+            "kind": "data", "label": "数据来源",
+            "source": real["upstream"],
+            "url": real["best"]["source_url"] if real.get("best") else "",
+            "note": (f"真实录取记录 {real['total_lines']} 条，其中你的位次可触及 {real['reachable']} 条；"
+                     "非考试院官方发布，属真实抓取（estimated_real）。"),
+            "reachable": real["reachable"], "tiers": real["tiers"],
+        }
+    else:
+        data = {
+            "kind": "data", "label": "数据来源",
+            "source": "（该省/科类暂无真实校线，单侧降级）",
+            "url": "", "note": "未导入真实校线，无法展示数据侧。", "reachable": 0, "tiers": {},
+        }
+    return [opinion, data]
 
 
 MAX_BATCH = 20
@@ -169,10 +299,15 @@ def verify_many(province: str, subject: str, user_rank: int, majors: list[dict])
             continue
         results.append(r)
 
-    results.sort(key=lambda r: (REACHABILITY_ORDER.get(r["reachability"], 9), r["major"]))
-    summary = {"total": len(results), "out_of_reach": 0, "low": 0, "mid": 0, "high": 0}
+    # S3：批量排序 —— 先按 alignment（反驳→无证据→支持，风险优先），再按 reachability
+    ALIGN_ORDER = {"refuted": 0, "unverified": 1, "supported": 2}
+    results.sort(key=lambda r: (ALIGN_ORDER.get(r["alignment"], 9),
+                                REACHABILITY_ORDER.get(r["reachability"], 9), r["major"]))
+    summary = {"total": len(results), "out_of_reach": 0, "low": 0, "mid": 0, "high": 0,
+               "alignment": {"refuted": 0, "unverified": 0, "supported": 0}}
     for r in results:
         summary[r["reachability"]] = summary.get(r["reachability"], 0) + 1
+        summary["alignment"][r["alignment"]] = summary["alignment"].get(r["alignment"], 0) + 1
 
     return {
         "ok": True,
@@ -186,8 +321,8 @@ def verify_many(province: str, subject: str, user_rank: int, majors: list[dict])
 
 
 def _pack(province, subject, user_rank, major_name, view, reason, bias, ana,
-          reach, alignment, reach_msg, alignment_msg, suggestions,
-          view_source, evidence_grade, source_url) -> dict:
+          reach, reach_msg, alignment, alignment_label, alignment_msg, suggestions,
+          view_source, evidence_grade, source_url, real, sources, raw_records) -> dict:
     return {
         "ok": True,
         "province": province, "subject": subject, "user_rank": user_rank,
@@ -201,7 +336,7 @@ def _pack(province, subject, user_rank, major_name, view, reason, bias, ana,
         "reachability_label": REACHABILITY_LABEL[reach],
         "reachability_message": reach_msg,
         "alignment": alignment,
-        "alignment_label": ALIGNMENT_LABEL[alignment],
+        "alignment_label": alignment_label,
         "alignment_message": alignment_msg,
         "message": reach_msg,
         "suggestions": suggestions,
@@ -209,4 +344,8 @@ def _pack(province, subject, user_rank, major_name, view, reason, bias, ana,
         "reachable_tier": ana.get("reachable_tier"),
         "reachable_tier_schools": ana.get("reachable_tier_schools", []),
         "reachable_tier_school_count": ana.get("reachable_tier_school_count", 0),
+        # S2：真实校线 + 双来源 + 原始数据点击可达
+        "real_data": real,
+        "sources": sources,
+        "raw_records": raw_records,
     }
