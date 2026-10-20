@@ -686,6 +686,80 @@ const app = createApp({
       }
     }
 
+    /* ---------- 官方逐校投档线落库（S7-A） ---------- */
+    const officialStatus = ref(null);
+    const officialReport = ref(null);
+    const officialLoading = ref(false);
+    const officialFile = ref(null);
+    const officialFileName = ref("");
+    const officialForm = reactive({
+      source_url: "", source_org: "", year: 2024,
+      province: "", subject: "物理类", dry_run: true,
+    });
+
+    const officialText = computed(() => {
+      const r = officialReport.value;
+      if (!r) return "";
+      const base = `可落库 ${r.accepted} 行 / 拒收 ${r.rejected} 行（共 ${r.total} 行）`;
+      if (r.dry_run) return base;
+      return `${base}；新增 ${r.inserted} / 更新 ${r.updated} / 未变 ${r.unchanged}`;
+    });
+
+    function onOfficialFileChange(file) {
+      officialFile.value = file.raw || file;
+      officialFileName.value = file.name || (file.raw && file.raw.name) || "";
+      officialReport.value = null;
+    }
+
+    function clearOfficialFile() {
+      officialFile.value = null;
+      officialFileName.value = "";
+      officialReport.value = null;
+    }
+
+    async function loadOfficialStatus() {
+      try {
+        officialStatus.value = await api("/api/admin/school-lines/official-status");
+      } catch (_) { /* 未登录/无权限时静默 */ }
+    }
+
+    async function submitOfficial() {
+      if (!officialFile.value) { ElMessage.warning("请先选择 CSV / JSON 原表"); return; }
+      if (!/^https?:\/\//.test(officialForm.source_url || "")) {
+        ElMessage.warning("官方数据必须填写来源链接（省考试院原表地址）");
+        return;
+      }
+      officialLoading.value = true;
+      try {
+        const fd = new FormData();
+        fd.append("file", officialFile.value, officialFileName.value || "official.csv");
+        fd.append("year", String(officialForm.year));
+        fd.append("province", officialForm.province || "");
+        fd.append("subject", officialForm.subject || "");
+        fd.append("source_url", officialForm.source_url || "");
+        fd.append("source_org", officialForm.source_org || "");
+        fd.append("dry_run", officialForm.dry_run ? "true" : "false");
+        // multipart 不能用 api()（那里写死了 JSON Content-Type）
+        const res = await fetch("/api/admin/school-lines/import-official-file", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token.value}` },
+          body: fd,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 401) { logout(true); throw new Error(data.detail || "登录已过期"); }
+        if (!res.ok) throw new Error(data.detail || `官方落库失败（${res.status}）`);
+        officialReport.value = data;
+        ElMessage.success(data.dry_run
+          ? "预览完成；确认无误后关闭「仅预览」再提交"
+          : `官方落库完成：新增 ${data.inserted} / 更新 ${data.updated}`);
+        await Promise.all([loadLineCoverage(), loadSeedStatus(), loadOfficialStatus()]);
+      } catch (e) {
+        ElMessage.error(e.message);
+      } finally {
+        officialLoading.value = false;
+      }
+    }
+
     /* ---------- 通用 ---------- */
     async function refreshAll() {
       if (!token.value) return;
@@ -732,7 +806,7 @@ const app = createApp({
         if (p === "baselines" && !baseRows.value.length) await loadBaselines();
         if (p === "versions") await loadVersions();
         if (p === "sync") await Promise.all([loadSources(), loadJobs(), loadSyncTargets()]);
-        if (p === "lines") await Promise.all([loadLineCoverage(), loadSeedStatus()]);
+        if (p === "lines") await Promise.all([loadLineCoverage(), loadSeedStatus(), loadOfficialStatus()]);
         if (p === "events") await loadEvents();
         if (p === "settings") await loadProfile();
       } catch (e) {
@@ -761,6 +835,8 @@ const app = createApp({
       lineForm, lineFile, lineFileName, lineReport, lineLoading, lineCoverage,
       onLineFileChange, clearLineFile, submitLines, loadLineCoverage,
       seedStatus, seedReport, seedLoading, seedText, loadSeedStatus, runSeedImport,
+      officialStatus, officialReport, officialLoading, officialForm, officialFileName,
+      officialText, onOfficialFileChange, clearOfficialFile, submitOfficial, loadOfficialStatus,
       pwdForm, pwdLoading, changePassword,
       exportCsv, fmtTime, jobTag, jobLabel, alignLabel,
     };

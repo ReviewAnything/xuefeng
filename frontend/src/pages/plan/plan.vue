@@ -33,6 +33,27 @@
                      class="safe-patch no-print" :loading="patching" @click="patchSafe">
             一键补位：拉取更低层次兜底院校
           </wd-button>
+          <!-- S7-E 补位前后对比：新增几所、失守填平几所、还剩几所够不上 -->
+          <view v-if="patchDiff" class="patch-diff no-print">
+            <text class="patch-title">补位前后对比</text>
+            <text class="patch-line">
+              可稳够：{{ patchDiff.safe_before }} 所 →
+              <text class="patch-good">{{ patchDiff.safe_after }} 所</text>
+            </text>
+            <text class="patch-line">
+              失守院校：{{ patchDiff.before.breach }} 所 → {{ patchDiff.after.breach }} 所
+              <text v-if="patchDiff.before.breach > patchDiff.after.breach" class="patch-good">
+                （填平 {{ patchDiff.before.breach - patchDiff.after.breach }} 所）
+              </text>
+            </text>
+            <text class="patch-line">新增兜底：{{ patchDiff.added.map((s) => s.name).join("、") }}</text>
+            <text v-if="patchDiff.skipped" class="patch-line muted">
+              {{ patchDiff.skipped }} 所候选已在志愿表中，未重复加入
+            </text>
+            <text v-if="patchDiff.still_breach.length" class="patch-line warn">
+              仍失守：{{ patchDiff.still_breach.join("、") }}（位次够不上，建议继续下调保底预期）
+            </text>
+          </view>
         </view>
       </view>
 
@@ -80,12 +101,13 @@ import { onLoad } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
 import { themeVars } from "@/utils/theme.js";
 import { api } from "@/utils/api.js";
-import { PLAN_KEY, applyMajors, appendSafeSchools, breachStats, breachStatus, buildPlanText, collectMajors, fillStats, flattenPlan, formatTime, groupRows, selectBackstops } from "@/utils/plan.js";
+import { PLAN_KEY, applyMajors, breachStats, breachStatus, buildPlanText, collectMajors, diffSafePatch, fillStats, flattenPlan, formatTime, groupRows, selectBackstops } from "@/utils/plan.js";
 
 const toast = useToast();
 const plan = ref(null);
 const rows = ref([]);
 const patching = ref(false);
+const patchDiff = ref(null);   // S7-E 补位前后对比
 
 const hasPlan = computed(() => !!plan.value);
 const isEmpty = computed(() => !plan.value);
@@ -170,8 +192,8 @@ function goRecommend() {
 }
 
 // S5-C 保底失守一键补位：拉取更低层次、用户位次可稳够的兜底院校并入「保」档。
-// 候选筛选交给纯函数 selectBackstops（只挑 min_rank < 用户位次、不会再次失守的院校），
-// 去重+并入交给 appendSafeSchools。
+// 候选筛选交给纯函数 selectBackstops（只挑门槛位次比用户更靠后、不会再次失守的院校），
+// 对比与并入交给 diffSafePatch（内部走 appendSafeSchools，在副本上补位）。
 async function patchSafe() {
   if (patching.value || !plan.value) return;
   patching.value = true;
@@ -185,11 +207,18 @@ async function patchSafe() {
       toast.show("暂无可补位的更低层次兜底院校（可能该省缺院校投档线）");
       return;
     }
-    const next = appendSafeSchools(JSON.parse(JSON.stringify(plan.value)), picks);
+    // S7-E：补位前后对比——用户真正关心的是「失守有没有被填平」，不只是加了几所
+    const d = diffSafePatch(plan.value, picks);
+    if (!d.added.length) {
+      toast.show("候选兜底院校都已在志愿表里，无需重复补位");
+      return;
+    }
+    const next = d.next;
     plan.value = next;
+    patchDiff.value = d;
     rows.value = applyMajors(flattenPlan(next), next.majors || collectMajors(rows.value));
     uni.setStorageSync(PLAN_KEY, next);
-    toast.show(`已补位 ${picks.length} 所兜底院校到「保」档`);
+    toast.show(d.text);
   } catch (e) {
     toast.show("没连上服务，重试一次");
   } finally {
@@ -236,6 +265,13 @@ function print() {
 .safe-count.muted { color: #8a909c; }
 .safe-desc { display: block; margin-top: 10rpx; font-size: 21rpx; color: #9aa0aa; line-height: 1.6; }
 .safe-patch { margin-top: 16rpx; }
+/* S7-E 补位前后对比 */
+.patch-diff { margin-top: 16rpx; padding: 14rpx 16rpx; border-radius: 12rpx; background: rgba(95, 216, 127, 0.06); border: 1px solid #2f7d4f; }
+.patch-title { display: block; font-size: 23rpx; font-weight: 600; color: #c7ccd4; margin-bottom: 6rpx; }
+.patch-line { display: block; font-size: 21rpx; color: #9aa0aa; line-height: 1.6; }
+.patch-good { color: #5fd87f; }
+.patch-line.warn { color: #ff8787; }
+.patch-line.muted { color: #8a909c; }
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 
 .row-breach { font-size: 18rpx; color: #fff; background: #e5484d; border-radius: 6rpx; padding: 1rpx 8rpx; margin-left: 10rpx; vertical-align: middle; }

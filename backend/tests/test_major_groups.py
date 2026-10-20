@@ -10,13 +10,33 @@ c = TestClient(main.app)
 def test_subject_req_covers_known_majors():
     """专业组模型（SUBJECT_REQ）引用的每个专业都必须存在于专业图谱（content.json），
     否则 groups_for 会引用到缺失专业。
-
-    注：S4 把专业图谱从 38 扩到 131（学习/展示用）；院校专业组推导只覆盖其中 38 个核心专业，
-    因此这里校验的是「SUBJECT_REQ ⊆ 图谱」，而非全等。
     """
     _, majors = G._load()
     missing = [name for name in G.SUBJECT_REQ if name not in majors]
     assert not missing, f"SUBJECT_REQ 含图谱中不存在的专业：{missing}"
+
+
+def test_subject_req_covers_whole_graph():
+    """S7-D：图谱每个专业都要有选科要求，消除「图谱 131 / 选科表 38」的缺口。
+
+    以前只覆盖 38 个核心专业，其余专业进了图谱却推不出专业组——看着有、点下去没有。
+    现在两者一一对应；图谱继续扩量时必须同步补 SUBJECT_REQ，这条用例会先拦住。
+    """
+    _, majors = G._load()
+    assert len(majors) >= 200, f"专业图谱应已扩到 200+，当前 {len(majors)}"
+    uncovered = [name for name in majors if name not in G.SUBJECT_REQ]
+    assert not uncovered, f"图谱专业缺选科要求：{uncovered[:10]}（共 {len(uncovered)} 个）"
+    # 选科要求只允许这四种口径（新增口径会改变专业组维度，需同步评估）
+    assert set(G.SUBJECT_REQ.values()) <= set(G.REQ_ORDER)
+
+
+def test_graph_entries_have_governance_fields():
+    """扩量不能牺牲治理：每条都要带观点来源 / 证据等级 / 复核与失效日期。"""
+    _, majors = G._load()
+    bad = [name for name, m in majors.items()
+           if not (m.get("view_source") and m.get("evidence_grade")
+                   and m.get("expires_at") and m.get("reason") and m.get("bias"))]
+    assert not bad, f"缺治理字段的专业：{bad[:10]}"
 
 
 def test_category_pool_names_are_valid():

@@ -9,9 +9,16 @@
     后，``alignment`` 变为可计算的「可及性核验」：
       - ``supported``：真实数据显示候选位次可触及开设该专业领域的院校层次；
       - ``refuted``：真实数据显示候选位次够不到任何开设该专业领域的院校；
-      - ``unverified``：该 (省/科类) 暂无真实校线数据（单侧降级，不出现"一致/冲突"）。
+      - ``unverified``：该 (省/科类) 暂无真实校线数据，**或校线样本量不足以支撑判断**
+        （S7-C 证据门槛；单侧降级，不出现"一致/冲突"）。
     设计红线：数据侧（校线）只能核验「能否读到」，**不能**核验专业就业价值本身；
     所有 alignment 文案都显式声明这一点，绝不把"够不够"伪装成"值不值"。
+
+S7-C 增补「证据门槛 + 单侧降级」：一条校线就敢说「支持/反驳」是把**对置版式**
+（观点 vs 数据）变成了无信息放大——样本太薄时那句判断其实什么都没证明。现在
+``alignment`` 只有在样本量过门槛时才给强判断，否则一律降级为 ``unverified`` 并
+在 ``alignment_basis`` 里写清「为什么不敢判」（校线条数/覆盖院校数/数据等级）。
+**只降级、不升级**：证据不足永远往 unverified 退，绝不反向推出"观点成立"。
   - ``sources``：对置版式的双来源——观点来源（content.json）+ 数据来源（真实校线），
     每条都带可点击的原始数据链接（``source_url``），满足"逐条展示两种来源、原始数据点击可达"。
 """
@@ -135,14 +142,15 @@ def verify(province: str, subject: str, user_rank: int, major_name: str, major_c
 
     # S2：真实校线可达性 + 可计算的 alignment（证据一致性=可及性核验）
     real = real_reachability(province, subject, user_rank)
-    alignment, alignment_label, alignment_msg, raw_records = _alignment_of(view, real)
+    alignment, alignment_label, alignment_msg, raw_records, alignment_basis = _alignment_of(view, real)
 
     sources = _build_sources(major_name, view_source, evidence_grade, source_url, real)
 
     suggestions = _suggestions(view, bias, reach)
     return _pack(province, subject, user_rank, major_name, view, reason, bias, ana,
                  reach, reach_msg, alignment, alignment_label, alignment_msg, suggestions,
-                 view_source, evidence_grade, source_url, real, sources, raw_records)
+                 view_source, evidence_grade, source_url, real, sources, raw_records,
+                 alignment_basis)
 
 
 # ---------------------------------------------------------------- 真实校线可达性（S2）
@@ -199,6 +207,9 @@ def real_reachability(province: str, subject: str, user_rank: int) -> dict | Non
                 "source_label": "官方" if ds == "official" else "真实抓取",
             })
     reachable.sort(key=lambda x: (x["data_source"] != "official", x["min_rank"]))
+    # S7-C：样本量（校线条数 / 覆盖院校数）是「敢不敢下判断」的前提，随结果一并返回
+    total_schools = len({r.university for r in rows})
+    reachable_schools = len({r["university"] for r in reachable})
     tiers = {"985": 0, "211": 0, "benke": 0, "zhuanke": 0}
     for r in reachable:
         if r["tier"] == "985":
@@ -217,6 +228,7 @@ def real_reachability(province: str, subject: str, user_rank: int) -> dict | Non
     return {
         "has_data": True, "province": province, "subject": subject,
         "total_lines": len(rows), "reachable": len(reachable),
+        "total_schools": total_schools, "reachable_schools": reachable_schools,
         "tiers": tiers, "best": best, "reachable_sample": reachable[:10],
         "data_source_summary": {
             "official": official, "estimated_real": estimated,
@@ -228,21 +240,60 @@ def real_reachability(province: str, subject: str, user_rank: int) -> dict | Non
     }
 
 
+# S7-C 证据门槛：低于该样本量时不给「支持 / 反驳」的强判断，单侧降级为 unverified。
+# 一条校线就敢说「数据支持观点」，是把对置版式变成了无信息放大——那句判断其实什么都没证明。
+MIN_EVIDENCE_LINES = 10      # 该 (省/科类) 至少要有这么多条真实校线
+MIN_EVIDENCE_SCHOOLS = 5     # 且至少覆盖这么多所不同院校
+GRADE_LABEL = {"official": "考试院官方", "mixed": "官方 + 真实抓取", "estimated_real": "真实抓取（非官方）"}
+
+
+def _evidence_gate(real: dict) -> tuple[bool, dict]:
+    """证据是否足以支撑「支持 / 反驳」的强判断（S7-C）。"""
+    lines = int(real.get("total_lines") or 0)
+    schools = int(real.get("total_schools") or 0)
+    basis = {
+        "total_lines": lines, "min_lines": MIN_EVIDENCE_LINES,
+        "total_schools": schools, "min_schools": MIN_EVIDENCE_SCHOOLS,
+        "reachable": int(real.get("reachable") or 0),
+        "reachable_schools": int(real.get("reachable_schools") or 0),
+        "grade": real.get("grade", ""),
+        "grade_label": GRADE_LABEL.get(real.get("grade", ""), real.get("grade", "")),
+        "gate_passed": lines >= MIN_EVIDENCE_LINES and schools >= MIN_EVIDENCE_SCHOOLS,
+    }
+    return basis["gate_passed"], basis
+
+
 def _alignment_of(view: str, real: dict | None):
-    """可计算的 alignment（证据一致性 = 可及性核验）。
+    """可计算的 alignment（证据一致性 = 可及性核验）+ S7-C 证据门槛。
 
     设计红线：数据（校线）只能核验"能否读到"，**不能**核验专业就业价值本身。
     所有文案显式声明这一点。
+
+    返回 ``(alignment, label, message, raw_records, basis)``，``basis`` 写清判断依据
+    （校线条数 / 覆盖院校数 / 数据等级 / 是否过门槛），让「为什么是这个结论」可查。
     """
+    empty_basis = {"total_lines": 0, "min_lines": MIN_EVIDENCE_LINES, "total_schools": 0,
+                   "min_schools": MIN_EVIDENCE_SCHOOLS, "reachable": 0, "reachable_schools": 0,
+                   "grade": "", "grade_label": "", "gate_passed": False}
     if real is None or not real.get("has_data"):
         return (ALIGNMENT_UNVERIFIED, ALIGNMENT_LABEL[ALIGNMENT_UNVERIFIED],
                 "该 (省/科类) 暂无真实校线佐证，无法核验可及性；以上为批次门槛估算的可及性提示，"
-                "不等于数据支持或反驳该观点。", [])
+                "不等于数据支持或反驳该观点。", [], empty_basis)
+
+    passed, basis = _evidence_gate(real)
+    grade_note = f"；数据等级：{basis['grade_label']}" if basis["grade_label"] else ""
+    if not passed:
+        # 单侧降级：证据不足只往 unverified 退，绝不反向推出「观点成立」
+        return (ALIGNMENT_UNVERIFIED, ALIGNMENT_LABEL[ALIGNMENT_UNVERIFIED],
+                f"该 (省/科类) 只有 {basis['total_lines']} 条真实校线、覆盖 {basis['total_schools']} 所院校，"
+                f"低于判定门槛（≥{MIN_EVIDENCE_LINES} 条 / ≥{MIN_EVIDENCE_SCHOOLS} 所）。样本太薄时"
+                "「支持 / 反驳」没有信息量，因此这里**不下判断**，仅提示可及性参考。", [], basis)
+
     if not real.get("reachable"):
         msg = ("真实校线显示：你的位次够不到该 (省/科类) 下任何真实院校开设的项目层次。"
                "这是**可及性**层面的事实，不代表该专业「没有价值」——只是以你当前位次，"
-               "数据侧看不到你能踏入开设它的院校。")
-        return "refuted", ALIGNMENT_LABEL["refuted"], msg, []
+               f"数据侧看不到你能踏入开设它的院校{grade_note}。")
+        return "refuted", ALIGNMENT_LABEL["refuted"], msg, [], basis
     best = real["best"]
     best_tier = best["tier"]
     if best_tier in ("985", "211"):
@@ -252,8 +303,9 @@ def _alignment_of(view: str, real: dict | None):
     else:
         level_note = f"仅可触及专科层次（最易 {best['university']}，门槛位次 {best['min_rank']}）"
     msg = (f"真实校线显示：{level_note}。数据侧仅核验**可及性**（你能否读到开设该专业的院校），"
-           "**不能**核验专业就业价值本身；以下为事实陈述，观点是否成立仍须结合就业判断。")
-    return "supported", ALIGNMENT_LABEL["supported"], msg, real["reachable_sample"]
+           "**不能**核验专业就业价值本身；以下为事实陈述，观点是否成立仍须结合就业判断"
+           f"{grade_note}。")
+    return "supported", ALIGNMENT_LABEL["supported"], msg, real["reachable_sample"], basis
 
 
 def _build_sources(major_name, view_source, evidence_grade, source_url, real) -> list:
@@ -355,7 +407,8 @@ def verify_many(province: str, subject: str, user_rank: int, majors: list[dict])
 
 def _pack(province, subject, user_rank, major_name, view, reason, bias, ana,
           reach, reach_msg, alignment, alignment_label, alignment_msg, suggestions,
-          view_source, evidence_grade, source_url, real, sources, raw_records) -> dict:
+          view_source, evidence_grade, source_url, real, sources, raw_records,
+          alignment_basis=None) -> dict:
     return {
         "ok": True,
         "province": province, "subject": subject, "user_rank": user_rank,
@@ -371,6 +424,8 @@ def _pack(province, subject, user_rank, major_name, view, reason, bias, ana,
         "alignment": alignment,
         "alignment_label": alignment_label,
         "alignment_message": alignment_msg,
+        # S7-C：判断依据可查——样本量是否过门槛、数据等级是什么
+        "alignment_basis": alignment_basis or {},
         "message": reach_msg,
         "suggestions": suggestions,
         "data_source": ana["data_source"],

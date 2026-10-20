@@ -126,6 +126,16 @@ def health():
         sl_sources = {"total": 0, "by_source": {}, "official": 0,
                       "estimated_real": 0, "provinces": [], "province_count": 0,
                       "has_official": False, "grade": "estimated_real"}
+    # S7-A：官方逐校投档线落地区是否就绪、有多少行待落库
+    try:
+        landing = SL.official_landing_rows()
+    except Exception:
+        landing = {"dir_exists": False, "accepted_count": 0, "rejected_count": 0, "files": []}
+    # S7-B：自托管种子的完整性与体积
+    try:
+        seed_state = SL.verify_seed()
+    except Exception:
+        seed_state = {"exists": False, "ok": False, "rows": 0, "sha256": "", "size_bytes": 0}
     return {
         "status": "ok",
         "version": APP_VERSION,
@@ -149,7 +159,17 @@ def health():
                          "estimated_real": sl_sources.get("estimated_real", 0),
                          "provinces": sl_sources.get("province_count", 0),
                          "grade": sl_sources.get("grade", "estimated_real"),
-                         "has_official": sl_sources.get("has_official", False)},
+                         "has_official": sl_sources.get("has_official", False),
+                         "official_landing": {
+                             "dir_ready": landing.get("dir_exists", False),
+                             "pending_rows": landing.get("accepted_count", 0),
+                             "rejected_rows": landing.get("rejected_count", 0),
+                             "files": [f["file"] for f in landing.get("files", [])]},
+                         "seed": {"available": seed_state.get("exists", False),
+                                  "rows": seed_state.get("rows", 0),
+                                  "sha256_ok": bool(seed_state.get("ok")),
+                                  "compressed": str(seed_state.get("path", "")).endswith(".gz"),
+                                  "size_kb": round(seed_state.get("size_bytes", 0) / 1024, 1)}},
         "pending_views": C.pending_reviews(),
         "observability": OBS.snapshot(recent=5),
         "admin_console": None if DISABLE_ADMIN else "/admin",

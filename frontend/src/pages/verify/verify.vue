@@ -137,6 +137,14 @@
         <view class="align unverified">
           <text class="align-label">{{ res.alignment_label }}</text>
           <text class="align-sub">{{ res.alignment_message }}</text>
+          <!-- S7-C 判断依据：样本量是否过门槛，为什么敢/不敢下结论 -->
+          <text class="align-basis" v-if="res.alignment_basis && res.alignment_basis.min_lines">
+            判定依据：该省/科类 {{ res.alignment_basis.total_lines }} 条校线 ·
+            {{ res.alignment_basis.total_schools }} 所院校
+            （门槛 ≥{{ res.alignment_basis.min_lines }} 条 / ≥{{ res.alignment_basis.min_schools }} 所）
+            <text v-if="!res.alignment_basis.gate_passed"> · 样本不足，已单侧降级为「不下判断」</text>
+            <text v-else-if="res.alignment_basis.grade_label"> · 数据等级：{{ res.alignment_basis.grade_label }}</text>
+          </text>
         </view>
 
         <!-- S5-A 数据权威性：官方 / 真实抓取 拆分声明，诚实区分「真实抓取 ≠ 官方」 -->
@@ -592,6 +600,8 @@ async function run() {
 .align { border-radius: 12rpx; padding: 14rpx 16rpx; margin: 6rpx 0 14rpx; background: #1c1f26; border: 1px solid #2a2e37; }
 .align-label { display: block; font-size: 26rpx; font-weight: 700; color: #8a909c; }
 .align-sub { display: block; margin-top: 6rpx; font-size: 21rpx; color: #6b7280; line-height: 1.6; }
+/* S7-C 判定依据（样本量门槛） */
+.align-basis { display: block; margin-top: 6rpx; font-size: 20rpx; color: #8a909c; line-height: 1.6; }
 
 /* S5-A 数据权威性声明 */
 .auth { border-radius: 12rpx; padding: 14rpx 16rpx; margin-bottom: 16rpx; background: #16191f; border: 1px solid #243a55; }

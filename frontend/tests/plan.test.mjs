@@ -14,6 +14,7 @@ import {
   breachStats,
   appendSafeSchools,
   selectBackstops,
+  diffSafePatch,
 } from "../src/utils/plan.js";
 import { resolveBase } from "../src/utils/api.js";
 
@@ -168,8 +169,9 @@ const patchPlan = {
     ] },
   ],
 };
-// 候选兜底（模拟 recommend 返回的院校行）：戊/丙 可被用户位次稳够（min_rank < 58000），
-// 己/庚 太难（min_rank > 58000）应被 selectBackstops 排除；丙与表中同名用于去重验证
+// 候选兜底（模拟 recommend 返回的院校行）。位次口径：min_rank = 该校最低投档位次，
+// 数字越大门槛越低；用户位次 58000 更靠前才稳够，即只挑 min_rank > 58000 的院校。
+// 己(65000)、庚(90000) 稳够；戊(55000)、丙(29731) 门槛比用户还高 → 必须排除。
 const rec = {
   tiers: [{ level: "保", tier: "普通二本", schools: [
     { name: "戊大学", province: "河南", nature: "公办", min_score: 460, min_rank: 55000, line_year: 2025, data_source: "school_line" },
@@ -179,18 +181,39 @@ const rec = {
   ] }],
 };
 const picks = selectBackstops(rec, 58000, 6);
-eq(picks.length, 2, "只挑 min_rank < 用户位次的院校（戊、丙），排除己、庚");
-eq(picks[0].name, "戊大学", "最易够到的（min_rank 最大）排第一");
-eq(picks.some((s) => s.name === "己大学"), false, "太难的己大学被排除");
-eq(picks.some((s) => s.name === "庚大学"), false, "太难的庚大学被排除");
+eq(picks.length, 2, "只挑门槛比用户位次更靠后的院校（己、庚），排除够不上的戊、丙");
+eq(picks[0].name, "庚大学", "门槛最宽（min_rank 最大）排第一");
+eq(picks.some((s) => s.name === "戊大学"), false, "够不上的戊大学被排除（min_rank 55000 < 58000）");
+eq(picks.some((s) => s.name === "丙大学"), false, "够不上的丙大学被排除");
+// 补位方向红线：补进来的每一所都必须「用户稳够」，否则安全网是假的
+eq(picks.every((s) => s.min_rank > 58000), true, "补位候选全部满足 min_rank > 用户位次");
 // appendSafeSchools 只按名字去重 + 并入保底档（不做 min_rank 过滤，那是 selectBackstops 的职责）
 const patched = appendSafeSchools(JSON.parse(JSON.stringify(patchPlan)), picks);
 const safeTier = patched.tiers.find((t) => t.level === "保");
-eq(safeTier.schools.length, 3, "补位后保底档 3 所（原 2 + 戊；丙与表中同名被去重）");
-eq(safeTier.schools.filter((s) => s.name === "丙大学").length, 1, "与表中同名的丙大学不重复并入");
-eq(safeTier.schools.some((s) => s.name === "戊大学"), true, "戊大学并入保底档");
+eq(safeTier.schools.length, 4, "补位后保底档 4 所（原 2 + 己、庚）");
+eq(safeTier.schools.some((s) => s.name === "庚大学"), true, "庚大学并入保底档");
+eq(safeTier.schools.some((s) => s.name === "己大学"), true, "己大学并入保底档");
 eq(appendSafeSchools(null, picks), null, "空 plan 安全返回");
 eq(appendSafeSchools(patchPlan, []), patchPlan, "无候选时不改动 plan");
+
+console.log("\n▎S7-E 补位前后对比 diffSafePatch");
+const diff = diffSafePatch(patchPlan, picks);
+eq(diff.before, { breach: 1, covered: 2, total: 2 }, "补位前：保底档 2 所，丙大学（29731）已失守");
+eq(diff.safe_before, 1, "补位前只有丁大学 1 所可稳够");
+eq(diff.added.map((s) => s.name), ["庚大学", "己大学"], "新增两所真正稳够的兜底院校");
+eq(diff.skipped, 0, "候选都不在表里，无重复跳过");
+eq(diff.after.total, 4, "补位后保底档 4 所");
+eq(diff.safe_after, 3, "补位后可稳够 3 所（安全网真的被撑住了）");
+eq(diff.after.breach, 1, "失守数没被假装抹掉");
+eq(diff.still_breach, ["丙大学"], "原失守行仍在表里 → 明确列出，提示用户自行下调或移除");
+eq(/可稳够 1 → 3 所/.test(diff.text), true, "文案说清「可稳够」前后变化");
+eq(patchPlan.tiers.find((t) => t.level === "保").schools.length, 2,
+   "diffSafePatch 不改原 plan（在副本上补位，可先预览再落盘）");
+eq(diff.next.tiers.find((t) => t.level === "保").schools.length, 4, "next 是补位后的 plan");
+eq(diffSafePatch(patchPlan, []).added.length, 0, "无候选时无新增");
+eq(diffSafePatch(null, picks).added.length, 0, "空 plan 安全返回");
+eq(diffSafePatch({ tiers: [] }, picks).text.indexOf("补位") >= 0, true,
+   "空表也能给出可读文案");
 
 console.log("\n▎API 地址解析 api.js");
 const savedWindow = globalThis.window;

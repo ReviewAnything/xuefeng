@@ -547,25 +547,118 @@ def map_for(province: str, subject: str, names: list[str], year: int = None) -> 
 
 _BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(_BACKEND_DIR, "data")
-SEED_ESTIMATED = os.path.join(DATA_DIR, "school_lines_estimated_real.json")
+# S7-B：种子默认以 gzip 提交（明文体积 7.2MB → 约 1MB），读取时按后缀自动解压；
+# 明文路径仅作兼容回退，不再随仓库提交。
+SEED_ESTIMATED = os.path.join(DATA_DIR, "school_lines_estimated_real.json.gz")
+SEED_ESTIMATED_PLAIN = os.path.join(DATA_DIR, "school_lines_estimated_real.json")
+SEED_META = os.path.join(DATA_DIR, "seed.meta.json")
 OFFICIAL_ADMISSION = os.path.join(DATA_DIR, "admission_official_2024.json")
+# S7-A：官方逐校投档线落地区。运营把各省考试院原表放进来，一键落库即可识别；
+# 仓库不预置任何「官方」数据文件，缺 source_url 的行一律拒收（见 validate_official_rows）。
+OFFICIAL_DIR = os.path.join(DATA_DIR, "official")
 
 _URL_RE = re.compile(r"https?://[^\s；;，,）)]+")
 
+# 看起来像省级招生考试机构的域名片段（软校验：不在其中只告警，不阻断）
+_OFFICIAL_HOST_HINTS = (
+    "gov.cn", "edu.cn", "eea.", "zsks", "zk.", "ksy.", "jseea", "sceea", "haeea",
+    "eeafj", "ahzsks", "hneeb", "cqksy", "sdzk", "hebeea", "ganseea", "gseea",
+)
 
-def export_seed(path: str = SEED_ESTIMATED, data_source: str = "estimated_real") -> dict:
+
+def _seed_open_write(path: str):
+    if path.endswith(".gz"):
+        import gzip
+        return gzip.open(path, "wt", encoding="utf-8")
+    return open(path, "w", encoding="utf-8")
+
+
+def _seed_open_read(path: str):
+    if path.endswith(".gz"):
+        import gzip
+        return gzip.open(path, "rt", encoding="utf-8")
+    return open(path, encoding="utf-8")
+
+
+def _resolve_seed() -> str:
+    """定位种子文件：优先模块常量（测试可覆盖），回退明文路径。"""
+    if os.path.exists(SEED_ESTIMATED):
+        return SEED_ESTIMATED
+    if os.path.exists(SEED_ESTIMATED_PLAIN):
+        return SEED_ESTIMATED_PLAIN
+    return SEED_ESTIMATED
+
+
+def sha256_of(path: str) -> str:
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def read_seed(path: str | None = None) -> dict:
+    """读取种子（自动识别 gzip），损坏时抛错由调用方处理。"""
+    path = path or _resolve_seed()
+    with _seed_open_read(path) as f:
+        return json.load(f)
+
+
+def seed_meta() -> dict:
+    """种子校验和清单（S7-B）。缺失时返回 {"exists": False}。"""
+    if not os.path.exists(SEED_META):
+        return {"exists": False}
+    try:
+        with open(SEED_META, encoding="utf-8") as f:
+            meta = json.load(f)
+    except (OSError, ValueError):
+        return {"exists": False}
+    return {"exists": True, **meta}
+
+
+def verify_seed(path: str | None = None) -> dict:
+    """校验种子完整性：文件在、JSON 可解析、sha256 与清单一致。"""
+    path = path or _resolve_seed()
+    out = {"path": path, "exists": os.path.exists(path), "rows": 0,
+           "sha256": "", "size_bytes": 0, "ok": False, "errors": []}
+    if not out["exists"]:
+        out["errors"].append("种子文件缺失")
+        return out
+    out["size_bytes"] = os.path.getsize(path)
+    try:
+        out["sha256"] = sha256_of(path)
+        out["rows"] = len(read_seed(path).get("rows") or [])
+    except (OSError, ValueError) as exc:
+        out["errors"].append(f"种子损坏：{exc}")
+        return out
+    # 只有「仓库正式种子」才与 seed.meta.json 比对，临时导出文件不做该比对
+    if os.path.abspath(path) == os.path.abspath(SEED_ESTIMATED):
+        meta = seed_meta()
+        if meta.get("exists") and meta.get("sha256") and meta["sha256"] != out["sha256"]:
+            out["errors"].append("校验和与 seed.meta.json 不一致，请重新导出")
+    out["ok"] = not out["errors"]
+    return out
+
+
+def export_seed(path: str = SEED_ESTIMATED, data_source: str = "estimated_real",
+                write_manifest: bool | None = None, year: int | None = None) -> dict:
     """把库里的院校投档线导出成仓库自带的种子文件（默认只导真实抓取的 estimated_real）。
 
     导出的种子让仓库自持一份可复现的数据副本，摆脱对上游爬虫仓库的运行时依赖。
+    支持 gzip（路径以 ``.gz`` 结尾时自动压缩）与按年份筛选（``year``）。
     """
     with session_scope() as s:
         stmt = select(SchoolLine)
         if data_source:
             stmt = stmt.where(SchoolLine.data_source == data_source)
+        if year:
+            stmt = stmt.where(SchoolLine.year == year)
         rows = s.scalars(stmt).all()
         meta = {
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "data_source": data_source or "all",
+            "year": year,
             "rows": len(rows),
             "note": "由 export_seed 从已入库数据导出；用于摆脱对上游爬虫仓库的运行时依赖。",
         }
@@ -581,8 +674,29 @@ def export_seed(path: str = SEED_ESTIMATED, data_source: str = "estimated_real")
             } for r in rows],
         }
     if path:
-        with open(path, "w", encoding="utf-8") as f:
+        with _seed_open_write(path) as f:
             json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
+        # S7-B：默认只在导出「仓库种子」时更新校验和清单，避免临时导出覆盖正式清单
+        should_manifest = write_manifest if write_manifest is not None else (
+            os.path.abspath(path) == os.path.abspath(SEED_ESTIMATED))
+        if should_manifest:
+            try:
+                manifest = {
+                    "file": os.path.basename(path),
+                    "data_source": data_source or "all",
+                    "rows": meta["rows"],
+                    "generated_at": meta["generated_at"],
+                    "size_bytes": os.path.getsize(path),
+                    "sha256": sha256_of(path),
+                    "compressed": path.endswith(".gz"),
+                }
+                with open(SEED_META, "w", encoding="utf-8") as f:
+                    json.dump(manifest, f, ensure_ascii=False, indent=2)
+                meta["sha256"] = manifest["sha256"]
+                meta["size_bytes"] = manifest["size_bytes"]
+                meta["compressed"] = manifest["compressed"]
+            except OSError:  # 清单写失败不阻塞导出
+                pass
     return meta
 
 
@@ -630,6 +744,190 @@ def official_seed_rows() -> list[dict]:
     return out
 
 
+# ---------------------------------------------------------------- 官方逐校投档线落地区（S7-A）
+
+# S6 的官方数据只到「985/211 层次入门线」（6 省 22 行）。S7-A 把官方通道扩到
+# **逐校逐专业组**：运营把各省考试院发布的投档原表放进 backend/data/official/，
+# 或经管理端上传（必须带官方来源链接），即可落为 school_lines 的 official 行。
+#
+# 诚实边界：仓库**不预置**任何逐校官方数据文件（我们手上没有可核实的官方原表，
+# 也不允许把抓取数据标成官方）。落地区只是通道；缺 source_url 的行一律拒收，
+# 来源域名不像考试院机构时只告警并留痕，由运营人工复核。
+
+_OFFICIAL_FIELD_KEYS = {
+    "university": ("university", "院校", "院校名称", "学校", "school"),
+    "province": ("province", "省份", "生源地"),
+    "subject": ("subject", "科类", "选科"),
+    "year": ("year", "年份"),
+    "min_score": ("min_score", "最低分", "投档分", "score"),
+    "min_rank": ("min_rank", "最低位次", "位次", "rank"),
+    "group_code": ("group_code", "专业组", "院校专业组"),
+    "batch": ("batch", "批次", "录取批次"),
+    "source_url": ("source_url", "来源", "链接", "来源链接"),
+    "note": ("note", "备注", "说明"),
+    "source_org": ("source_org", "来源机构", "发布机构"),
+}
+
+
+def _pick(row: dict, field: str):
+    for key in _OFFICIAL_FIELD_KEYS.get(field, (field,)):
+        v = row.get(key)
+        if v not in (None, ""):
+            return v
+    return None
+
+
+def _official_files(directory: str | None = None) -> list[str]:
+    d = directory or OFFICIAL_DIR
+    if not os.path.isdir(d):
+        return []
+    out = []
+    for name in sorted(os.listdir(d)):
+        low = name.lower()
+        if name.startswith(".") or low.endswith((".md", ".meta.json")):
+            continue
+        if low.endswith((".json", ".csv")):
+            out.append(os.path.join(d, name))
+    return out
+
+
+def _official_rows_from_file(path: str) -> tuple[list[dict], dict]:
+    """解析官方原表文件 → (行, meta)。meta 可带 source_url / 年份 / 省份 等默认值。"""
+    if path.lower().endswith(".json"):
+        with open(path, encoding="utf-8") as f:
+            doc = json.load(f)
+        if isinstance(doc, dict):
+            return list(doc.get("rows") or []), dict(doc.get("meta") or {})
+        return list(doc or []), {}
+    with open(path, "rb") as f:
+        parsed = parse_table(f.read(), path)
+    if not parsed.get("ok"):
+        return [], {"error": parsed.get("error", "表头无法识别")}
+    mapping = parsed["mapping"]
+    rows = []
+    for r in parsed["rows"]:
+        rows.append({field: (r[idx] if idx < len(r) else None) for field, idx in mapping.items()})
+    return rows, {}
+
+
+def validate_official_rows(rows: list[dict], defaults: dict | None = None) -> dict:
+    """官方行强校验（S7-A）。
+
+    ``official`` 是可信度最高的标签，因此比普通导入更严：
+    省份/科类/年份/分数位次越界、校名匹配不上教育部名单、**缺官方来源链接**
+    一律拒收并给出原因——宁可少落，也不能把来路不明的行标成官方。
+    """
+    defaults = defaults or {}
+    accepted: list[dict] = []
+    rejected: list[dict] = []
+    for i, raw in enumerate(rows or []):
+        row = raw if isinstance(raw, dict) else {}
+        university = str(_pick(row, "university") or "").strip()
+        province = _norm_province(str(_pick(row, "province") or defaults.get("province") or ""))
+        subject = _norm_subject(str(_pick(row, "subject") or defaults.get("subject") or ""))
+        year = _to_int(_pick(row, "year")) or _to_int(defaults.get("year")) or 0
+        score = _to_int(_pick(row, "min_score"))
+        rank = _to_int(_pick(row, "min_rank"))
+        group_code = str(_pick(row, "group_code") or "").strip()
+        batch = str(_pick(row, "batch") or defaults.get("batch") or "普通类本科批").strip()
+        source_url = str(_pick(row, "source_url") or defaults.get("source_url") or "").strip()
+        source_org = str(_pick(row, "source_org") or defaults.get("source_org") or "").strip()
+
+        reasons: list[str] = []
+        if not university:
+            reasons.append("院校名称为空")
+        if province not in PROVINCES:
+            reasons.append(f"省份无法识别：{province or '空'}")
+        if not subject:
+            reasons.append("科类为空")
+        if not (2000 <= int(year or 0) <= 2100):
+            reasons.append(f"年份异常：{year}")
+        if score is None and rank is None:
+            reasons.append("最低分/最低位次 全缺")
+        if score is not None and not (0 < score <= MAX_SCORE):
+            reasons.append(f"最低分越界：{score}")
+        if rank is not None and not (0 < rank <= MAX_RANK):
+            reasons.append(f"位次越界：{rank}")
+        if not source_url.startswith(("http://", "https://")):
+            reasons.append("缺少官方来源链接 source_url（官方口径必须可回溯）")
+
+        canonical = method = None
+        if university and not reasons:
+            canonical, method, _sim = match_university(university)
+            if not canonical:
+                reasons.append(f"院校未匹配教育部名单：{university}")
+        if reasons:
+            rejected.append({"index": i, "university": university, "reasons": reasons})
+            continue
+
+        host_m = re.search(r"https?://([^/]+)", source_url)
+        host = host_m.group(1) if host_m else ""
+        trusted = any(h in host for h in _OFFICIAL_HOST_HINTS)
+        note = str(_pick(row, "note") or "")
+        if not trusted:
+            note = (note + "；" if note else "") + f"来源域名 {host} 非考试院机构，需人工复核"
+        accepted.append({
+            "year": int(year), "province": province, "subject": subject,
+            "batch": batch, "university": canonical, "university_input": university[:128],
+            "group_code": group_code or "官方投档",
+            "min_score": int(score or 0), "min_rank": int(rank or 0),
+            "data_source": "official", "match_method": method or "exact",
+            "source_url": source_url,
+            "note": note or (f"官方原表落库（{source_org or '省考试院'}）"),
+            "trusted_host": trusted,
+        })
+    return {
+        "total": len(rows or []), "accepted": accepted, "rejected": rejected,
+        "provenance_warnings": [r for r in accepted if not r["trusted_host"]],
+    }
+
+
+def official_landing_rows(directory: str | None = None) -> dict:
+    """扫描落地区（只读）→ 可落库的官方逐校行 + 拒收明细。"""
+    d = directory or OFFICIAL_DIR
+    files = _official_files(d)
+    accepted: list[dict] = []
+    rejected: list[dict] = []
+    per_file: list[dict] = []
+    for path in files:
+        rows, meta = _official_rows_from_file(path)
+        defaults = {k: meta[k] for k in ("year", "province", "subject", "batch",
+                                         "source_url", "source_org") if meta.get(k)}
+        res = validate_official_rows(rows, defaults)
+        accepted.extend(res["accepted"])
+        for item in res["rejected"]:
+            item["file"] = os.path.basename(path)
+        rejected.extend(res["rejected"])
+        per_file.append({"file": os.path.basename(path), "total": res["total"],
+                         "accepted": len(res["accepted"]), "rejected": len(res["rejected"]),
+                         "error": meta.get("error", "")})
+    return {"dir": d, "dir_exists": os.path.isdir(d), "files": per_file,
+            "accepted": accepted, "rejected": rejected,
+            "accepted_count": len(accepted), "rejected_count": len(rejected),
+            "provenance_warnings": len([r for r in accepted if not r["trusted_host"]])}
+
+
+def import_official(rows: list[dict], defaults: dict | None = None, dry_run: bool = True,
+                    operator: str = "admin") -> dict:
+    """官方原表一键落库（S7-A）：强校验 → 幂等写 ``data_source=official``。
+
+    ``dry_run=True`` 只报「可落库 / 拒收」明细，不写库。
+    """
+    res = validate_official_rows(rows, defaults)
+    report = {
+        "ok": True, "dry_run": dry_run, "operator": operator,
+        "total": res["total"], "accepted": len(res["accepted"]), "rejected": len(res["rejected"]),
+        "inserted": 0, "updated": 0, "unchanged": 0,
+        "provenance_warnings": len(res["provenance_warnings"]),
+        "rejected_samples": res["rejected"][:20],
+    }
+    if dry_run or not res["accepted"]:
+        return report
+    _upsert(res["accepted"], operator, report)
+    invalidate_cache()
+    return report
+
+
 def _upsert(records: list[dict], operator: str, report: dict) -> None:
     """按 (年, 省, 科类, 院校, 专业组/层次) 幂等写库，统计写进 ``report``。"""
     now = datetime.now(timezone.utc)
@@ -675,22 +973,38 @@ def _upsert(records: list[dict], operator: str, report: dict) -> None:
 
 
 def seed_status() -> dict:
-    """自托管种子的可用性（供管理端「一键落库」展示，只读不写库）。"""
-    exists = os.path.exists(SEED_ESTIMATED)
-    rows = 0
+    """自托管种子的可用性与完整性（供管理端「一键落库」展示，只读不写库）。
+
+    S7-B 增补：sha256 校验和、体积、是否压缩，以及「种子行数 vs 库内行数」的一致性提示。
+    """
+    path = _resolve_seed()
+    exists = os.path.exists(path)
+    rows, checksum, size = 0, "", 0
     if exists:
         try:
-            with open(SEED_ESTIMATED, encoding="utf-8") as f:
-                rows = len(json.load(f).get("rows") or [])
+            rows = len(read_seed(path).get("rows") or [])
         except Exception:  # 种子损坏时不阻塞页面
             rows = 0
+        try:
+            checksum, size = sha256_of(path), os.path.getsize(path)
+        except OSError:
+            pass
     official = official_seed_rows()
+    landing = official_landing_rows()
+    db_rows = source_counts().get("estimated_real", 0)
     return {
-        "estimated": {"path": SEED_ESTIMATED, "exists": exists, "rows": rows,
-                      "data_source": "estimated_real"},
+        "estimated": {"path": path, "exists": exists, "rows": rows,
+                      "data_source": "estimated_real", "sha256": checksum,
+                      "size_bytes": size, "compressed": path.endswith(".gz"),
+                      "manifest": seed_meta(), "db_rows": db_rows,
+                      "consistent": bool(exists and rows and rows == db_rows)},
         "official": {"path": OFFICIAL_ADMISSION, "exists": os.path.exists(OFFICIAL_ADMISSION),
                      "rows": len(official), "data_source": "official"},
-        "total_seed_rows": rows + len(official),
+        "official_dir": {"path": landing["dir"], "exists": landing["dir_exists"],
+                         "files": landing["files"], "rows": landing["accepted_count"],
+                         "rejected": landing["rejected_count"],
+                         "provenance_warnings": landing["provenance_warnings"]},
+        "total_seed_rows": rows + len(official) + landing["accepted_count"],
     }
 
 
@@ -714,14 +1028,24 @@ def import_seed(commit: bool = True, operator: str = "system",
 
     est_records: list[dict] = []
     if "estimated" in include:
-        if os.path.exists(SEED_ESTIMATED):
-            with open(SEED_ESTIMATED, encoding="utf-8") as f:
-                est_records = json.load(f).get("rows") or []
+        path = _resolve_seed()
+        if os.path.exists(path):
+            est_records = read_seed(path).get("rows") or []
         else:
             report["estimated"]["skipped"] = True
     report["estimated"]["available"] = len(est_records)
 
-    off_records = official_seed_rows() if "official" in include else []
+    off_records: list[dict] = []
+    if "official" in include:
+        off_records += official_seed_rows()
+        landing = official_landing_rows()          # S7-A：官方落地区里的逐校原表
+        off_records += landing["accepted"]
+        report["official"]["landing"] = {
+            "dir": landing["dir"], "files": landing["files"],
+            "accepted": landing["accepted_count"], "rejected": landing["rejected_count"],
+            "provenance_warnings": landing["provenance_warnings"],
+            "rejected_samples": landing["rejected"][:20],
+        }
     report["official"]["available"] = len(off_records)
 
     if not commit:

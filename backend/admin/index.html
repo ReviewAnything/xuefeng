@@ -711,12 +711,27 @@
                 <div><h3>一键落库</h3><p>把仓库自带的种子数据写进 school_lines（幂等，无需联网）</p></div>
                 <el-button size="small" @click="loadSeedStatus">刷新</el-button>
               </div>
-              <el-descriptions :column="2" border size="small" class="line-desc" v-if="seedStatus">
+              <el-descriptions :column="3" border size="small" class="line-desc" v-if="seedStatus">
                 <el-descriptions-item label="真实抓取快照">
                   {{ seedStatus.estimated.rows }} 行（{{ seedStatus.estimated.exists ? '已就位' : '缺失' }}）
                 </el-descriptions-item>
                 <el-descriptions-item label="官方 985/211 入门投档">
                   {{ seedStatus.official.rows }} 行（{{ seedStatus.official.exists ? '已就位' : '缺失' }}）
+                </el-descriptions-item>
+                <el-descriptions-item label="官方落地区（逐校原表）">
+                  {{ seedStatus.official_dir.rows }} 行待落（{{ seedStatus.official_dir.exists ? '已建' : '未建' }}）
+                </el-descriptions-item>
+                <el-descriptions-item label="种子体积">
+                  {{ Math.round((seedStatus.estimated.size_bytes || 0) / 1024) }} KB
+                  <el-tag size="small" effect="plain" v-if="seedStatus.estimated.compressed">gzip</el-tag>
+                </el-descriptions-item>
+                <el-descriptions-item label="校验和">
+                  {{ seedStatus.estimated.sha256 ? seedStatus.estimated.sha256.slice(0, 16) + '…' : '—' }}
+                </el-descriptions-item>
+                <el-descriptions-item label="库 / 种子一致性">
+                  <el-tag size="small" :type="seedStatus.estimated.consistent ? 'success' : 'warning'" effect="plain">
+                    {{ seedStatus.estimated.consistent ? '一致' : ('库 ' + seedStatus.estimated.db_rows + ' / 种子 ' + seedStatus.estimated.rows) }}
+                  </el-tag>
                 </el-descriptions-item>
               </el-descriptions>
               <el-alert v-if="seedStatus && !seedStatus.estimated.exists" type="warning" :closable="false"
@@ -732,6 +747,97 @@
                         show-icon class="line-alert"
                         :title="seedReport.dry_run ? '预览（未写库）' : '落库完成'"
                         :description="seedText"></el-alert>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <div>
+                  <h3>官方逐校投档线落库</h3>
+                  <p>上传省考试院投档原表（CSV / JSON），落为 official——来源链接必填，校验不过整行拒收</p>
+                </div>
+                <el-button size="small" @click="loadOfficialStatus">刷新落地区</el-button>
+              </div>
+
+              <el-descriptions :column="3" border size="small" class="line-desc" v-if="officialStatus">
+                <el-descriptions-item label="落地区">
+                  {{ officialStatus.dir_exists ? 'backend/data/official/ 已建' : '未建' }}
+                </el-descriptions-item>
+                <el-descriptions-item label="待落库">{{ officialStatus.accepted_count }} 行</el-descriptions-item>
+                <el-descriptions-item label="拒收">{{ officialStatus.rejected_count }} 行</el-descriptions-item>
+              </el-descriptions>
+              <el-table v-if="officialStatus && officialStatus.files.length"
+                        :data="officialStatus.files" size="small" max-height="200">
+                <el-table-column prop="file" label="文件" min-width="200"></el-table-column>
+                <el-table-column prop="total" label="总行" width="80" align="right"></el-table-column>
+                <el-table-column prop="accepted" label="可落库" width="90" align="right"></el-table-column>
+                <el-table-column prop="rejected" label="拒收" width="80" align="right"></el-table-column>
+              </el-table>
+
+              <div class="sync-form">
+                <el-upload drag :auto-upload="false" :show-file-list="false" accept=".csv,.json"
+                           :on-change="onOfficialFileChange">
+                  <app-icon name="upload"></app-icon>
+                  <div class="el-upload__text">把考试院原表拖到这里，或 <em>点击选择</em></div>
+                </el-upload>
+                <p class="hint" v-if="officialFileName">已选择：{{ officialFileName }}
+                  <el-button link type="primary" size="small" @click="clearOfficialFile">移除</el-button>
+                </p>
+                <p class="hint" v-else>支持 .csv / .json；仓库不预置官方数据，通道就绪后由运营投喂</p>
+
+                <el-form label-width="92px" class="line-form">
+                  <el-form-item label="来源链接">
+                    <el-input v-model="officialForm.source_url"
+                              placeholder="https://eea.gd.gov.cn/…（必填，官方口径必须可回溯）"></el-input>
+                  </el-form-item>
+                  <el-form-item label="来源机构">
+                    <el-input v-model="officialForm.source_org" placeholder="如 广东省教育考试院"></el-input>
+                  </el-form-item>
+                  <el-form-item label="年份">
+                    <el-input-number v-model="officialForm.year" :min="2000" :max="2100"
+                                     controls-position="right"></el-input-number>
+                  </el-form-item>
+                  <el-form-item label="省份">
+                    <el-input v-model="officialForm.province" placeholder="如 广东"></el-input>
+                  </el-form-item>
+                  <el-form-item label="科类">
+                    <el-select v-model="officialForm.subject">
+                      <el-option label="物理类" value="物理类"></el-option>
+                      <el-option label="历史类" value="历史类"></el-option>
+                      <el-option label="综合" value="综合"></el-option>
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item label="仅预览">
+                    <el-switch v-model="officialForm.dry_run"></el-switch>
+                    <span class="muted line-switch-hint">先看拒收明细，不写库</span>
+                  </el-form-item>
+                </el-form>
+
+                <el-button type="primary" size="large" :loading="officialLoading" class="sync-btn"
+                           @click="submitOfficial">
+                  {{ officialForm.dry_run ? '上传并预览' : '确认落库（写库）' }}
+                </el-button>
+                <p class="hint">
+                  官方标签的可信度最高，因此校验比普通导入更严：校名必须匹配教育部名单、分数位次不得越界，
+                  <b>缺来源链接整行拒收</b>；来源域名不像考试院机构时只告警不阻断，由你人工复核。
+                </p>
+              </div>
+
+              <el-alert v-if="officialReport" :type="officialReport.dry_run ? 'info' : 'success'"
+                        :closable="false" show-icon class="line-alert"
+                        :title="officialReport.dry_run ? '官方落库预览（未写库）' : '官方落库完成'"
+                        :description="officialText"></el-alert>
+              <el-alert v-if="officialReport && officialReport.provenance_warnings"
+                        type="warning" :closable="false" show-icon class="line-alert"
+                        title="来源域名存疑（已落库，请复核）"
+                        :description="officialReport.provenance_warnings + ' 行的来源域名不在考试院机构特征内，备注已标记。'"></el-alert>
+              <el-table v-if="officialReport && officialReport.rejected_samples.length"
+                        :data="officialReport.rejected_samples" size="small" max-height="240">
+                <el-table-column prop="university" label="院校" width="160"></el-table-column>
+                <el-table-column prop="index" label="行号" width="70" align="right"></el-table-column>
+                <el-table-column label="拒收原因" min-width="240">
+                  <template #default="s">{{ s.row.reasons.join('；') }}</template>
+                </el-table-column>
+              </el-table>
             </div>
           </div>
 

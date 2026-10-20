@@ -80,8 +80,9 @@ S6 由此把数据收归仓库自带：
 
 | 种子 | 来源 | `data_source` | 说明 |
 | --- | --- | --- | --- |
-| `school_lines_estimated_real.json` | 由 `scripts/export_school_line_seed.py` 从已入库数据导出的**快照**（掌上高考 2025 真实抓取，14020 行 / 30 省） | `estimated_real` | 仓库自持副本，随仓库提交；上游下架也能重建 |
+| `school_lines_estimated_real.json.gz` | 由 `scripts/export_school_line_seed.py` 从已入库数据导出的**快照**（掌上高考 2025 真实抓取，14020 行 / 30 省） | `estimated_real` | 仓库自持副本，随仓库提交；上游下架也能重建 |
 | `admission_official_2024.json` 的 `school_tier_lines` | 各省考试院公布的 985/211 入门投档（普通类本科批），6 省 / 2 科类 | `official` | 真实官方口径，落库时 `group_code` 用层次（985/211）占位 |
+| `backend/data/official/*.json\|csv` | **运营投喂**的省考试院逐校投档原表（S7-A） | `official` | 目录随仓库提交但**不预置数据**；缺来源链接的行一律拒收 |
 
 **一键落库**：管理端「院校投档线 → 一键落库」点一次即可，底层是
 `POST /api/admin/school-lines/import-seed`（`dry_run=true` 先看可落库行数）。
@@ -89,9 +90,28 @@ S6 由此把数据收归仓库自带：
 
 - 新环境（无 `*.db`、无网络）：`python scripts/export_school_line_seed.py` 不需要跑，直接一键落库即可重建。
 - 刷新流程：重新采集（爬虫导入）→ `export_school_line_seed.py` 导出 → 提交新的种子文件。
-- 种子约 7 MB（14020 行 JSON），随仓库提交是刻意的——换取「不依赖任何外部站点可重建」。
 - 官方行标 `official` 后，`/api/health` 的 `school_lines.has_official` 由 false 转 true，
   前端「数据权威性」横幅会显示官方覆盖。
+
+### S7-B 种子治理：压缩 + 校验和 + 一致性
+
+- 仓库只提交 **gzip 副本**（14020 行 JSON 明文 7.2 MB → gzip 约 256 KB，缩小约 28 倍）；
+  读取时按后缀自动解压，明文路径仅作回退且已 gitignore，不再入库。
+- 导出同时写 `data/seed.meta.json`（文件 sha256 / 行数 / 体积 / 生成时间 / 是否压缩）；
+  `verify_seed()` 在落库前比对校验和，种子被改动或损坏会直接报错，不会半截落库。
+- 管理端「一键落库」状态卡展示体积、校验和前 16 位与**库 / 种子一致性**（不一致提示重新导出）。
+
+### S7-A 官方逐校投档线落地区
+
+`backend/data/official/` 是官方原表的投放目录（含 `README.md` 说明字段与拒收规则，
+但**不含任何数据文件**——我们手上没有可核实的省考试院逐校原表，也不允许把抓取数据标成官方）。
+
+- 一键落库会自动扫描该目录；也可经管理端「官方逐校投档线落库」上传 CSV/JSON。
+- 强校验：校名匹配教育部名单、省份/年份/分数位次合法，且**每行必须带 `source_url`**，
+  否则整行拒收并给出原因（宁可少落，也不乱标）。
+- 来源域名不像考试院机构时**不阻断**，只在该行备注留痕并在报告里给 `provenance_warnings` 计数，
+  最终判断权留给运营，但疑点留在数据里。
+- `/api/health` 的 `school_lines.official_landing` 上报通道是否就绪、待落库与拒收行数。
 
 ## 运行时落库说明
 

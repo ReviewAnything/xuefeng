@@ -544,6 +544,105 @@ def import_school_line_seed(req: SeedImportRequest | None = None,
     return report
 
 
+# ---------------------------------------------------------------- 官方逐校投档线落库（S7-A）
+
+class OfficialImportRequest(BaseModel):
+    """官方原表落库请求：行数据 + 文件级默认值（来源链接必填）。"""
+    rows: list[dict] = Field(default_factory=list)
+    year: int | None = None
+    province: str | None = None
+    subject: str | None = None
+    batch: str | None = None
+    source_url: str = ""
+    source_org: str = ""
+    dry_run: bool = True
+
+
+@router.get("/school-lines/official-status")
+def admin_school_line_official_status(admin: dict = Depends(auth.require_admin)):
+    """官方落地区（backend/data/official/）扫描结果：可落库行数 + 拒收明细（只读）。"""
+    return {"ok": True, **SL.official_landing_rows()}
+
+
+@router.post("/school-lines/import-official")
+def import_school_line_official(req: OfficialImportRequest,
+                                admin: dict = Depends(auth.require_admin_ready)):
+    """官方原表落库（S7-A）。
+
+    比普通校线导入更严：校名必须匹配教育部名单、分数位次不得越界，
+    且**每行必须带官方来源链接**（`source_url`），否则整行拒收并给出原因——
+    `official` 是最高的可信度标签，宁可少落，也不能把来路不明的行标成官方。
+    """
+    defaults = {k: v for k, v in {
+        "year": req.year, "province": req.province, "subject": req.subject,
+        "batch": req.batch, "source_url": req.source_url, "source_org": req.source_org,
+    }.items() if v not in (None, "")}
+    try:
+        report = SL.import_official(rows=req.rows, defaults=defaults,
+                                    dry_run=req.dry_run, operator=admin["username"])
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"官方落库失败：{exc}")
+    if not report.get("ok"):
+        raise HTTPException(status_code=400, detail=report.get("error") or "官方落库失败")
+    return report
+
+
+@router.post("/school-lines/import-official-file")
+async def import_school_line_official_file(
+        file: UploadFile = File(...),
+        year: int | None = Form(default=None),
+        province: str | None = Form(default=None),
+        subject: str | None = Form(default=None),
+        batch: str | None = Form(default=None),
+        source_url: str = Form(default=""),
+        source_org: str = Form(default=""),
+        dry_run: bool = Form(default=True),
+        admin: dict = Depends(auth.require_admin_ready)):
+    """上传考试院原表（CSV/JSON）直接落为 official（S7-A）。来源链接必填。"""
+    raw = await file.read()
+    defaults = {k: v for k, v in {
+        "year": year, "province": province, "subject": subject,
+        "batch": batch, "source_url": source_url, "source_org": source_org,
+    }.items() if v not in (None, "")}
+    if not str(source_url or "").startswith(("http://", "https://")):
+        raise HTTPException(status_code=400,
+                            detail="官方数据必须填写来源链接 source_url（省考试院原表地址）")
+    # 直接用上传字节解析，不落临时盘
+    parsed_rows, parsed_meta = _parse_official_upload(raw, file.filename or "")
+    if parsed_meta.get("error"):
+        raise HTTPException(status_code=400, detail=f"解析失败：{parsed_meta['error']}")
+    for key in ("year", "province", "subject", "batch", "source_url", "source_org"):
+        defaults.setdefault(key, parsed_meta.get(key))
+    try:
+        report = SL.import_official(rows=parsed_rows, defaults=defaults,
+                                    dry_run=dry_run, operator=admin["username"])
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"官方落库失败：{exc}")
+    report["file"] = file.filename
+    report["parsed_rows"] = len(parsed_rows)
+    return report
+
+
+def _parse_official_upload(raw: bytes, filename: str) -> tuple[list[dict], dict]:
+    """把上传的官方原表解析成行 + 文件级默认值（复用校线导入的表头识别）。"""
+    lower = (filename or "").lower()
+    if lower.endswith(".json"):
+        try:
+            doc = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, ValueError):
+            doc = json.loads(raw.decode("utf-8-sig", errors="replace"))
+        if isinstance(doc, dict):
+            return list(doc.get("rows") or []), dict(doc.get("meta") or {})
+        return list(doc or []), {}
+    parsed = SL.parse_table(raw, filename)
+    if not parsed.get("ok"):
+        return [], {"error": parsed.get("error", "表头无法识别")}
+    mapping = parsed["mapping"]
+    rows = [{field: (r[idx] if idx < len(r) else None) for field, idx in mapping.items()}
+            for r in parsed["rows"]]
+    return rows, {}
+
+
 # ---------------------------------------------------------------- 导出
 
 @router.get("/export/universities.csv")

@@ -60,6 +60,11 @@ def test_seed_file_is_committed_not_gitignored():
     status = SL.seed_status()
     assert status["estimated"]["exists"] is True, "种子文件缺失，新环境将无法重建校线"
     assert status["estimated"]["rows"] > 0
+    # S7-B：仓库只提交 gzip 副本，明文 7.2MB 不再入库
+    assert status["estimated"]["compressed"] is True
+    assert status["estimated"]["path"].endswith(".json.gz")
+    assert len(status["estimated"]["sha256"]) == 64
+    assert status["estimated"]["size_bytes"] < 2 * 1024 * 1024, "gzip 后应远小于明文 7.2MB"
 
 
 def test_seed_status_reports_both_sources():
@@ -183,6 +188,91 @@ def test_seed_admin_endpoints():
                  headers=headers)
     assert bad.status_code == 400
     _cleanup_seed()
+
+
+# ---------------------------------------------------------------- S7-B 种子治理
+
+
+def test_seed_manifest_matches_file():
+    """seed.meta.json 的校验和必须与种子文件一致（导入前可先验完整性）。"""
+    meta = SL.seed_meta()
+    assert meta.get("exists") is True, "缺少 seed.meta.json，无法校验种子完整性"
+    check = SL.verify_seed()
+    assert check["ok"] is True, check["errors"]
+    assert check["sha256"] == meta["sha256"]
+    assert check["rows"] == meta["rows"] > 0
+
+
+def test_verify_seed_detects_corruption():
+    """种子被改坏（校验和对不上）时能被发现，而不是默默落一半数据。"""
+    d = _mk_tmp_dir()
+    bad = os.path.join(d, "bad.json.gz")
+    import gzip
+    with gzip.open(bad, "wt", encoding="utf-8") as f:
+        json.dump({"meta": {}, "rows": [{"year": 2099, "university": "郑州大学"}]}, f)
+    # 无清单时只看能否解析
+    assert SL.verify_seed(path=bad)["ok"] is True
+
+    corrupted = os.path.join(d, "corrupt.json.gz")
+    with open(corrupted, "wb") as f:
+        f.write(b"not a gzip at all")
+    out = SL.verify_seed(path=corrupted)
+    assert out["ok"] is False and out["errors"]
+
+    missing = os.path.join(d, "nope.json.gz")
+    assert SL.verify_seed(path=missing)["exists"] is False
+
+    # 正式种子被改动、与 seed.meta.json 对不上 → 报错
+    with open(bad, "wb") as f:
+        f.write(b"tampered")
+    original = SL.SEED_ESTIMATED
+    SL.SEED_ESTIMATED = bad
+    try:
+        out = SL.verify_seed()
+        assert out["ok"] is False
+        assert any("校验和" in e or "损坏" in e for e in out["errors"])
+    finally:
+        SL.SEED_ESTIMATED = original
+
+
+def test_seed_status_reports_consistency():
+    """管理端能看到「库内行数 vs 种子行数」是否一致。"""
+    status = SL.seed_status()
+    est = status["estimated"]
+    assert "db_rows" in est and "consistent" in est
+    assert isinstance(est["consistent"], bool)
+    # 测试库本身应与仓库种子一致（若不一致，管理端会提示重新导出）
+    assert est["rows"] == est["db_rows"] or est["consistent"] is False
+
+
+def test_export_seed_gzip_roundtrip():
+    """gzip 导出 → 导入闭环：压缩后的种子能原样落回库。"""
+    _cleanup_seed()
+    with session_scope() as s:
+        s.add(SchoolLine(year=TEST_YEAR, province="河南", subject="物理类", batch="本科一批",
+                         university="郑州大学", university_input="郑州大学", group_code="01",
+                         min_score=601, min_rank=31000, data_source="estimated_real",
+                         match_method="exact", source_url="https://example.edu.cn/s/9",
+                         note="gz roundtrip"))
+    out = os.path.join(_mk_tmp_dir(), "export.json.gz")
+    SL.export_seed(path=str(out), data_source="estimated_real", year=TEST_YEAR)
+    assert SL.verify_seed(path=str(out))["ok"] is True
+    assert SL.read_seed(str(out))["meta"]["rows"] == 1
+
+    _cleanup_seed()  # 先删库里的行，验证种子能把它们原样还原
+    original = SL.SEED_ESTIMATED
+    SL.SEED_ESTIMATED = str(out)
+    try:
+        report = SL.import_seed(commit=True, include=["estimated"])
+        assert report["estimated"]["available"] == 1
+        assert report["estimated"]["inserted"] == 1
+        with session_scope() as s:
+            rows = s.scalars(select(SchoolLine).where(SchoolLine.year == TEST_YEAR)).all()
+            assert len(rows) == 1 and rows[0].note == "gz roundtrip"
+            assert rows[0].min_score == 601 and rows[0].min_rank == 31000
+    finally:
+        SL.SEED_ESTIMATED = original
+        _cleanup_seed()
 
 
 def test_export_seed_roundtrip():

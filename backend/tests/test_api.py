@@ -15,12 +15,12 @@ def test_health():
     assert r.status_code == 200
     j = r.json()
     assert j["status"] == "ok"
-    # S4 图谱扩量：专业数 38 → 131（unverified 红线不变）
-    assert j["majors"] == 131 and j["resources"] == 10
+    # S4 扩到 131，S7-D 再扩到 212（unverified 红线不变）
+    assert j["majors"] >= 200 and j["resources"] == 10
 
 
 def test_majors_and_resources():
-    assert c.get("/api/majors").json()["count"] == 131
+    assert c.get("/api/majors").json()["count"] >= 200   # S4 38 → 131，S7-D → 212
     assert c.get("/api/resources", params={"cat": "tool"}).json()["count"] == 5
     assert c.get("/api/resources", params={"cat": "mind"}).json()["count"] == 5
 
@@ -332,14 +332,14 @@ def test_content_provenance_is_exposed():
     assert cs["view_basis"] and cs["data_basis"] and cs["caveat"]
     assert cs.get("framework") == "就业确定性优先（普通家庭 + 就业导向的务实决策方法）"
     majors = c.get("/api/majors").json()["majors"]
-    assert len(majors) == 131   # S4 图谱扩量 38 → 131
+    assert len(majors) >= 200   # S4 图谱扩量 38 → 131，S7-D → 212
     assert all(m.get("source_year") and m.get("source_note") for m in majors)
 
 
 def test_content_governance_fields_present():
     """S1：每条观点都补齐治理字段（view_source / evidence_grade / reviewed_at / expires_at）。"""
     majors = c.get("/api/majors").json()["majors"]
-    assert len(majors) == 131   # S4 图谱扩量 38 → 131
+    assert len(majors) >= 200   # S4 图谱扩量 38 → 131，S7-D → 212
     for m in majors:
         assert m.get("evidence_grade") in ("A", "B", "C")
         assert m.get("view_source")
@@ -359,5 +359,5 @@ def test_validate_content_ok():
     from services import content as C
     res = C.validate_content()
     assert res["ok"] is True, res
-    assert res["stats"]["majors"] == 131   # S4 图谱扩量 38 → 131
+    assert res["stats"]["majors"] >= 200   # S4 图谱扩量 38 → 131，S7-D → 212
     assert "pending" in res["stats"]

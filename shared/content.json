@@ -2673,6 +2673,1626 @@
       "source_url": "",
       "reviewed_at": "2026-10-20",
       "expires_at": "2027-06-30"
+    },
+    {
+      "name": "光电信息科学与工程",
+      "cat": "理工硬核",
+      "view": "caution",
+      "tags": [
+        "光学",
+        "窄口径",
+        "制造"
+      ],
+      "reason": "激光/显示/光通信有稳定需求。",
+      "bias": "口径偏窄，需往半导体或光学设计靠。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "智能制造工程",
+      "cat": "理工硬核",
+      "view": "caution",
+      "tags": [
+        "制造",
+        "升级",
+        "看院校"
+      ],
+      "reason": "制造升级需要，但岗位多在产线侧。",
+      "bias": "偏传统制造，薪资要看是否转控制/算法。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "飞行器设计与工程",
+      "cat": "理工硬核",
+      "view": "caution",
+      "tags": [
+        "航天",
+        "高门槛",
+        "读研导向"
+      ],
+      "reason": "商业航天带来增量，情怀与专业壁垒都高。",
+      "bias": "本科岗位少、多在研究院所，需读研。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "核工程与核技术",
+      "cat": "理工硬核",
+      "view": "caution",
+      "tags": [
+        "核电",
+        "稳定",
+        "窄"
+      ],
+      "reason": "核电重启带来稳定需求，待遇中上。",
+      "bias": "就业面窄、地点偏，需接受行业特性。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "水利水电工程",
+      "cat": "理工硬核",
+      "view": "caution",
+      "tags": [
+        "基建",
+        "国企",
+        "外派"
+      ],
+      "reason": "大型水电与水利投资仍在，国企岗稳。",
+      "bias": "项目制、地点偏远，传统基建增速放缓。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "交通工程",
+      "cat": "理工硬核",
+      "view": "caution",
+      "tags": [
+        "基建",
+        "规划",
+        "饱和"
+      ],
+      "reason": "城市轨道与路网仍有存量需求。",
+      "bias": "增量见顶，设计院加班多，需转智慧交通。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "船舶与海洋工程",
+      "cat": "理工硬核",
+      "view": "caution",
+      "tags": [
+        "造船",
+        "周期",
+        "国企"
+      ],
+      "reason": "造船周期上行时需求旺盛。",
+      "bias": "行业周期强，地点受限，需接受船厂环境。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "中药学",
+      "cat": "医学类",
+      "view": "caution",
+      "tags": [
+        "中医",
+        "政策",
+        "窄"
+      ],
+      "reason": "中医药政策支持，产业链有岗位。",
+      "bias": "现代药学竞争力弱，就业面偏窄。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "眼视光医学",
+      "cat": "医学类",
+      "view": "recommend",
+      "tags": [
+        "临床",
+        "细分",
+        "缺口"
+      ],
+      "reason": "眼科需求旺盛，视光中心与器械双通道。",
+      "bias": "需执业资格；好岗位集中在专科医院。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "儿科学",
+      "cat": "医学类",
+      "view": "caution",
+      "tags": [
+        "临床",
+        "缺口",
+        "压力"
+      ],
+      "reason": "儿科医生缺口大，就业不成问题。",
+      "bias": "医患压力大、夜班多，需真有耐心。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "卫生检验与检疫",
+      "cat": "医学类",
+      "view": "caution",
+      "tags": [
+        "检验",
+        "海关",
+        "体制"
+      ],
+      "reason": "海关/疾控/第三方检测有岗。",
+      "bias": "岗位量有限，多依赖体制内招录。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "生物制药",
+      "cat": "医学类",
+      "view": "caution",
+      "tags": [
+        "生物药",
+        "研发",
+        "读研导向"
+      ],
+      "reason": "抗体/疫苗赛道长期向好。",
+      "bias": "本科难进研发，需硕博与实验能力。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "助产学",
+      "cat": "医学类",
+      "view": "caution",
+      "tags": [
+        "护理相邻",
+        "缺口",
+        "倒班"
+      ],
+      "reason": "分娩量波动但助产士长期缺。",
+      "bias": "倒班强度大，职业路径偏窄。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "金融工程",
+      "cat": "经管商科",
+      "view": "caution",
+      "tags": [
+        "量化",
+        "数学",
+        "高门槛"
+      ],
+      "reason": "量化/风控方向薪资高。",
+      "bias": "数学与编程要求高，普通院校难进核心岗。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "保险学",
+      "cat": "经管商科",
+      "view": "caution",
+      "tags": [
+        "保险",
+        "销售",
+        "稳"
+      ],
+      "reason": "保险行业体量大，精算方向专业性强。",
+      "bias": "非精算岗多为销售，考核压力大。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "税收学",
+      "cat": "经管商科",
+      "view": "caution",
+      "tags": [
+        "税务",
+        "考公",
+        "专业"
+      ],
+      "reason": "税务师与考公方向对口性强。",
+      "bias": "口径窄，需考证。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "供应链管理",
+      "cat": "经管商科",
+      "view": "caution",
+      "tags": [
+        "供应链",
+        "制造",
+        "跨行业"
+      ],
+      "reason": "制造与零售都缺供应链人才。",
+      "bias": "需数据能力，否则偏执行。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "工程管理",
+      "cat": "经管商科",
+      "view": "caution",
+      "tags": [
+        "工程+管理",
+        "造价",
+        "看行业"
+      ],
+      "reason": "造价/项目管理方向可用。",
+      "bias": "与地产周期强绑定，行业下行时岗位收缩。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "信息管理与信息系统",
+      "cat": "经管商科",
+      "view": "caution",
+      "tags": [
+        "信息化",
+        "交叉",
+        "看自驱"
+      ],
+      "reason": "企业信息化/数据治理有岗位。",
+      "bias": "交叉导致技术不深，需自己补开发或数据。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "人力资源管理",
+      "cat": "经管商科",
+      "view": "caution",
+      "tags": [
+        "职能",
+        "看经验",
+        "入门易"
+      ],
+      "reason": "每家公司都需要，入门不难。",
+      "bias": "职能岗成长慢、可替代性高，需业务理解。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "日语",
+      "cat": "文科保底",
+      "view": "caution",
+      "tags": [
+        "小语种",
+        "地域",
+        "机会窄"
+      ],
+      "reason": "日企与对日业务仍有需求。",
+      "bias": "机会集中沿海，纯翻译岗在收缩。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "翻译",
+      "cat": "文科保底",
+      "view": "avoid",
+      "tags": [
+        "语言",
+        "AI 替代",
+        "窄"
+      ],
+      "reason": "高端同传仍有价值。",
+      "bias": "AI 与机翻冲击最直接，岗位量在缩。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "广告学",
+      "cat": "文科保底",
+      "view": "caution",
+      "tags": [
+        "创意",
+        "看作品",
+        "改行多"
+      ],
+      "reason": "品牌与内容营销仍有需求。",
+      "bias": "起薪低、加班多，需作品与数据能力。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "网络与新媒体",
+      "cat": "文科保底",
+      "view": "caution",
+      "tags": [
+        "新媒体",
+        "实战",
+        "波动"
+      ],
+      "reason": "内容运营岗位多，上手快。",
+      "bias": "门槛低、平台规则变动快，需持续产出。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "社会工作",
+      "cat": "文科保底",
+      "view": "caution",
+      "tags": [
+        "社区",
+        "体制",
+        "待遇平"
+      ],
+      "reason": "社区与民政体系岗位在增加。",
+      "bias": "待遇偏低，晋升与专业化路径有限。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "消防工程",
+      "cat": "体制内",
+      "view": "caution",
+      "tags": [
+        "应急",
+        "技术",
+        "窄"
+      ],
+      "reason": "应急管理与消防技术服务有需求。",
+      "bias": "就业面窄，多依赖招录与资质。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "海关管理",
+      "cat": "体制内",
+      "view": "recommend",
+      "tags": [
+        "海关",
+        "考公",
+        "稳"
+      ],
+      "reason": "海关系统对口性强，稳定性高。",
+      "bias": "岗位靠考录，竞争不小。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "飞行技术",
+      "cat": "体制内",
+      "view": "caution",
+      "tags": [
+        "民航",
+        "高薪",
+        "高门槛"
+      ],
+      "reason": "飞行员缺口长期存在，薪资高。",
+      "bias": "体检与训练淘汰率高，职业风险与作息特殊。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "航海技术",
+      "cat": "体制内",
+      "view": "caution",
+      "tags": [
+        "航运",
+        "外派",
+        "辛苦"
+      ],
+      "reason": "航运业刚需，高级船员待遇好。",
+      "bias": "长期出海，家庭生活受限。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "轮机工程",
+      "cat": "体制内",
+      "view": "caution",
+      "tags": [
+        "船舶",
+        "技术",
+        "外派"
+      ],
+      "reason": "船舶动力方向技术人员缺。",
+      "bias": "随船出海，环境与作息艰苦。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "农学",
+      "cat": "农林地矿",
+      "view": "caution",
+      "tags": [
+        "农业",
+        "科研",
+        "看政策"
+      ],
+      "reason": "种业与农技推广有政策支撑。",
+      "bias": "一线岗位辛苦、待遇一般，科研要读研。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "植物保护",
+      "cat": "农林地矿",
+      "view": "caution",
+      "tags": [
+        "植保",
+        "农技",
+        "窄"
+      ],
+      "reason": "病虫害防治与农药企业有需求。",
+      "bias": "岗位窄，多在基层与农资企业。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "林学",
+      "cat": "农林地矿",
+      "view": "caution",
+      "tags": [
+        "林业",
+        "体制",
+        "基层"
+      ],
+      "reason": "林业系统与生态修复有岗位。",
+      "bias": "多在基层，待遇与发展受限。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "资源勘查工程",
+      "cat": "农林地矿",
+      "view": "caution",
+      "tags": [
+        "矿产",
+        "外业",
+        "周期"
+      ],
+      "reason": "资源勘查与矿业有岗位。",
+      "bias": "行业周期强、外业艰苦。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "舞蹈学",
+      "cat": "艺术体育",
+      "view": "avoid",
+      "tags": [
+        "艺术",
+        "吃青春饭",
+        "窄"
+      ],
+      "reason": "专业院团与教学有少量岗位。",
+      "bias": "职业周期短，转型成本高。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "环境设计",
+      "cat": "艺术体育",
+      "view": "caution",
+      "tags": [
+        "设计",
+        "地产链",
+        "周期"
+      ],
+      "reason": "室内与景观设计有存量需求。",
+      "bias": "与地产周期绑定，回款与加班问题多。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "运动康复",
+      "cat": "艺术体育",
+      "view": "caution",
+      "tags": [
+        "康复",
+        "健身",
+        "新兴"
+      ],
+      "reason": "运动损伤与康复需求在增长。",
+      "bias": "市场仍在培育，需资质与客源积累。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "生态学",
+      "cat": "避坑天坑",
+      "view": "avoid",
+      "tags": [
+        "天坑",
+        "科研导向",
+        "岗位少"
+      ],
+      "reason": "生态治理有政策方向。",
+      "bias": "本科几乎无对口岗位，需读研进科研院所。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "生物技术",
+      "cat": "避坑天坑",
+      "view": "avoid",
+      "tags": [
+        "天坑",
+        "读研导向",
+        "转化慢"
+      ],
+      "reason": "生物医药长期有前景。",
+      "bias": "本科岗位少且多为实验员，必须读研。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "环境科学",
+      "cat": "避坑天坑",
+      "view": "avoid",
+      "tags": [
+        "天坑",
+        "政策依赖",
+        "薪资平"
+      ],
+      "reason": "环保政策带来部分岗位。",
+      "bias": "本科多去检测/环评，薪资与成长有限。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "档案学",
+      "cat": "避坑天坑",
+      "view": "caution",
+      "tags": [
+        "体制",
+        "窄",
+        "稳"
+      ],
+      "reason": "体制内档案管理岗稳定。",
+      "bias": "岗位极少，几乎全靠考编。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "智能电网信息工程",
+      "cat": "理工硬核",
+      "view": "recommend",
+      "tags": [
+        "电网",
+        "信息",
+        "稳"
+      ],
+      "reason": "电网信息化与调度方向，国网体系有岗。",
+      "bias": "需进国网考试，竞争不小。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "智能建造",
+      "cat": "理工硬核",
+      "view": "caution",
+      "tags": [
+        "土木升级",
+        "数字化",
+        "看转型"
+      ],
+      "reason": "把土木往 BIM/装配式升级，比传统土木好一些。",
+      "bias": "行业仍在出清，需掌握数字化工具。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "给排水科学与工程",
+      "cat": "理工硬核",
+      "view": "caution",
+      "tags": [
+        "市政",
+        "稳",
+        "设计院"
+      ],
+      "reason": "市政与环保基础设施刚需，岗位稳。",
+      "bias": "多在设计院/施工单位，薪资成长慢。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "建筑环境与能源应用工程",
+      "cat": "理工硬核",
+      "view": "caution",
+      "tags": [
+        "暖通",
+        "节能",
+        "制造"
+      ],
+      "reason": "暖通与数据中心温控带来新需求。",
+      "bias": "传统岗偏施工，需往节能与数据中心靠。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "工程力学",
+      "cat": "理工硬核",
+      "view": "caution",
+      "tags": [
+        "基础",
+        "仿真",
+        "读研导向"
+      ],
+      "reason": "仿真与结构分析能力强，是硬功底。",
+      "bias": "本科对口少，需读研或转 CAE。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "高分子材料与工程",
+      "cat": "理工硬核",
+      "view": "caution",
+      "tags": [
+        "材料",
+        "化工",
+        "看方向"
+      ],
+      "reason": "新能源电池与高分子制品有需求。",
+      "bias": "传统材料岗薪资低，需锚定电池/半导体材料。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "无机非金属材料工程",
+      "cat": "理工硬核",
+      "view": "avoid",
+      "tags": [
+        "材料",
+        "传统",
+        "工厂"
+      ],
+      "reason": "水泥/玻璃/陶瓷仍有存量。",
+      "bias": "多在工厂、环境一般，成长有限。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "包装工程",
+      "cat": "理工硬核",
+      "view": "caution",
+      "tags": [
+        "轻工",
+        "窄",
+        "制造"
+      ],
+      "reason": "消费品包装需求稳定。",
+      "bias": "口径窄，薪资天花板低。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "汽车服务工程",
+      "cat": "理工硬核",
+      "view": "caution",
+      "tags": [
+        "后市场",
+        "销售",
+        "看转型"
+      ],
+      "reason": "汽车后市场体量大。",
+      "bias": "偏服务与销售，技术含量低，需转新能源维保。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "海洋科学",
+      "cat": "理工硬核",
+      "view": "caution",
+      "tags": [
+        "海洋",
+        "科研",
+        "窄"
+      ],
+      "reason": "海洋观测与资源开发有政策支撑。",
+      "bias": "岗位少且偏科研，需读研。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "地球物理学",
+      "cat": "理工硬核",
+      "view": "caution",
+      "tags": [
+        "勘察",
+        "科研",
+        "外业"
+      ],
+      "reason": "资源勘察与地震监测有需求。",
+      "bias": "口径窄、外业多，多依赖体制与科研。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "空间信息与数字技术",
+      "cat": "理工硬核",
+      "view": "caution",
+      "tags": [
+        "导航",
+        "GIS",
+        "交叉"
+      ],
+      "reason": "北斗与位置服务带来岗位。",
+      "bias": "需编程能力，否则偏数据处理执行岗。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "中西医临床医学",
+      "cat": "医学类",
+      "view": "caution",
+      "tags": [
+        "中医",
+        "临床",
+        "长周期"
+      ],
+      "reason": "中西医结合医院有需求。",
+      "bias": "培养与执业路径更复杂，需做好长期投入。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "临床药学",
+      "cat": "医学类",
+      "view": "caution",
+      "tags": [
+        "医院",
+        "药师",
+        "专业"
+      ],
+      "reason": "医院临床药师方向对口性强。",
+      "bias": "岗位量有限，需读研与资质。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "医学实验技术",
+      "cat": "医学类",
+      "view": "caution",
+      "tags": [
+        "实验室",
+        "技术岗",
+        "读研友好"
+      ],
+      "reason": "实验室技术岗需求稳定。",
+      "bias": "上升空间有限，需靠学历突破。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "听力与言语康复学",
+      "cat": "医学类",
+      "view": "caution",
+      "tags": [
+        "康复",
+        "细分",
+        "新兴"
+      ],
+      "reason": "听力与言语康复细分缺口在。",
+      "bias": "市场仍在培育，机构与资质参差。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "资产评估",
+      "cat": "经管商科",
+      "view": "caution",
+      "tags": [
+        "评估",
+        "财务",
+        "看资质"
+      ],
+      "reason": "并购与资产处置需要，专业性强。",
+      "bias": "行业体量小，需资质与项目积累。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "国际商务",
+      "cat": "经管商科",
+      "view": "caution",
+      "tags": [
+        "外贸",
+        "跨文化",
+        "看英语"
+      ],
+      "reason": "跨境业务与海外市场有岗。",
+      "bias": "口径宽而不深，需英语+业务复合。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "劳动与社会保障",
+      "cat": "经管商科",
+      "view": "caution",
+      "tags": [
+        "职能",
+        "体制",
+        "窄"
+      ],
+      "reason": "人社系统与 HR 合规方向有岗。",
+      "bias": "岗位依赖考编，市场化岗位少。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "土地资源管理",
+      "cat": "经管商科",
+      "view": "caution",
+      "tags": [
+        "自然资源",
+        "体制",
+        "看政策"
+      ],
+      "reason": "自然资源与不动产管理有需求。",
+      "bias": "多依赖体制岗位，市场化通道窄。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "会展经济与管理",
+      "cat": "经管商科",
+      "view": "avoid",
+      "tags": [
+        "活动",
+        "执行",
+        "波动"
+      ],
+      "reason": "展会与活动行业有岗位。",
+      "bias": "入门偏执行，行业波动大、成长慢。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "汉语国际教育",
+      "cat": "文科保底",
+      "view": "caution",
+      "tags": [
+        "语言",
+        "出海",
+        "窄"
+      ],
+      "reason": "国际中文教育在海外有需求。",
+      "bias": "岗位受政策与外部环境影响大。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "文物与博物馆学",
+      "cat": "文科保底",
+      "view": "caution",
+      "tags": [
+        "文博",
+        "体制",
+        "窄"
+      ],
+      "reason": "文博热带来一定关注与岗位。",
+      "bias": "岗位少、多依赖编制，需读研更稳。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "传播学",
+      "cat": "文科保底",
+      "view": "caution",
+      "tags": [
+        "媒体",
+        "内容",
+        "看复合"
+      ],
+      "reason": "内容与公关方向岗位多。",
+      "bias": "入门门槛低，需数据与业务复合。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "编辑出版学",
+      "cat": "文科保底",
+      "view": "caution",
+      "tags": [
+        "出版",
+        "内容",
+        "收缩"
+      ],
+      "reason": "出版与内容审核有存量岗位。",
+      "bias": "纸质出版收缩，需转数字内容。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "商务英语",
+      "cat": "文科保底",
+      "view": "caution",
+      "tags": [
+        "语言+商务",
+        "外贸",
+        "看实战"
+      ],
+      "reason": "外贸与跨境业务能直接用。",
+      "bias": "语言本身不构成壁垒，需业务能力。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "边防管理",
+      "cat": "体制内",
+      "view": "caution",
+      "tags": [
+        "边防",
+        "体制",
+        "地点"
+      ],
+      "reason": "边防与出入境管理有对口岗位。",
+      "bias": "地点与纪律约束强，岗位靠招录。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "禁毒学",
+      "cat": "体制内",
+      "view": "caution",
+      "tags": [
+        "公安",
+        "专业",
+        "窄"
+      ],
+      "reason": "禁毒方向专业对口。",
+      "bias": "岗位窄、依赖招录，风险与强度不低。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "警务指挥与战术",
+      "cat": "体制内",
+      "view": "caution",
+      "tags": [
+        "公安",
+        "一线",
+        "纪律"
+      ],
+      "reason": "公安一线指挥方向对口。",
+      "bias": "强度与风险高，需通过招录。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "动物科学",
+      "cat": "农林地矿",
+      "view": "caution",
+      "tags": [
+        "养殖",
+        "饲料",
+        "基层"
+      ],
+      "reason": "养殖与饲料企业有稳定需求。",
+      "bias": "基层岗多、环境一般，需读研转研发。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "园林",
+      "cat": "农林地矿",
+      "view": "caution",
+      "tags": [
+        "景观",
+        "地产链",
+        "周期"
+      ],
+      "reason": "景观与绿化有存量需求。",
+      "bias": "与地产周期绑定，设计院加班多。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "农业资源与环境",
+      "cat": "农林地矿",
+      "view": "caution",
+      "tags": [
+        "土壤",
+        "环保",
+        "基层"
+      ],
+      "reason": "土壤治理与农业环保有政策方向。",
+      "bias": "岗位偏基层与科研，需读研。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "矿物加工工程",
+      "cat": "农林地矿",
+      "view": "caution",
+      "tags": [
+        "矿业",
+        "选矿",
+        "艰苦"
+      ],
+      "reason": "选矿与资源利用有岗位。",
+      "bias": "矿区环境艰苦，行业周期强。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "动画",
+      "cat": "艺术体育",
+      "view": "caution",
+      "tags": [
+        "内容",
+        "看作品",
+        "AI 冲击"
+      ],
+      "reason": "游戏与动画产业有需求。",
+      "bias": "AI 生成冲击初级岗，需强作品与美术功底。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "广播电视编导",
+      "cat": "艺术体育",
+      "view": "caution",
+      "tags": [
+        "媒体",
+        "内容",
+        "转型"
+      ],
+      "reason": "内容制作与短视频方向可用。",
+      "bias": "传统广电收缩，需转新媒体与运营。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "产品设计",
+      "cat": "艺术体育",
+      "view": "caution",
+      "tags": [
+        "设计",
+        "制造",
+        "看作品"
+      ],
+      "reason": "消费品与硬件产品设计有岗。",
+      "bias": "需作品集，岗位量有限。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "书法学",
+      "cat": "艺术体育",
+      "view": "avoid",
+      "tags": [
+        "艺术",
+        "教培",
+        "窄"
+      ],
+      "reason": "书法教育与创作有少数岗位。",
+      "bias": "就业极窄，多为培训与自由职业。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "草业科学",
+      "cat": "避坑天坑",
+      "view": "avoid",
+      "tags": [
+        "农林",
+        "基层",
+        "窄"
+      ],
+      "reason": "草原生态与牧草有政策方向。",
+      "bias": "本科岗位少，需读研进科研或体制。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "茶学",
+      "cat": "避坑天坑",
+      "view": "caution",
+      "tags": [
+        "农业",
+        "区域",
+        "窄"
+      ],
+      "reason": "茶产业区域性强、有特色机会。",
+      "bias": "就业集中在产区，成长空间有限。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
+    },
+    {
+      "name": "图书馆学",
+      "cat": "避坑天坑",
+      "view": "caution",
+      "tags": [
+        "体制",
+        "信息",
+        "窄"
+      ],
+      "reason": "图书馆与信息管理岗稳定。",
+      "bias": "岗位极少、依赖考编，成长慢。",
+      "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
+      "source_year": 2026,
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "就业确定性优先（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     }
   ],
   "RESOURCES": [

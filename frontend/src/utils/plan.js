@@ -198,8 +198,13 @@ export function appendSafeSchools(plan, schools) {
 /**
  * 从 recommend 结果里筛选兜底候选（S5-C，纯函数便于单测，由一键补位调用）。
  *
- * 只挑「用户位次优于其最低投档位次」的院校（``min_rank`` 存在且 < ``userRank``），
- * 因此并入后不会再失守；最易够到的（``min_rank`` 最大）排前面，最多 ``maxN`` 所。
+ * 位次口径（S7-E 修正）：``min_rank`` 是该校**最低投档位次**＝录取末位考生的位次，
+ * 数字越大门槛越低。因此「用户稳够」的条件是 **用户位次比它更靠前（数字更小）**：
+ * ``min_rank > userRank``。此前写成 ``min_rank < userRank``，方向反了——补进来的
+ * 全是够不上的学校，安全网看起来被补上了，实际没有（S7-E 的补位前后对比才发现）。
+ * 本项目其它地方（``breachStatus``：``ur > lr`` 判失守）一直用同一个口径，此处统一。
+ *
+ * 门槛越宽（``min_rank`` 越大）越稳，排最前，最多 ``maxN`` 所。
  * 注意：本函数不负责按名字去重（那是 ``appendSafeSchools`` 的职责）。
  *
  * @param {object} rec recommend 接口返回（含 tiers[].schools[]）
@@ -213,10 +218,51 @@ export function selectBackstops(rec, userRank, maxN = 6) {
   const out = [];
   rec.tiers.forEach((t) => (t.schools || []).forEach((s) => {
     const mr = Number(s.min_rank);
-    if (mr > 0 && mr < ur) out.push(s);
+    if (mr > ur) out.push(s);   // 院校门槛位次比用户更靠后 → 用户稳够
   }));
-  out.sort((a, b) => (b.min_rank || 0) - (a.min_rank || 0)); // 最易够到的排前
+  out.sort((a, b) => (b.min_rank || 0) - (a.min_rank || 0)); // 门槛越宽越稳，排最前
   return out.slice(0, maxN);
+}
+
+/**
+ * 补位前后对比（S7-E，纯函数）：一键补位不只是「加了几所」，用户真正想知道的是
+ * **失守有没有被填平**——补位前几所够不上、补位后还剩几所、新兜底替谁接住了。
+ *
+ * 本函数在**副本**上执行 appendSafeSchools，因此不改变传入的 plan（可先预览再决定是否落盘）。
+ *
+ * @param {object} plan 现有志愿表（含 tiers 与 user_rank）
+ * @param {Array} schools 候选兜底院校（同 appendSafeSchools）
+ * @returns {object} { next, added, skipped, before, after, still_breach, text }
+ */
+export function diffSafePatch(plan, schools) {
+  const empty = { breach: 0, covered: 0, total: 0 };
+  if (!plan || !Array.isArray(plan.tiers)) {
+    return { next: plan, added: [], skipped: 0, before: empty, after: empty,
+             still_breach: [], text: "暂无志愿表，无法对比" };
+  }
+  const before = breachStats(plan, flattenPlan(plan));
+  const next = appendSafeSchools(JSON.parse(JSON.stringify(plan)), schools);
+  const after = breachStats(next, flattenPlan(next));
+
+  const beforeNames = new Set();
+  plan.tiers.forEach((t) => (t.schools || []).forEach((s) => s && s.name && beforeNames.add(s.name)));
+  const candidates = (Array.isArray(schools) ? schools : []).filter((s) => s && s.name);
+  const added = candidates.filter((s) => !beforeNames.has(s.name));
+  const skipped = candidates.length - added.length;
+
+  const still_breach = flattenPlan(next)
+    .filter((r) => breachStatus(next.user_rank, r) === "breach")
+    .map((r) => r.name);
+
+  // 「可稳够」比「总数」更能说明补位有没有真的接住：失守行仍在表里，补位不会把它变没
+  const safe_before = Math.max(0, before.total - before.breach);
+  const safe_after = Math.max(0, after.total - after.breach);
+  const text = added.length
+    ? `补位 ${added.length} 所兜底院校${skipped ? `（${skipped} 所已在表中）` : ""}；` +
+      `保底档可稳够 ${safe_before} → ${safe_after} 所，失守 ${before.breach} → ${after.breach} 所`
+    : "没有新的兜底院校可补（候选都已在表里）";
+
+  return { next, added, skipped, before, after, still_breach, safe_before, safe_after, text };
 }
 
 /** 导出的纯文本志愿表（复制/打印共用）。 */
