@@ -119,4 +119,18 @@ def migrate() -> dict:
                     conn.execute(text(ddl))
                 actions.append(f"admission_baselines 增加 {label} 列")
 
+    # 管理端安全加固（D2）：登录失败计数 / 锁定截止 / 密码变更时间。
+    # 老库没有这些列时补上；password_changed_at 为 NULL 的账号按「从未改密」处理。
+    if _table_exists(insp, "admin_users"):
+        cols = _column_names(insp, "admin_users")
+        for col, ddl, label in (
+            ("failed_attempts", "ALTER TABLE admin_users ADD COLUMN failed_attempts INTEGER DEFAULT 0", "failed_attempts"),
+            ("locked_until", "ALTER TABLE admin_users ADD COLUMN locked_until DATETIME", "locked_until"),
+            ("password_changed_at", "ALTER TABLE admin_users ADD COLUMN password_changed_at DATETIME", "password_changed_at"),
+        ):
+            if col not in cols:
+                with engine.begin() as conn:
+                    conn.execute(text(ddl))
+                actions.append(f"admin_users 增加 {label} 列")
+
     return {"ok": True, "actions": actions, "migrated": bool(actions)}

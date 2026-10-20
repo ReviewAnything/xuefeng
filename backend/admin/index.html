@@ -628,6 +628,151 @@
           </div>
         </section>
 
+        <!-- ---------------- 校线导入 ---------------- -->
+        <section v-if="page === 'lines'" class="page">
+          <div class="grid-2">
+            <div class="panel">
+              <div class="panel-head">
+                <div>
+                  <h3>上传院校投档表</h3>
+                  <p>CSV / XLSX；至少含「院校名称」+「最低分」或「最低位次」两列</p>
+                </div>
+              </div>
+              <div class="sync-form">
+                <el-upload drag :auto-upload="false" :show-file-list="false" accept=".csv,.xlsx"
+                           :on-change="onLineFileChange">
+                  <app-icon name="upload"></app-icon>
+                  <div class="el-upload__text">把文件拖到这里，或 <em>点击选择</em></div>
+                </el-upload>
+                <p class="hint" v-if="lineFileName">已选择：{{ lineFileName }}
+                  <el-button link type="primary" size="small" @click="clearLineFile">移除</el-button>
+                </p>
+                <p class="hint" v-else>支持 .csv / .xlsx（旧版 .xls 请另存为 .xlsx）；上限 20MB</p>
+
+                <el-form label-width="92px" class="line-form">
+                  <el-form-item label="年份">
+                    <el-input-number v-model="lineForm.year" :min="2000" :max="2100"
+                                     controls-position="right"></el-input-number>
+                  </el-form-item>
+                  <el-form-item label="省份">
+                    <el-input v-model="lineForm.province" placeholder="如 河南"></el-input>
+                  </el-form-item>
+                  <el-form-item label="科类">
+                    <el-select v-model="lineForm.subject">
+                      <el-option label="物理类" value="物理类"></el-option>
+                      <el-option label="历史类" value="历史类"></el-option>
+                      <el-option label="综合" value="综合"></el-option>
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item label="来源链接">
+                    <el-input v-model="lineForm.source_url" placeholder="https://…（填了才标记 official）"></el-input>
+                  </el-form-item>
+                  <el-form-item label="导入模式">
+                    <el-radio-group v-model="lineForm.mode">
+                      <el-radio value="merge">只增改</el-radio>
+                      <el-radio value="replace">整省替换</el-radio>
+                    </el-radio-group>
+                  </el-form-item>
+                  <el-form-item label="仅预览">
+                    <el-switch v-model="lineForm.dry_run"></el-switch>
+                    <span class="muted line-switch-hint">先看匹配报告，不写库</span>
+                  </el-form-item>
+                </el-form>
+
+                <el-button type="primary" size="large" :loading="lineLoading" class="sync-btn" @click="submitLines">
+                  {{ lineForm.dry_run ? '上传并预览' : '确认导入（写库）' }}
+                </el-button>
+                <p class="hint">
+                  校名会先与教育部 2868 所名单匹配（精确 → 去括号 → 包含 → 模糊）；
+                  匹配不上的行不入库，列在报告里供人工确认。
+                </p>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <div><h3>导入覆盖</h3><p>已入库的院校级投档线（按年份）</p></div>
+                <el-button size="small" @click="loadLineCoverage">刷新</el-button>
+              </div>
+              <el-table :data="lineCoverage ? lineCoverage.years : []" size="small" max-height="360">
+                <el-table-column prop="year" label="年份" width="90"></el-table-column>
+                <el-table-column prop="rows" label="行数" width="90" align="right"></el-table-column>
+                <el-table-column prop="schools" label="院校数" width="100" align="right"></el-table-column>
+                <el-table-column label="覆盖省份" min-width="220">
+                  <template #default="s">{{ s.row.provinces.join('、') }}</template>
+                </el-table-column>
+              </el-table>
+              <el-empty v-if="!lineCoverage || !lineCoverage.years.length"
+                        description="尚未导入院校投档线（推荐结果将只用层次估算）"></el-empty>
+            </div>
+          </div>
+
+          <div class="panel" v-if="lineReport">
+            <div class="panel-head">
+              <div>
+                <h3>导入报告</h3>
+                <p>{{ lineReport.filename }} ·
+                  {{ lineReport.dry_run ? '预览模式（未写库）' : '已写库' }} ·
+                  匹配率 {{ Math.round((lineReport.match_rate || 0) * 100) }}%</p>
+              </div>
+              <el-tag :type="lineReport.dry_run ? 'info' : 'success'" effect="plain">
+                {{ lineReport.dry_run ? 'dry-run' : 'committed' }}
+              </el-tag>
+            </div>
+
+            <el-descriptions :column="4" border size="small" class="line-desc">
+              <el-descriptions-item label="总行数">{{ lineReport.total_rows }}</el-descriptions-item>
+              <el-descriptions-item label="可入库">{{ lineReport.valid }}</el-descriptions-item>
+              <el-descriptions-item label="校验未过">{{ lineReport.invalid_count }}</el-descriptions-item>
+              <el-descriptions-item label="校名未匹配">{{ lineReport.unmatched_count }}</el-descriptions-item>
+              <el-descriptions-item label="新增">{{ lineReport.inserted }}</el-descriptions-item>
+              <el-descriptions-item label="更新">{{ lineReport.updated }}</el-descriptions-item>
+              <el-descriptions-item label="未变">{{ lineReport.unchanged }}</el-descriptions-item>
+              <el-descriptions-item label="删除">{{ lineReport.deleted }}</el-descriptions-item>
+            </el-descriptions>
+
+            <el-alert v-if="lineReport.unknown_headers && lineReport.unknown_headers.length"
+                      type="warning" :closable="false" show-icon class="line-alert"
+                      title="存在未识别的列（已忽略）"
+                      :description="lineReport.unknown_headers.join('、')"></el-alert>
+            <el-alert v-if="lineReport.unmatched_count"
+                      type="info" :closable="false" show-icon class="line-alert"
+                      title="校名未匹配的行不会入库"
+                      description="可在表格里改用教育部标准校名（如「XX大学」），或核对是否为民办/独立学院。"></el-alert>
+
+            <div class="line-block" v-if="lineReport.unmatched && lineReport.unmatched.length">
+              <h4>未匹配校名（前 200 条）</h4>
+              <el-table :data="lineReport.unmatched" size="small" max-height="240">
+                <el-table-column prop="row" label="行号" width="80"></el-table-column>
+                <el-table-column prop="university" label="原始校名" min-width="240"></el-table-column>
+              </el-table>
+            </div>
+
+            <div class="line-block" v-if="lineReport.invalid && lineReport.invalid.length">
+              <h4>校验未通过（前 50 条）</h4>
+              <el-table :data="lineReport.invalid" size="small" max-height="240">
+                <el-table-column prop="row" label="行号" width="80"></el-table-column>
+                <el-table-column prop="university" label="原始校名" min-width="180"></el-table-column>
+                <el-table-column label="原因" min-width="260">
+                  <template #default="s">{{ s.row.errors.join('；') }}</template>
+                </el-table-column>
+              </el-table>
+            </div>
+
+            <div class="line-block" v-if="lineReport.preview && lineReport.preview.length">
+              <h4>前 10 行预览（已匹配）</h4>
+              <el-table :data="lineReport.preview" size="small" max-height="300">
+                <el-table-column prop="university" label="规范校名" min-width="180"></el-table-column>
+                <el-table-column prop="university_input" label="原始校名" min-width="180"></el-table-column>
+                <el-table-column prop="group_code" label="专业组" width="90"></el-table-column>
+                <el-table-column prop="min_score" label="最低分" width="90" align="right"></el-table-column>
+                <el-table-column prop="min_rank" label="最低位次" width="110" align="right"></el-table-column>
+                <el-table-column prop="match_method" label="匹配方式" width="110"></el-table-column>
+              </el-table>
+            </div>
+          </div>
+        </section>
+
         <!-- ---------------- 查询日志 ---------------- -->
         <section v-if="page === 'events'" class="page">
           <div class="mini-stats">

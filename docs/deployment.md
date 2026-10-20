@@ -20,9 +20,11 @@
 构建细节（已在 `.github/workflows/deploy-h5.yml` 里）：
 
 - `npm ci` 按 `package-lock.json` 装依赖，可复现；
-- 先跑 `npm test`（决策引擎 + SFC 模板编译校验），失败即中止；
+- 先跑 `npm test`（决策引擎 + 志愿表工具 + SFC/管理端模板编译），失败即中止；
 - `npm run build:h5` 产出 `frontend/dist/build/h5`，hash 路由 + 相对路径
   （`manifest.json` 的 `h5.router.base = "./"`），适配 Pages 子路径；
+- 构建后做**产物自检**：`index.html` 存在、含 `#app` 挂载点、至少一个 >1KB 的 JS 包
+  （避免「构建成功但上线空壳」）；
 - 若配置了变量 `XUEFENG_API_BASE`，会把 `window.__XUEFENG_API__='…'` 注入 `index.html`。
 
 **后端地址三处来源（优先级从高到低）**：
@@ -70,5 +72,28 @@ docker compose up --build
 ## 数据与合规提示
 
 - 演示数据分「官方省控线（11 省）」与「模型估算（其余省）」，界面上会标注来源；
+- 院校级投档线**不入库不发包**：需要自己上传（管理端「校线导入」或 `scripts/import_school_lines.py`），
+  导入前推荐结果只到「层次」粒度；
 - 页面显著位置保留「仅供学习参考，正式填报以各省考试院为准」提示，部署时请勿移除；
 - 管理端默认口令属于演示用途，任何公网部署都必须改掉或关闭管理端。
+
+---
+
+## 运维（D2/D3）
+
+| 事项 | 做法 |
+| --- | --- |
+| 登录安全 | 默认 5 次失败锁 15 分钟；`XUEFENG_LOGIN_MAX_FAILS` / `_WINDOW` / `_LOCK` 可调；审计在 `login_attempts` 表与 `/api/admin/login-attempts` |
+| 令牌失效 | 改密后旧令牌立即失效（令牌内嵌密码变更时间戳）；改密接口返回新令牌 |
+| 初始密码 | `must_change_password=true` 时写接口一律 403，先改密再用 |
+| 访问日志 | 每请求一行 JSON，含 `rid/status/ms`；响应头 `X-Request-ID` 便于和前端日志对齐 |
+| 慢请求 | 默认 >800ms 标 `level=warn`（`XUEFENG_SLOW_MS` 调整），`/api/health.observability` 有聚合 |
+| 备份 | `python scripts/backup_db.py --dir backups --keep 14 --gzip`，建议 cron 每日执行 |
+| 健康检查 | `GET /api/health` 含版本、生效年份、库大小、校线覆盖、请求指标 |
+
+自建服务器示例（每日 3:10 备份）：
+
+```cron
+10 3 * * * cd /srv/xuefeng/backend && /usr/bin/python3 scripts/backup_db.py --dir /var/backups/xuefeng --keep 14 --gzip
+```
+

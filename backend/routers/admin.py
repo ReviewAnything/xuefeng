@@ -7,7 +7,7 @@ import json
 import os
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -20,6 +20,7 @@ from services import admission as A
 from services import admin_auth as auth
 from services import data_sync as DS
 from services import data_versions as DV
+from services import school_lines as SL
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -101,12 +102,26 @@ class BaselineCreate(BaseModel):
 # ---------------------------------------------------------------- 鉴权
 
 @router.post("/login")
-def login(req: LoginRequest):
-    user = auth.authenticate(req.username, req.password)
-    if not user:
-        raise HTTPException(status_code=401, detail="用户名或密码错误")
-    token = auth.create_token(user["username"], user["role"])
-    return {"ok": True, "user": user, **token}
+def login(req: LoginRequest, request: Request):
+    """账号密码登录：失败限流锁定（默认 5 次/5 分钟 → 锁 15 分钟），成功/失败均留审计。"""
+    ip = (request.client.host if request.client else "") or ""
+    ua = request.headers.get("user-agent", "")
+    result = auth.login(req.username, req.password, ip=ip, user_agent=ua)
+    if not result["ok"]:
+        detail = result.get("detail", "用户名或密码错误")
+        if result.get("reason") == "locked":
+            raise HTTPException(status_code=429, detail=detail,
+                                headers={"Retry-After": str(int(result.get("retry_after", 60)))})
+        raise HTTPException(status_code=401, detail=detail)
+    token = auth.create_token(result["user"]["username"], result["user"]["role"],
+                              pwd=result.get("pwd"))
+    return {"ok": True, "user": result["user"], **token}
+
+
+@router.get("/login-attempts")
+def login_attempts(limit: int = 50, admin: dict = Depends(auth.require_admin)):
+    """最近登录审计（成功/失败/锁定），用于排查异常登录。"""
+    return {"ok": True, "rows": auth.recent_attempts(max(1, min(limit, 200)))}
 
 
 @router.get("/me")
@@ -115,9 +130,14 @@ def me(admin: dict = Depends(auth.require_admin)):
 
 
 @router.post("/change-password")
-def change_password(req: ChangePasswordRequest, admin: dict = Depends(auth.require_admin)):
-    auth.change_password(admin["username"], req.old_password, req.new_password)
-    return {"ok": True, "message": "密码已更新"}
+def change_password(req: ChangePasswordRequest, request: Request,
+                    admin: dict = Depends(auth.require_admin)):
+    """改密后旧令牌立即失效；响应返回新令牌，页面可直接续用。"""
+    ip = (request.client.host if request.client else "") or ""
+    result = auth.change_password(admin["username"], req.old_password, req.new_password, ip=ip)
+    profile = auth.admin_profile(admin["username"])
+    token = auth.create_token(profile["username"], profile["role"], pwd=result["pwd"])
+    return {"ok": True, "message": "密码已更新，旧登录已全部失效", "user": profile, **token}
 
 
 # ---------------------------------------------------------------- 看板
@@ -286,7 +306,7 @@ def list_versions(dataset: str = "admission", admin: dict = Depends(auth.require
 
 
 @router.post("/versions/clone")
-def clone_version(req: CloneRequest, admin: dict = Depends(auth.require_admin)):
+def clone_version(req: CloneRequest, admin: dict = Depends(auth.require_admin_ready)):
     """以某一年为蓝本创建新年度草稿（年度更新第一步）。"""
     result = DV.clone_year(req.from_year, req.to_year, dataset=req.dataset,
                            operator=admin["username"], note=req.note)
@@ -304,7 +324,7 @@ def validate_version(year: int, dataset: str = "admission",
 
 @router.post("/versions/{year}/publish")
 def publish_version(year: int, req: PublishRequest | None = None,
-                    admin: dict = Depends(auth.require_admin)):
+                    admin: dict = Depends(auth.require_admin_ready)):
     req = req or PublishRequest()
     result = DV.publish_year(year, dataset=req.dataset, operator=admin["username"], force=req.force)
     if not result.get("ok"):
@@ -314,7 +334,7 @@ def publish_version(year: int, req: PublishRequest | None = None,
 
 @router.post("/versions/{year}/rollback")
 def rollback_version(year: int, req: RollbackRequest | None = None,
-                     admin: dict = Depends(auth.require_admin)):
+                     admin: dict = Depends(auth.require_admin_ready)):
     req = req or RollbackRequest()
     result = DV.rollback(req.dataset, year, operator=admin["username"], reason=req.reason)
     if not result.get("ok"):
@@ -331,7 +351,7 @@ def pending_updates(year: int | None = None, dataset: str = "admission",
 
 @router.patch("/baselines/{row_id}")
 def patch_baseline(row_id: int, req: BaselinePatch,
-                   admin: dict = Depends(auth.require_admin)):
+                   admin: dict = Depends(auth.require_admin_ready)):
     """单条基线补丁（单年数据修正），逐字段留痕。"""
     result = DV.patch_baseline(row_id, req.model_dump(exclude_none=True),
                                operator=admin["username"], reason=req.reason, publish=req.publish)
@@ -341,7 +361,7 @@ def patch_baseline(row_id: int, req: BaselinePatch,
 
 
 @router.post("/baselines")
-def create_baseline(req: BaselineCreate, admin: dict = Depends(auth.require_admin)):
+def create_baseline(req: BaselineCreate, admin: dict = Depends(auth.require_admin_ready)):
     """补录缺失的基线行。"""
     result = DV.create_baseline(req.model_dump(), operator=admin["username"], reason=req.reason)
     if not result.get("ok"):
@@ -356,7 +376,7 @@ def list_changes(dataset: str | None = None, year: int | None = None, limit: int
 
 
 @router.post("/changes/{change_id}/undo")
-def undo_change(change_id: int, admin: dict = Depends(auth.require_admin)):
+def undo_change(change_id: int, admin: dict = Depends(auth.require_admin_ready)):
     result = DV.undo_change(change_id, operator=admin["username"])
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("error"))
@@ -425,13 +445,66 @@ def sync_targets(admin: dict = Depends(auth.require_admin)):
 
 
 @router.post("/sync")
-def sync(req: SyncRequest, admin: dict = Depends(auth.require_admin)):
+def sync(req: SyncRequest, admin: dict = Depends(auth.require_admin_ready)):
     """执行同步。seed 类直接播种；pipeline 类先跑 ingest/build 脚本再播种，逐个目标留痕。"""
     result = DS.run(req.targets, force=req.force, refresh=req.refresh,
                     operator=admin["username"])
     if not result.get("ok") and not result.get("results"):
         raise HTTPException(status_code=400, detail=result.get("error") or "未指定有效同步目标")
     return result
+
+
+# ---------------------------------------------------------------- 院校投档线导入（D1）
+
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+
+
+@router.post("/school-lines/import")
+async def import_school_lines(file: UploadFile = File(...),
+                              year: int | None = Form(None),
+                              province: str | None = Form(None),
+                              subject: str | None = Form(None),
+                              source_url: str = Form(""),
+                              mode: str = Form("merge"),
+                              dry_run: bool = Form(True),
+                              admin: dict = Depends(auth.require_admin_ready)):
+    """上传院校投档表（CSV/XLSX）：默认只返回匹配报告，`dry_run=false` 才写库。
+
+    - 校名会与教育部 2868 所名单匹配，匹配不上的行不写库，进 `unmatched` 清单；
+    - `mode=replace` 会删除同 (年份, 省, 科类) 下文件里没有的旧行，用于整省替换。
+    """
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="文件为空")
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="文件过大（上限 20MB），请拆分后上传")
+    if mode not in ("merge", "replace"):
+        raise HTTPException(status_code=400, detail="mode 只能是 merge 或 replace")
+
+    defaults = {"year": year, "province": province, "subject": subject,
+                "source_url": source_url,
+                "data_source": "official" if source_url else ""}
+    try:
+        report = SL.import_table(raw, file.filename or "upload.csv", defaults,
+                                 dry_run=dry_run, operator=admin["username"], mode=mode)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if not report.get("ok"):
+        raise HTTPException(status_code=400, detail=report.get("error") or "解析失败")
+    return report
+
+
+@router.get("/school-lines")
+def admin_school_lines(province: str, subject: str, university: str | None = None,
+                       year: int | None = None, limit: int = 200,
+                       admin: dict = Depends(auth.require_admin)):
+    return SL.lines_for(province=province, subject=subject, university=university,
+                        year=year, limit=limit)
+
+
+@router.get("/school-lines/coverage")
+def admin_school_line_coverage(admin: dict = Depends(auth.require_admin)):
+    return SL.coverage()
 
 
 # ---------------------------------------------------------------- 导出

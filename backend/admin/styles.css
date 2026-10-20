@@ -357,3 +357,12 @@ html.dark {
 .pipe-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .pipe-title > b { font-size: 13.5px; color: var(--text); }
 .pipe-desc { margin: 6px 0 4px; font-size: 12.5px; color: var(--muted); line-height: 1.6; }
+
+/* 校线导入（D1） */
+.line-form { margin-top: 14px; }
+.line-form .el-form-item { margin-bottom: 12px; }
+.line-switch-hint { margin-left: 10px; font-size: 12px; }
+.line-desc { margin: 6px 0 14px; }
+.line-alert { margin-bottom: 12px; }
+.line-block { margin-top: 16px; }
+.line-block > h4 { margin: 0 0 8px; font-size: 13px; color: var(--muted); font-weight: 600; }

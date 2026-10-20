@@ -5,7 +5,7 @@
 //   2. import.meta.env.VITE_API_BASE —— 构建期注入（GitHub Pages / 各环境 CI 用）
 //   3. http://localhost:8000 —— 本地开发默认
 // 生产/小程序请改为你的后端域名（需 https + 小程序后台配置域名）。
-function resolveBase() {
+export function resolveBase() {
   if (typeof window !== "undefined" && window.__XUEFENG_API__) return window.__XUEFENG_API__;
   const env = typeof import.meta !== "undefined" && import.meta.env ? import.meta.env.VITE_API_BASE : "";
   return env || "http://localhost:8000";

@@ -16,6 +16,7 @@
 因此每条推荐都带 ``basis`` 说明，前端需原样展示，避免把「院校池」误读成「能上」。
 """
 from . import admission as A
+from . import school_lines as SL
 
 # 层次 → 院校池筛选条件（tier 走 985/211 标记，其余走办学层次）
 TIER_POOL = {
@@ -126,10 +127,47 @@ def recommend_schools(province: str, subject: str, user_rank: int,
         })
 
     tiers.sort(key=lambda x: (LEVEL_ORDER.get(x["level"], 9), x["min_rank"]))
+
+    # D1：如果该省已导入院校级投档线，给每条院校挂上真实最低分/位次；
+    # 未导入则保持空值，前端继续按层次提示，不假装精确。
+    all_names = [s["name"] for t in tiers for s in t["schools"]]
+    lines = SL.map_for(province, subject, all_names)
+    for t in tiers:
+        hits = 0
+        for s in t["schools"]:
+            rec = lines.get(s["name"])
+            if not rec:
+                s["min_score"] = None
+                s["min_rank"] = None
+                s["line_year"] = None
+                s["data_source"] = "estimated"
+                continue
+            s["min_score"] = rec["min_score"]
+            s["min_rank"] = rec["min_rank"]
+            s["line_year"] = rec["year"]
+            s["group_code"] = rec.get("group_code") or ""
+            s["data_source"] = "school_line"
+            hits += 1
+        t["school_line_hits"] = hits
+        t["basis"] = _basis(t["tier"], hits)
+
     summary = {"reach": 0, "match": 0, "safe": 0, "unreachable": 0}
     key = {"冲": "reach", "稳": "match", "保": "safe", "不可及": "unreachable"}
     for t in tiers:
         summary[key[t["level"]]] += 1
+
+    total_hits = sum(t.get("school_line_hits", 0) for t in tiers)
+    notes = [
+        "985/211 档为教育部官方名单，档内未区分具体录取线；"
+        "普通本科/专科档为同层次院校池，非「按你的位次录得到」的名单。",
+        "最终筛选请对照本省考试院/院校招生网公布的往年投档位次。",
+    ]
+    if total_hits:
+        notes.insert(0, f"本次展开的 {len(all_names)} 所院校中，{total_hits} 所已匹配到院校级投档线"
+                        "（行内标注「去年最低」），其余仍为层次估算。")
+    else:
+        notes.insert(0, "该省尚未导入院校级投档线，院校行不含「去年最低分」；"
+                        "可在管理端「校线导入」上传本省投档表后重新生成。")
 
     return {
         "ok": True, "province": province, "subject": subject, "user_rank": user_rank,
@@ -137,19 +175,21 @@ def recommend_schools(province: str, subject: str, user_rank: int,
         "data_source": th.get("data_source", "estimated"),
         "official_provinces": A.official_coverage(),
         "tiers": tiers, "summary": summary, "limit": limit,
-        "notes": [
-            "985/211 档为教育部官方名单，档内未区分具体录取线；"
-            "普通本科/专科档为同层次院校池，非「按你的位次录得到」的名单。",
-            "最终筛选请对照本省考试院/院校招生网公布的往年投档位次。",
-        ],
+        "school_line_hits": total_hits,
+        "notes": notes,
     }
 
 
-def _basis(tier: str) -> str:
+def _basis(tier: str, school_line_hits: int = 0) -> str:
+    """每档的诚实口径；有校线数据时明确说明「部分院校为真实投档线」。"""
     if tier == "985":
-        return "985 高校官方名单；门槛为该省 985 入门投档位次"
-    if tier == "211":
-        return "211 高校官方名单（不含 985）；门槛为该省 211 入门投档位次"
-    if tier == "专科":
-        return "教育部高职专科院校池；门槛为该省专科批控制线位次"
-    return "教育部普通本科院校池；门槛为该省本科批次控制线位次"
+        base = "985 高校官方名单；门槛为该省 985 入门投档位次"
+    elif tier == "211":
+        base = "211 高校官方名单（不含 985）；门槛为该省 211 入门投档位次"
+    elif tier == "专科":
+        base = "教育部高职专科院校池；门槛为该省专科批控制线位次"
+    else:
+        base = "教育部普通本科院校池；门槛为该省本科批次控制线位次"
+    if school_line_hits:
+        return base + f"；其中 {school_line_hits} 所有已导入的院校投档线（标注「去年最低」）"
+    return base

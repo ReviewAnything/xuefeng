@@ -3,12 +3,13 @@ import uuid
 
 import main
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from db import repository as repo
 from db import session_scope
-from db.models import AdminUser
+from db.models import AdminUser, LoginAttempt
 from db.seed import hash_password, verify_password
+from tests.helpers import ready_headers
 
 c = TestClient(main.app)
 
@@ -29,7 +30,11 @@ def test_admin_requires_auth():
 
 
 def test_admin_login_rejects_wrong_password():
-    r = c.post("/api/admin/login", json={"username": "admin", "password": "wrong-pass"})
+    # 用不存在的账号验证 401；同时清掉本机 IP 的历史失败记录，
+    # 避免跨轮次累积触发 D2 的 IP 限流（限流逻辑由 test_admin_security 专门覆盖）
+    with session_scope() as s:
+        s.execute(delete(LoginAttempt).where(LoginAttempt.ip == "testclient"))
+    r = c.post("/api/admin/login", json={"username": "no_such_admin", "password": "wrong-pass"})
     assert r.status_code == 401
 
 
@@ -78,7 +83,7 @@ def test_database_repository_matches_json():
 
 def test_admin_sync_is_idempotent():
     """同步按目标逐个留痕：重复执行不产生重复数据，只新增任务记录。"""
-    h = _auth()
+    h = ready_headers(c)
     first = c.post("/api/admin/sync", json={"targets": ["content"], "force": True}, headers=h)
     assert first.status_code == 200, first.text
     assert first.json()["results"]["content"]["job_id"] > 0
@@ -172,7 +177,7 @@ def test_admin_sync_targets_catalog_includes_pipelines():
 
 
 def test_admin_sync_seed_target_records_job():
-    h = _auth()
+    h = ready_headers(c)
     r = c.post("/api/admin/sync", json={"targets": ["content"], "force": True}, headers=h)
     assert r.status_code == 200, r.text
     j = r.json()
@@ -185,5 +190,5 @@ def test_admin_sync_seed_target_records_job():
 
 
 def test_admin_sync_rejects_unknown_target():
-    r = c.post("/api/admin/sync", json={"targets": ["nope"]}, headers=_auth())
+    r = c.post("/api/admin/sync", json={"targets": ["nope"]}, headers=ready_headers(c))
     assert r.status_code == 400

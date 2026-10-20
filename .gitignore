@@ -13,3 +13,6 @@ __pycache__/
 /backend/data/*.db
 /backend/data/*.db-wal
 /backend/data/*.db-shm
+# 数据库备份产物（scripts/backup_db.py）
+/backend/backups/
+/backups/

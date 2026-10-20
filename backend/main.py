@@ -15,6 +15,8 @@ FastAPI 应用，提供：
   - GET  /api/recommend/schools 院校推荐：按位次给出 冲/稳/保 院校清单（A3）
   - GET  /api/major-groups/universities 院校选择器（按省/层次/985/211/关键字）
   - GET  /api/major-groups     新高考「院校专业组」推导（专业选科要求 × 院校类别专业池）
+  - GET  /api/school-lines     院校投档线（逐校真实数据，D1 导入后可用）
+  - GET  /api/school-lines/coverage 院校投档线覆盖概况
   - /api/admin/*                管理端：登录、看板、数据浏览、同步、导出
   - /admin                      管理端控制台（Vue3 + Element Plus）
 
@@ -37,6 +39,8 @@ from services import verify as V
 from services import equiv_score as E
 from services import recommend as R
 from services import major_groups as MG
+from services import school_lines as SL
+from services import observability as OBS
 from db import init_db
 from db import repository as repo
 from routers import admin as admin_api
@@ -74,6 +78,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 访问日志：每请求一个 request id + 一行 JSON（慢请求标 warn）
+OBS.install(app)
+
 # 启动即初始化数据库：建表 + 幂等播种（源文件未变则跳过）
 DB_BOOT = {}
 try:
@@ -103,24 +110,34 @@ def root():
 def health():
     try:
         db_counts = repo.university_counts()
+        db_info = repo.db_info()
         db_ok = True
     except Exception:
-        db_counts, db_ok = {}, False
+        db_counts, db_info, db_ok = {}, {"active_year": None}, False
+    try:
+        school_lines = SL.coverage()
+    except Exception:
+        school_lines = {"total": 0, "years": []}
     return {
         "status": "ok",
         "version": APP_VERSION,
         "data_date": C.DATA_DATE,
         "admission_data_source": A.data_source(),
         "official_provinces": A.official_coverage(),
+        "active_year": db_info.get("active_year"),
         "majors": len(C.MAJORS),
         "resources": len(C.RESOURCES),
         "cors_origins": CORS_ORIGINS,
         "database": {
             "enabled": db_ok,
+            "size_kb": db_info.get("size_kb", 0),
             "universities": db_counts.get("total", 0),
             "count_985": db_counts.get("count_985", 0),
             "count_211": db_counts.get("count_211", 0),
         },
+        "school_lines": {"total": school_lines.get("total", 0),
+                         "years": [y["year"] for y in school_lines.get("years", [])]},
+        "observability": OBS.snapshot(recent=5),
         "admin_console": None if DISABLE_ADMIN else "/admin",
     }
 
@@ -328,6 +345,25 @@ def major_groups(university: str, subject: str = "物理类"):
                       subject=r["student_subject"], major_name=university,
                       best_tier=f"{r['eligible_groups']}/{r['total_groups']}")
     return r
+
+
+# ---------------------------------------------------------------- 院校投档线（D1）
+
+@app.get("/api/school-lines")
+def school_lines(province: str, subject: str, university: str = None,
+                 year: int = None, limit: int = Query(100, ge=1, le=1000)):
+    """院校投档线查询：某省/科类下逐校（可到专业组）的最低分与最低位次。
+
+    数据来自管理端导入的各省投档表；未导入时返回空列表（前端应回退到层次估算）。
+    """
+    return SL.lines_for(province=province, subject=subject, university=university,
+                        year=year, limit=limit)
+
+
+@app.get("/api/school-lines/coverage")
+def school_lines_coverage():
+    """院校投档线覆盖概况：按年份统计行数、覆盖省份与院校数。"""
+    return SL.coverage()
 
 
 if __name__ == "__main__":

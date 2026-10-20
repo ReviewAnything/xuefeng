@@ -7,6 +7,7 @@ from db import repository as repo
 from db import session_scope
 from db.models import AdmissionBaseline, DataChange, DataVersion
 from services import data_versions as DV
+from tests.helpers import READY_USER, ready_headers
 
 c = TestClient(main.app)
 
@@ -14,9 +15,8 @@ TEST_YEAR = 2099
 
 
 def _auth() -> dict:
-    r = c.post("/api/admin/login", json={"username": "admin", "password": "xuefeng@2026"})
-    assert r.status_code == 200, r.text
-    return {"Authorization": f"Bearer {r.json()['token']}"}
+    # 写接口需要「已改密」账号（D2：初始密码禁止写操作）
+    return ready_headers(c)
 
 
 def _cleanup(year: int = TEST_YEAR) -> None:
@@ -96,7 +96,7 @@ def test_patch_records_field_level_audit_and_undo():
     changes = c.get("/api/admin/changes", params={"year": TEST_YEAR}, headers=_auth()).json()["rows"]
     change = next(x for x in changes if x["field"] == "min_rank" and x["action"] == "patch")
     assert change["old_value"] == str(old_rank) and change["new_value"] == str(old_rank + 1000)
-    assert change["operator"] == "admin"
+    assert change["operator"] == READY_USER
 
     undo = c.post(f"/api/admin/changes/{change['id']}/undo", headers=_auth())
     assert undo.status_code == 200, undo.text

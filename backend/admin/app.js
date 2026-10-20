@@ -17,6 +17,7 @@ const ICONS = {
   download: "M11 3h2v9l3.5-3.5 1.4 1.4L12 16l-5.9-6.1 1.4-1.4L11 12V3ZM4 18h16v2H4v-2Z",
   chevron: "M7 10l5 5 5-5H7Z",
   database: "M12 2c-4.4 0-8 1.3-8 3v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5c0-1.7-3.6-3-8-3Zm0 2c3.9 0 6 .9 6 1s-2.1 1-6 1-6-.9-6-1 2.1-1 6-1Zm6 15c0 .1-2.1 1-6 1s-6-.9-6-1v-2.3c1.4.7 3.5 1.1 6 1.1s4.6-.4 6-1.1V19Zm0-5c0 .1-2.1 1-6 1s-6-.9-6-1v-2.3c1.4.7 3.5 1.1 6 1.1s4.6-.4 6-1.1V14Z",
+  upload: "M11 15V7.8L8.4 10.4 7 9l5-5 5 5-1.4 1.4L13 7.8V15h-2ZM4 19h16v2H4v-2Z",
 };
 
 const AppIcon = {
@@ -149,6 +150,7 @@ const app = createApp({
       { key: "baselines", label: "录取基线", icon: "chart", title: "录取基线", desc: "31 省估算基线 + 11 省官方省控线覆盖，支持按年份浏览与单条修正" },
       { key: "versions", label: "数据版本", icon: "database", title: "数据版本", desc: "年度更新：建草稿 → 校验 → 发布；支持补丁、审计与回滚" },
       { key: "sync", label: "数据同步", icon: "sync", title: "数据同步", desc: "静态数据源 → 数据库的幂等同步" },
+      { key: "lines", label: "校线导入", icon: "upload", title: "院校投档线导入", desc: "上传各省投档表（CSV/XLSX），校名匹配后落库；先预览再入库" },
       { key: "events", label: "查询日志", icon: "list", title: "查询日志", desc: "匿名记录核验 / 检索调用，用于产品分析" },
       { key: "settings", label: "系统设置", icon: "settings", title: "系统设置", desc: "账号安全与运行环境" },
     ];
@@ -163,11 +165,15 @@ const app = createApp({
       const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
       if (token.value) headers.Authorization = `Bearer ${token.value}`;
       const res = await fetch(path, { ...options, headers });
+      const data = await res.json().catch(() => ({}));
       if (res.status === 401) {
         logout(true);
-        throw new Error("登录已过期，请重新登录");
+        // 后端区分「过期」与「改密后失效」，直接透传更利于用户理解
+        throw new Error(data.detail || "登录已过期，请重新登录");
       }
-      const data = await res.json().catch(() => ({}));
+      if (res.status === 429) {
+        throw new Error(data.detail || "操作过于频繁，请稍后再试");
+      }
       if (!res.ok) throw new Error(data.detail || `请求失败（${res.status}）`);
       return data;
     }
@@ -558,17 +564,88 @@ const app = createApp({
       if (pwdForm.new_password !== pwdForm.confirm) { ElMessage.warning("两次输入的新密码不一致"); return; }
       pwdLoading.value = true;
       try {
-        await api("/api/admin/change-password", {
+        const res = await api("/api/admin/change-password", {
           method: "POST",
           body: JSON.stringify({ old_password: pwdForm.old_password, new_password: pwdForm.new_password }),
         });
-        ElMessage.success("密码已更新");
+        // 改密后旧令牌立即失效：后端会返回新令牌，这里直接续用，避免被踢下线
+        if (res.token) {
+          token.value = res.token;
+          localStorage.setItem(TOKEN_KEY, res.token);
+        }
+        if (res.user) {
+          user.value = res.user;
+          localStorage.setItem(USER_KEY, JSON.stringify(res.user));
+        }
+        ElMessage.success(res.message || "密码已更新");
         pwdForm.old_password = pwdForm.new_password = pwdForm.confirm = "";
         await loadProfile();
       } catch (e) {
         ElMessage.error(e.message);
       } finally {
         pwdLoading.value = false;
+      }
+    }
+
+    /* ---------- 院校投档线导入（D1） ---------- */
+    const lineForm = reactive({
+      year: new Date().getFullYear() - 1, province: "河南", subject: "物理类",
+      source_url: "", mode: "merge", dry_run: true,
+    });
+    const lineFile = ref(null);
+    const lineFileName = ref("");
+    const lineReport = ref(null);
+    const lineLoading = ref(false);
+    const lineCoverage = ref(null);
+
+    function onLineFileChange(file) {
+      lineFile.value = file.raw || file;
+      lineFileName.value = file.name || (file.raw && file.raw.name) || "";
+      lineReport.value = null;
+    }
+
+    function clearLineFile() {
+      lineFile.value = null;
+      lineFileName.value = "";
+      lineReport.value = null;
+    }
+
+    async function loadLineCoverage() {
+      try {
+        lineCoverage.value = await api("/api/admin/school-lines/coverage");
+      } catch (_) { /* 未登录/无权限时静默 */ }
+    }
+
+    async function submitLines() {
+      if (!lineFile.value) { ElMessage.warning("请先选择 CSV / XLSX 文件"); return; }
+      lineLoading.value = true;
+      try {
+        const fd = new FormData();
+        fd.append("file", lineFile.value, lineFileName.value || "upload.csv");
+        fd.append("year", String(lineForm.year));
+        fd.append("province", lineForm.province);
+        fd.append("subject", lineForm.subject);
+        fd.append("source_url", lineForm.source_url || "");
+        fd.append("mode", lineForm.mode);
+        fd.append("dry_run", lineForm.dry_run ? "true" : "false");
+        // multipart 不能用 api()（那里写死了 JSON Content-Type）
+        const res = await fetch("/api/admin/school-lines/import", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token.value}` },
+          body: fd,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 401) { logout(true); throw new Error(data.detail || "登录已过期"); }
+        if (!res.ok) throw new Error(data.detail || `导入失败（${res.status}）`);
+        lineReport.value = data;
+        ElMessage.success(data.dry_run
+          ? "预览完成，确认无误后关闭「仅预览」再提交"
+          : `导入完成：新增 ${data.inserted} / 更新 ${data.updated} / 删除 ${data.deleted}`);
+        if (!data.dry_run) await loadLineCoverage();
+      } catch (e) {
+        ElMessage.error(e.message);
+      } finally {
+        lineLoading.value = false;
       }
     }
 
@@ -618,6 +695,7 @@ const app = createApp({
         if (p === "baselines" && !baseRows.value.length) await loadBaselines();
         if (p === "versions") await loadVersions();
         if (p === "sync") await Promise.all([loadSources(), loadJobs(), loadSyncTargets()]);
+        if (p === "lines") await loadLineCoverage();
         if (p === "events") await loadEvents();
         if (p === "settings") await loadProfile();
       } catch (e) {
@@ -643,6 +721,8 @@ const app = createApp({
       sources, syncTargets, syncForce, syncRefresh, syncing, lastSync, jobs,
       syncTargetsCatalog, pipeTargets, loadSources, loadJobs, loadSyncTargets, runSync,
       events, eventStats, eventKind, loadEvents,
+      lineForm, lineFile, lineFileName, lineReport, lineLoading, lineCoverage,
+      onLineFileChange, clearLineFile, submitLines, loadLineCoverage,
       pwdForm, pwdLoading, changePassword,
       exportCsv, fmtTime, jobTag, jobLabel, alignLabel,
     };

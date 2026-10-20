@@ -35,6 +35,42 @@ class University(Base):
     __table_args__ = (Index("ix_uni_province_level", "province", "level"),)
 
 
+class SchoolLine(Base):
+    """院校投档线（逐校真实数据，D1 导入）。
+
+    与 ``AdmissionBaseline`` 的区别：基线是「省×科类×批次」的门槛，
+    本表是「省×科类×院校（×专业组）」的逐校最低分/最低位次。
+    ``university`` 存匹配到教育部 2868 所名单后的规范校名，``university_input``
+    保留原始写法，便于回溯导入质量。
+    """
+
+    __tablename__ = "school_lines"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    year: Mapped[int] = mapped_column(Integer, index=True, default=0)
+    province: Mapped[str] = mapped_column(String(32), index=True, default="")
+    subject: Mapped[str] = mapped_column(String(16), index=True, default="")
+    batch: Mapped[str] = mapped_column(String(32), default="")
+    university: Mapped[str] = mapped_column(String(128), index=True, default="")
+    university_input: Mapped[str] = mapped_column(String(128), default="")
+    group_code: Mapped[str] = mapped_column(String(32), default="")     # 院校专业组/专业代码
+    min_score: Mapped[int] = mapped_column(Integer, default=0)
+    min_rank: Mapped[int] = mapped_column(Integer, default=0)
+    data_source: Mapped[str] = mapped_column(String(16), default="official")
+    match_method: Mapped[str] = mapped_column(String(16), default="exact")  # exact/normalized/contains/fuzzy
+    source_url: Mapped[str] = mapped_column(String(512), default="")
+    note: Mapped[str] = mapped_column(Text, default="")
+    operator: Mapped[str] = mapped_column(String(64), default="system")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+    __table_args__ = (
+        UniqueConstraint("year", "province", "subject", "university", "group_code",
+                         name="uq_school_line_key"),
+        Index("ix_school_line_scope", "year", "province", "subject", "min_rank"),
+    )
+
+
 class EliteUniversity(Base):
     """985/211 权威清单（112 所，含军校与拆分校区）。"""
 
@@ -192,7 +228,7 @@ class SyncJob(Base):
 
 
 class AdminUser(Base):
-    """管理端账号（PBKDF2 加盐哈希）。"""
+    """管理端账号（PBKDF2 加盐哈希 + 登录失败锁定 + 密码变更时间）。"""
 
     __tablename__ = "admin_users"
 
@@ -202,8 +238,25 @@ class AdminUser(Base):
     salt: Mapped[str] = mapped_column(String(64))
     role: Mapped[str] = mapped_column(String(16), default="admin")
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=True)
+    failed_attempts: Mapped[int] = mapped_column(Integer, default=0)             # 连续失败次数
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    password_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class LoginAttempt(Base):
+    """登录审计：成功/失败都留痕，用于限流判定与安全回溯（不含密码）。"""
+
+    __tablename__ = "login_attempts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    username: Mapped[str] = mapped_column(String(64), index=True, default="")
+    ip: Mapped[str] = mapped_column(String(64), index=True, default="")
+    success: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    reason: Mapped[str] = mapped_column(String(32), default="")   # bad_credentials/locked/ok/password_changed
+    user_agent: Mapped[str] = mapped_column(String(255), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
 
 
 class Setting(Base):

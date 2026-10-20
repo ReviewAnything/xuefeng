@@ -32,7 +32,7 @@
               <text class="row-idx">{{ i + 1 }}</text>
               <view class="row-info">
                 <text class="row-name">{{ r.name }}</text>
-                <text class="row-meta">{{ r.tier }} · {{ r.province }}</text>
+                <text class="row-meta">{{ r.tier }} · {{ r.province }}<text v-if="r.line"> · 去年 {{ r.line }} 分</text></text>
               </view>
             </view>
             <input class="row-major" v-model="r.major" placeholder="拟报专业" />
@@ -42,6 +42,7 @@
       </view>
 
       <view v-if="hasPlan" class="section">
+        <text class="small">已填拟报专业 {{ stats.filled }} / {{ stats.total }}</text>
         <view class="actions no-print">
           <!-- #ifdef H5 -->
           <wd-button type="primary" block @click="print">打印 / 另存为 PDF</wd-button>
@@ -62,6 +63,7 @@ import { computed, ref } from "vue";
 import { onLoad } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
 import { themeVars } from "@/utils/theme.js";
+import { PLAN_KEY, buildPlanText, fillStats, flattenPlan, formatTime, groupRows } from "@/utils/plan.js";
 
 const toast = useToast();
 const plan = ref(null);
@@ -69,48 +71,15 @@ const rows = ref([]);
 
 const hasPlan = computed(() => !!plan.value);
 const isEmpty = computed(() => !plan.value);
-
-const LEVELS = [
-  { key: "冲", title: "冲（够一够）" },
-  { key: "稳", title: "稳（大概率）" },
-  { key: "保", title: "保（兜底）" },
-];
-
-const groups = computed(() => {
-  return LEVELS.map((l) => ({
-    level: l.key,
-    title: l.title,
-    rows: rows.value.filter((r) => r.level === l.key),
-  }));
-});
-
-const timeLabel = computed(() => {
-  if (!plan.value || !plan.value.at) return "-";
-  const d = new Date(plan.value.at);
-  const pad = (n) => (n < 10 ? "0" + n : "" + n);
-  return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
-    " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
-});
+const groups = computed(() => groupRows(rows.value));
+const stats = computed(() => fillStats(rows.value));
+const timeLabel = computed(() => formatTime(plan.value && plan.value.at));
 
 onLoad(() => {
-  const p = uni.getStorageSync("zhiyuan_plan_v1");
+  const p = uni.getStorageSync(PLAN_KEY);
   if (!p) return;
   plan.value = p;
-  const list = [];
-  (p.tiers || []).forEach((t) => {
-    if (t.level === "不可及") return;
-    (t.schools || []).forEach((s) => {
-      list.push({
-        key: t.tier + "-" + s.name,
-        level: t.level,
-        tier: t.tier,
-        name: s.name,
-        province: s.province || "",
-        major: p.major || "",
-      });
-    });
-  });
-  rows.value = list;
+  rows.value = flattenPlan(p);
 });
 
 function levelClass(level) {
@@ -124,21 +93,7 @@ function isNoRow(g) {
 }
 
 function buildText() {
-  const p = plan.value;
-  const lines = [];
-  lines.push("志愿表草稿（学习参考，非填报依据）");
-  lines.push("省份：" + p.province + " | 科类：" + p.subject + " | 位次：" + p.user_rank);
-  lines.push("生成时间：" + timeLabel.value);
-  lines.push("");
-  groups.value.forEach((g) => {
-    lines.push("【" + g.title + "】");
-    g.rows.forEach((r, i) => {
-      lines.push((i + 1) + ". " + r.name + "（" + r.tier + "）  拟报专业：" + (r.major || "（待填）"));
-    });
-    lines.push("");
-  });
-  lines.push("说明：院校池来自教育部全国高校名单，未区分具体录取线；请以考试院/院校招生网为准。");
-  return lines.join("\n");
+  return buildPlanText(plan.value, groups.value, timeLabel.value);
 }
 
 function copy() {

@@ -2,3 +2,6 @@ fastapi>=0.110
 uvicorn[standard]>=0.27
 httpx>=0.27
 sqlalchemy>=2.0
+# 管理端院校投档线导入（D1）：multipart 上传 + xlsx 解析
+python-multipart>=0.0.9
+openpyxl>=3.1

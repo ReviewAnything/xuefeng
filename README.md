@@ -84,6 +84,8 @@ zhiyuan-app-v2/
 | **⑦ 院校推荐（A3）** | 按位次给出 985/211/普通本科/专科 各层次的 冲/稳/保 判定 + 教育部 2868 所名单的院校池 | **Python + uni-app** |
 | **⑧ 志愿表草稿（C3）** | 冲/稳/保 三档成表，可填拟报专业 → H5 打印/另存为 PDF，或复制为文本（仅存本机） | uni-app |
 | **⑨ 院校专业组（P4）** | 新高考志愿单元：按「专业选科要求 × 院校类别专业池」推导专业组，标注可报/不可报；规则估算，非官方分组 | **Python + uni-app** |
+| **⑩ 院校投档线导入（D1）** | 上传各省投档表（CSV/XLSX）→ 校名匹配教育部名单 → 落库；推荐页据此显示「去年最低分/位次」，未导入则保持层次估算 | **Python + 管理端** |
+| **⑪ 安全与可观测（D2/D3）** | 登录失败限流锁定、改密后旧令牌立即失效、初始密码禁写；请求 ID + 结构化日志 + 慢请求标记 + 一致性备份脚本 | **Python** |
 
 ### 公开 API（摘要）
 
@@ -101,6 +103,10 @@ zhiyuan-app-v2/
 | GET | `/api/recommend/schools` | 院校推荐：冲/稳/保 院校池（A3） |
 | GET | `/api/major-groups/universities` | 院校选择器（省/层次/985·211/关键字） |
 | GET | `/api/major-groups` | 院校专业组推导（P4，规则估算） |
+| GET | `/api/school-lines` | 院校投档线查询（D1 导入后可用；省/科类/院校/年份） |
+| GET | `/api/school-lines/coverage` | 院校投档线覆盖概况（按年份/省份） |
+| POST | `/api/admin/school-lines/import` | 上传投档表（CSV/XLSX），默认 dry-run 出匹配报告 |
+| GET | `/api/admin/login-attempts` | 登录审计（成功/失败/锁定，排查异常登录） |
 
 ## 三、运行方式
 
@@ -192,17 +198,25 @@ python scripts/manage_data.py rollback 2026                 # 回滚到历史版
 | `XUEFENG_AUTH_SECRET` | 自动生成并存入 DB | 令牌签名密钥，多实例部署时应固定 |
 | `XUEFENG_TOKEN_TTL` | `43200` | 管理端登录有效期（秒） |
 | `XUEFENG_CORS_ORIGINS` | 本地开发端口白名单 | 逗号分隔的允许来源；设为 `*` 恢复全开（**生产环境请显式配置**） |
+| `XUEFENG_LOGIN_MAX_FAILS` | `5` | 登录失败次数上限（达到即锁定） |
+| `XUEFENG_LOGIN_WINDOW` | `300` | 失败统计窗口（秒） |
+| `XUEFENG_LOGIN_LOCK` | `900` | 锁定时长（秒） |
+| `XUEFENG_SLOW_MS` | `800` | 慢请求阈值（毫秒，超过记 `level=warn`） |
+| `XUEFENG_ACCESS_LOG` | `1` | 设为 `0` 关闭访问日志 |
+| `XUEFENG_DISABLE_ADMIN` | — | 设为 `1` 只保留公开 API（公开 demo 部署用） |
 
 ## 四、本地测试
 
 ```bash
 # 后端：pytest（FastAPI TestClient，无需起服务）
 cd backend && pip install -r requirements.txt pytest && pytest -q
-# 期望：45 passed（API / 落库 / 管理端 / 数据版本 / 批量核验 / 输入校验 / CORS / 内容可溯）
+# 期望：102 passed（API / 落库 / 管理端 / 数据版本 / 批量核验 / 输入校验 / CORS / 内容可溯 /
+#        等位分 / 院校推荐 / 专业组 / 登录限流锁定 / 校线导入 / 可观测与备份）
 
-# 前端：决策引擎单测 + SFC 模板编译校验（均零依赖，无需 npm install）
-cd frontend && node tests/engine.test.mjs && node tests/template.test.mjs
-# 期望：8 通过 / 0 失败；模板 6 通过 / 0 失败（复用管理端 vendor 的 Vue 编译器在 Node 内编译）
+# 前端：决策引擎 + 志愿表工具 + 模板编译校验（均零依赖，无需 npm install）
+cd frontend && npm test
+# 期望：引擎 8 通过、志愿表 27 通过、模板 9 通过 / 0 失败
+#       （模板项复用管理端 vendor 的 Vue 编译器在 Node 内编译 SFC 与 admin/index.html）
 ```
 
 ## 五、数据落库与管理端
@@ -313,6 +327,40 @@ python scripts/ingest_gaokao_advisor.py --sync     # 先拉取 gaokao-advisor �
 > 说明：军校（国防科技大学、海军/空军军医大学等）不列入教育部「普通高等学校」名单，故 985 计 38、211 计 112；
 > 清单为院校元数据，**不含逐年录取分数**，具体以各校招生网/考试院为准。
 
+### 院校投档线导入（D1）
+
+省控线只能回答「你够不够某批次」，回答不了「这所学校去年多少位次」。D1 把各省投档表变成数据库里的逐校数据：
+
+```bash
+cd backend
+# 1) 先预览（默认 dry-run，不写库）：看匹配率、未匹配校名、校验失败行
+python scripts/import_school_lines.py --file ../data/henan-2024-physics.csv \
+    --year 2024 --province 河南 --subject 物理类
+
+# 2) 确认后落库（带 source_url 才标记 official）
+python scripts/import_school_lines.py --file ... --commit --source-url https://www.haeea.cn/...
+
+# 3) 整省替换（删除文件里没有的旧行）
+python scripts/import_school_lines.py --file ... --commit --mode replace
+```
+
+- 管理端 `/admin` → 「校线导入」可拖拽上传 CSV/XLSX，默认「仅预览」，报告含匹配率与问题清单。
+- 匹配顺序：精确 → 去括号（中外合作/较高收费/单列等）→ 包含（长度差 ≤6）→ 模糊（相似度 ≥0.86）；**匹配不上的行不入库**。
+- 表头自动识别常见别名（院校名称/学校/招生院校、最低分/投档分、最低位次/位次…），前几行是标题会跳过。
+- 导入后 `/api/recommend/schools` 的院校行会带 `min_score` / `min_rank` / `line_year` / `data_source=school_line`，
+  前端显示「去年最低 xx 分」；未覆盖的院校保持 `estimated`，不假装精确。
+
+### 安全与运维（D2/D3）
+
+- **登录限流**：默认窗口内 5 次失败即锁定 15 分钟（`XUEFENG_LOGIN_MAX_FAILS` / `XUEFENG_LOGIN_WINDOW` / `XUEFENG_LOGIN_LOCK`）；
+  成功登录清零计数，失败/成功/锁定全部写入 `login_attempts`，管理端 `/api/admin/login-attempts` 可查。
+- **令牌失效**：令牌内嵌密码变更时间戳（微秒精度），改密后旧令牌立即 401；改密接口会返回新令牌，页面可直接续用。
+- **初始密码保护**：`must_change_password=true` 时读接口可用，写接口（同步/发布/回滚/补丁/导入）返回 403。
+- **访问日志**：每请求一行 JSON（`ts/level/rid/method/path/status/ms/ip`），响应头回 `X-Request-ID`；
+  慢请求（默认 >800ms）标 `level=warn`。`XUEFENG_ACCESS_LOG=0` 关闭，`/api/health` 里有 `observability` 快照。
+- **备份**：`python scripts/backup_db.py --dir backups --keep 14 --gzip`
+  （先 WAL checkpoint，再用 SQLite 在线备份 API 生成一致快照，按份数清理）。
+
 ## 七、技术要点
 
 - **UI 组件库（客户端）**：选用 **wot-design-uni**（Vue3 原生、uni-app 跨端、70+ 组件、按需 easycom、支持深色主题变量）。
@@ -328,7 +376,22 @@ python scripts/ingest_gaokao_advisor.py --sync     # 先拉取 gaokao-advisor �
 ## 八、已知边界
 
 - 录取数据：**11 省**（河南/四川/山东/广东/江苏/河北/安徽/湖南/湖北/福建/重庆）的**批次线**与 **6 省 985/211 入门投档位次**均已用 2024 官方数据（高置信）；其余省份仍为 gaokao-advisor 参数推算（标注 estimated），**非官方数据**；正式填报以各省考试院为准（逐省来源见 `backend/data/SOURCES.md`）。
-- 院校清单：全国 2868 所普通高校为教育部官方静态名单；军校不列入（故 985 计 38）；**不含逐年录取分数**。
+- 院校清单：全国 2868 所普通高校为教育部官方静态名单；军校不列入（故 985 计 38）；**仓库不内置逐年录取分数**。
+- **院校投档线（D1）**：能力已就绪（CLI + 管理端上传 + 匹配报告），但**仓库不附带真实投档表**；
+  未导入时推荐结果仍是层次估算，导入后对应院校才显示「去年最低分/位次」。导入数据须自行确认来源合规性。
 - **院校专业组（P4）**：为规则推导（专业选科要求 × 院校类别专业池），**非各省考试院官方专业组划分**；同一院校在不同省份的专业组可能不同，本模型未区分省份，仅用于结构演示。
 - 观点侧截至公开整理时点，需年度滚动更新（见"单一数据源"）。
 - 微信小程序端联调后端需配置 HTTPS 合法域名；H5 公开 demo 部署见 `docs/deployment.md`。
+
+## 九、下一步
+
+按「数据真实性 → 工程效率 → 产品深度」排的待办，括号内是当前缺口：
+
+- **投档线铺开**（数据侧）：把已导入的省份从样例扩到 11 省官方覆盖，最好到「院校专业组 × 专业」粒度；
+  需要各省考试院原始表，导入器已能直接用。
+- **推荐算法加入计划数**（产品）：现在冲/稳/保只比位次阈值，未考虑招生计划增减与大小年波动。
+- **CI 补后端 job**（工程）：当前 GitHub Actions 只跑前端测试，后端 102 项 pytest 仍靠本地；
+  加一个 `backend-ci.yml`（Python 3.13 + pytest + 覆盖率）即可闭环。
+- **部署形态**（工程）：补 Dockerfile / compose，把 `backup_db.py` 挂成 cron；Render 之外可一键自托管。
+- **小程序端联调**（产品）：`manifest.json` 的 mp-weixin appid 仍是占位，需真机走查授权与分享路径。
+- **权限模型**（安全）：目前只有单一 admin 角色，后续按「只读运营 / 数据编辑 / 发布」拆 RBAC 并导出审计。

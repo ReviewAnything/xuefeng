@@ -39,7 +39,7 @@ jobs:
       - name: 安装依赖（锁定版本，保证可复现）
         run: npm ci
 
-      - name: 前端测试（决策引擎 + SFC 模板编译）
+      - name: 前端测试（决策引擎 + 志愿表工具 + SFC/管理端模板编译）
         run: npm test
 
       - name: 构建 H5（hash 路由 + 相对路径，适配 Pages 子路径）
@@ -59,6 +59,23 @@ jobs:
 
       - name: 列出产物（便于排查路径）
         run: ls -R dist | head -40
+
+      # 产物自检：构建「成功」但产出空壳/丢了入口是常见事故，这里硬性校验
+      - name: 产物自检（入口存在 + JS 非空）
+        working-directory: frontend/dist/build/h5
+        env:
+          XUEFENG_API_BASE: ${{ vars.XUEFENG_API_BASE }}
+        run: |
+          set -e
+          test -f index.html || { echo "缺少 index.html"; exit 1; }
+          grep -q '<div id="app"' index.html || { echo "index.html 缺少 #app 挂载点"; exit 1; }
+          js_count=$(find . -name '*.js' -size +1k | wc -l | tr -d ' ')
+          echo "js bundles: $js_count"
+          test "$js_count" -ge 1 || { echo "未产出有效 JS 包"; exit 1; }
+          if [ -n "${XUEFENG_API_BASE:-}" ]; then
+            grep -q '__XUEFENG_API__' index.html || { echo "后端地址注入失败"; exit 1; }
+          fi
+          du -sh .
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

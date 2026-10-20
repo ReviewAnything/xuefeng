@@ -141,7 +141,7 @@ python scripts/manage_data.py pending --year 2027 --json
 - **单条修正**：管理端基线表格直接改，或 `PATCH /api/admin/baselines/{id}`；
   body 支持 `min_score / min_rank / data_source / line / school / source_url / source_year / carried / reason`；
 - **补录缺失行**：`POST /api/admin/baselines`（年份下已存在同键则拒绝，避免脏数据）；
-- **批量导入**：改 L1 的 `admission_official_<year>.json` → 管理端点「同步数据源」重新播种，
+- **批量导入**：改 L1 的 `admission_official_<year>.json` → 管理端点「同步数据源」重新播种；
   播种按 `year` 写入并刷新版本统计，**不会**误删其他年份；
 - **撤销**：`POST /api/admin/changes/{id}/undo`，按审计记录把该字段还原（只支持字段级补丁）；
 - 补丁后该行 `carried` 自动置 `False`（不再是「沿用往年」），`revision` +1。
@@ -205,9 +205,25 @@ backend/data/
 | 变更审计 | `changes` | `GET /api/admin/changes` | 变更审计页 |
 | 撤销 | — | `POST /api/admin/changes/{id}/undo` | 「撤销」 |
 
-## 12. 演进路线
+## 12. 院校投档线（D1）与版本机制的关系
+
+院校投档线落在 `school_lines` 表（唯一键 `(year, 省, 科类, 院校, 专业组)`），与 `admission_baselines` 分工：
+
+| 数据集 | 粒度 | 用途 |
+| --- | --- | --- |
+| `admission_baselines` | 省 × 科类 × 批次 | 冲/稳/保的**门槛**判定 |
+| `school_lines` | 省 × 科类 × 院校（× 专业组） | 院校行的**真实最低分/位次** |
+
+- 导入入口：`scripts/import_school_lines.py`（`--commit` 才写库）或管理端「校线导入」；
+- 导入审计：写 `data_changes`（`dataset=school_lines`, `action=import`），可按行追溯旧值；
+- **尚未纳入** `data_versions` 的草稿/发布状态机（属于后续工作）：目前导入即生效，
+  因此建议先 dry-run 核对匹配报告，或先小范围导入、确认后再整省替换；
+- 覆盖情况：`GET /api/school-lines/coverage`，或管理端「校线导入 → 导入覆盖」。
+
+## 13. 演进路线
 
 - [ ] 院校总表 / 内容数据集接入同一套版本机制（`dataset` 字段已预留）；
+- [ ] `school_lines` 纳入版本状态机（草稿 → 校验 → 发布），与省控线一起按年发布；
 - [ ] 版本间差异报告：发布前可预览「相对上一年哪些行变了、变了多少」；
 - [ ] 官方数据抓取自动化（先做省控线，投档线仍需人工核对）；
 - [ ] 多人协作：草稿态下支持「提交审核」，审核通过才能发布。
