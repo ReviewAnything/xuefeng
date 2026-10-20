@@ -91,19 +91,27 @@
           <wd-button block plain @click="copyFillOrder">复制填报顺序</wd-button>
           <wd-button block plain @click="goRecommend">重新生成</wd-button>
         </view>
-        <!-- S8-D：按可及性排序的填报顺序（可解释，不承诺录取） -->
+        <!-- S8-D：按可及性排序的填报顺序（可解释，不承诺录取）；S9-B 增跨年/跨批次可比性标注 -->
         <view v-if="showFillOrder && hasPlan" class="fill-order">
           <text class="fo-title">填报顺序建议（{{ fillOrder.total }} 所）</text>
+          <view v-if="fillOrder.reference_year" class="fo-ref">
+            <text class="fo-ref-tag">位次余量参考口径</text>
+            <text class="fo-ref-text">年份 {{ fillOrder.reference_year }}{{ fillOrder.reference_batch ? ' · 批次「' + fillOrder.reference_batch + '」' : '' }}</text>
+          </view>
           <text class="fo-basis">排序依据：{{ fillOrder.basis }}</text>
-          <view v-for="it in fillOrder.items" :key="it.seq" class="fo-row">
+          <view v-for="it in fillOrder.items" :key="it.seq" :class="foRowClass(it)">
             <text class="fo-seq">{{ it.seq }}.</text>
             <view class="fo-main">
               <text class="fo-name">[{{ it.level }}] {{ it.name }}</text>
               <text class="fo-meta">{{ it.margin_label }}</text>
+              <text v-if="it.has_line_data && !it.comparable" class="fo-warn">余量仅供参考</text>
             </view>
           </view>
           <text v-if="fillOrder.unknown_count" class="fo-note">
             其中 {{ fillOrder.unknown_count }} 所缺往年投档位次，附在同档末尾，顺序不代表可及性判断。
+          </text>
+          <text v-if="fillOrder.incomparable_count" class="fo-note warn">
+            另有 {{ fillOrder.incomparable_count }} 所投档线与参考年份/批次口径不同，其位次余量仅供参考，不宜直接比较冲刺性价比。
           </text>
           <text class="fo-note">顺序仅反映往年投档位次的相对关系，不构成录取承诺。</text>
         </view>
@@ -138,6 +146,10 @@ const timeLabel = computed(() => formatTime(plan.value && plan.value.at));
 
 // S8-D：按可及性排序的填报顺序（纯函数，随 rows 变动实时重算）
 const fillOrder = computed(() => buildFillOrder(plan.value, rows.value));
+// S9-B：跨年/跨批次的行底色高亮（避免在模板表达式里写 && 触发编译器告警）
+function foRowClass(it) {
+  return it && it.has_line_data && !it.comparable ? "fo-row fo-row-warn" : "fo-row";
+}
 
 // S4 验收点：保底安全网红灯数可见。
 // cls —— danger(有失守) / ok(全部核验且安全) / muted(无数据未核验)
@@ -312,16 +324,22 @@ function print() {
 .patch-line.warn { color: #ff8787; }
 .patch-line.muted { color: #8a909c; }
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
-/* S8-D 填报顺序 */
+/* S8-D 填报顺序；S9-B 跨年/跨批次可比性标注 */
 .fill-order { margin-top: 16rpx; padding: 14rpx 16rpx; border-radius: 12rpx; background: rgba(255, 255, 255, 0.04); border: 1px solid #3a4048; }
 .fo-title { display: block; font-size: 23rpx; font-weight: 600; color: #c7ccd4; }
+.fo-ref { display: flex; align-items: center; gap: 10rpx; margin: 6rpx 0 8rpx; }
+.fo-ref-tag { font-size: 19rpx; color: #6db3f2; background: rgba(109, 179, 242, 0.12); border-radius: 6rpx; padding: 2rpx 10rpx; }
+.fo-ref-text { font-size: 20rpx; color: #aeb6c2; }
 .fo-basis { display: block; font-size: 20rpx; color: #8a909c; line-height: 1.6; margin: 6rpx 0 10rpx; }
 .fo-row { display: flex; align-items: flex-start; padding: 6rpx 0; }
+.fo-row-warn { background: rgba(240, 173, 78, 0.06); border-radius: 8rpx; }
 .fo-seq { width: 44rpx; font-size: 21rpx; color: #9aa0aa; }
 .fo-main { flex: 1; }
 .fo-name { display: block; font-size: 22rpx; color: #e5e7eb; }
 .fo-meta { display: block; font-size: 19rpx; color: #8a909c; margin-top: 2rpx; }
+.fo-warn { display: inline-block; font-size: 18rpx; color: #f0ad4e; background: rgba(240, 173, 78, 0.12); border-radius: 6rpx; padding: 1rpx 8rpx; margin-top: 4rpx; }
 .fo-note { display: block; font-size: 19rpx; color: #8a909c; line-height: 1.6; margin-top: 8rpx; }
+.fo-note.warn { color: #f0ad4e; }
 
 .row-breach { font-size: 18rpx; color: #fff; background: #e5484d; border-radius: 6rpx; padding: 1rpx 8rpx; margin-left: 10rpx; vertical-align: middle; }
 .row-breach-tip { display: block; font-size: 19rpx; color: #ff8787; margin-top: 3rpx; line-height: 1.5; }

@@ -24,6 +24,7 @@ S7-C 增补「证据门槛 + 单侧降级」：一条校线就敢说「支持/�
 """
 from .admission import analyze_major, validate_user_rank
 from .content import VIEW_LABEL
+from . import school_lines as SL
 from sqlalchemy import select
 from db.database import session_scope
 from db.models import SchoolLine
@@ -233,6 +234,8 @@ def real_reachability(province: str, subject: str, user_rank: int) -> dict | Non
         "data_source_summary": {
             "official": official, "estimated_real": estimated,
             "other": src_counts["other"], "total": len(rows),
+            # S9-D：官方覆盖专业组占比，避免把「少数 official 行」误读成「数据都官方」
+            "official_coverage": SL.official_coverage(),
         },
         "grade": grade,
         "upstream": "掌上高考 gaokao.cn（2025 真实录取记录，经 gaokao-admission-crawler 整理，MIT）"

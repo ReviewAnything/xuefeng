@@ -513,6 +513,41 @@ def source_counts() -> dict:
         "province_count": len(provinces),
         "has_official": bool(official),
         "grade": grade,
+        "official_coverage": official_coverage(),
+    }
+
+
+def official_coverage() -> dict:
+    """官方行覆盖率（S9-D）：防止把「有几行 official」误读成「该校数据都官方」。
+
+    按「院校 × 专业组」去重统计：official 口径覆盖了多少个专业组，占全部专业组的比例。
+    例如 14020 行数据里只有 22 行来自 985/211 官方入门投档，那么 official 覆盖的专业组
+    极少，覆盖率应显著低于 100%，核验页据此提示用户「仅极少数院校为考试院官方口径」。
+    """
+    with session_scope() as s:
+        rows = s.execute(
+            select(SchoolLine.university, SchoolLine.group_code, SchoolLine.data_source)
+        ).all()
+    groups: dict[tuple, bool] = {}
+    schools: set[str] = set()
+    official_schools: set[str] = set()
+    for univ, grp, ds in rows:
+        key = (univ, grp)
+        schools.add(univ)
+        is_off = ds == "official"
+        # 同一专业组可能同时有 estimated + official；任一官方即算覆盖
+        groups[key] = groups.get(key, False) or is_off
+        if is_off:
+            official_schools.add(univ)
+    total_groups = len(groups)
+    official_groups = sum(1 for v in groups.values() if v)
+    total_schools = len(schools)
+    ratio = round(official_groups / total_groups, 4) if total_groups else 0.0
+    return {
+        "groups": {"official": official_groups, "total": total_groups,
+                   "ratio": ratio, "ratio_pct": round(ratio * 100, 1)},
+        "schools": {"official": len(official_schools), "total": total_schools,
+                    "ratio": round(len(official_schools) / total_schools, 4) if total_schools else 0.0},
     }
 
 

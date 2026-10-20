@@ -164,6 +164,9 @@
             官方投档原表 {{ dsSummary.official }} 条 · 真实抓取（掌上高考 2025）{{ dsSummary.estimated_real }} 条
             <text v-if="dsSummary.official && dsSummary.estimated_real">（混合来源）</text>
           </text>
+          <text class="auth-line" v-if="coverage">
+            官方覆盖 {{ coverage.groups.official }} / {{ coverage.groups.total }} 个专业组（{{ coverage.groups.ratio_pct }}%），仅极少数院校为考试院官方口径
+          </text>
           <text class="auth-note">{{ authNote }}</text>
         </view>
 
@@ -452,6 +455,9 @@ function dataGradeLabel(ds) {
 
 // S5-A：院校级投档线的权威等级与诚实声明
 const dsSummary = computed(() => (res.value && res.value.school_line_summary) || null);
+// S9-D：官方覆盖专业组占比，前端直显「仅极少数院校为官方口径」
+const coverage = computed(() =>
+  (dsSummary.value && dsSummary.value.official_coverage) || null);
 const gradeType = computed(() => {
   const g = res.value && res.value.school_line_grade;
   if (g === "official") return "success";

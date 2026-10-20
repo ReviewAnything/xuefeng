@@ -184,6 +184,7 @@ def health():
                          "provinces": sl_sources.get("province_count", 0),
                          "grade": sl_sources.get("grade", "estimated_real"),
                          "has_official": sl_sources.get("has_official", False),
+                         "official_coverage": sl_sources.get("official_coverage", {}),
                          "official_landing": {
                              "dir_ready": landing.get("dir_exists", False),
                              "pending_rows": landing.get("accepted_count", 0),

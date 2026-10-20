@@ -35,6 +35,7 @@ export function buildPlan(rec) {
         min_score: s.min_score || null,
         min_rank: s.min_rank || null,
         line_year: s.line_year || null,
+        batch: s.batch || "",
         data_source: s.data_source || "",
       })),
     })),
@@ -60,6 +61,7 @@ export function flattenPlan(plan) {
         line: s.min_score || null,
         line_rank: s.min_rank || null,
         line_year: s.line_year || null,
+        batch: s.batch || "",
         data_source: s.data_source || "",
       });
     });
@@ -266,7 +268,7 @@ export function diffSafePatch(plan, schools) {
 }
 
 /**
- * 填报顺序建议（S8-D，纯函数便于单测）。
+ * 填报顺序建议（S8-D 初版，S9-B 补跨年/跨批次可比性）。
  *
  * 排序规则（可解释、且刻意不承诺录取）：
  *   1. 先按档位：冲 → 稳 → 保（LEVELS 顺序）；
@@ -275,9 +277,19 @@ export function diffSafePatch(plan, schools) {
  *      冲档余量为负，取「最接近自己位次」的排前面（冲刺性价比更高）；
  *   3. 没有投档位次的行不参与余量排序，原序附在同档末尾，并明确标注「无数据」。
  *
+ * 跨年 / 跨批次可比性（S9-B 新增，关键纠正）：
+ *   位次余量成立的前提是「同一年、同一批次口径」。但校线库里混了不同年份（如 2024 官方
+ *   985/211 入门投档 vs 2025 真实抓取）与不同批次（本科批 / 提前批 / 专项批）。直接相减
+ *   会误导。因此：
+ *   - 以「有投档位次的行里的最新年份」为参考年，以「占比最高的非空批次」为参考批次；
+ *   - 与参考年/参考批次不一致的行仍参与排序（保留相对关系），但标记 comparable=false，
+ *     余量标签与导出文本都显式注明「数据年份/批次不同，余量仅供参考」；
+ *   - 排序时让「可比」的行排在「不可比」之前，避免拿跨年数据顶掉同口径数据。
+ *
  * @param {object} plan 志愿表（取 user_rank）
- * @param {Array} rows 拍平后的行（含 level / name / tier / line_rank / major）
- * @returns {{items:Array, basis:string, unknown_count:number}}
+ * @param {Array} rows 拍平后的行（含 level / name / tier / line_rank / line_year / batch / major）
+ * @returns {{items:Array, basis:string, unknown_count:number, incomparable_count:number,
+ *            reference_year:?number, reference_batch:string, cross_year:number, cross_batch:number}}
  */
 export function fillOrder(plan, rows) {
   const ur = Number(plan && plan.user_rank) || 0;
@@ -287,43 +299,100 @@ export function fillOrder(plan, rows) {
     const i = keys.indexOf(level);
     return i < 0 ? keys.length : i;   // 未知档位（如「不可及」）排在最后
   };
+
+  // ---- S9-B：确定参考年与参考批次 ----
+  const known = list.filter((r) => {
+    const lr = Number(r.line_rank);
+    return ur > 0 && lr > 0;
+  });
+  const years = known.map((r) => Number(r.line_year)).filter((y) => y > 0);
+  const reference_year = years.length ? Math.max(...years) : null;
+  // 参考批次：有非空批次的行里取众数（批次只在同省同科类内有可比意义）
+  const batchCounter = {};
+  known.forEach((r) => {
+    const b = (r.batch || "").trim();
+    if (b) batchCounter[b] = (batchCounter[b] || 0) + 1;
+  });
+  let reference_batch = "";
+  let best = 0;
+  for (const [b, n] of Object.entries(batchCounter)) {
+    if (n > best) { best = n; reference_batch = b; }
+  }
+
   const decorated = list.map((r, idx) => {
     const lr = Number(r.line_rank);
-    const known = ur > 0 && lr > 0;
+    const yr = Number(r.line_year) || 0;
+    const has = ur > 0 && lr > 0;
+    const cross_year = !!(has && reference_year && yr && yr !== reference_year);
+    const cross_batch = !!(has && reference_batch &&
+      (r.batch || "").trim() && (r.batch || "").trim() !== reference_batch);
+    const comparable = has && !cross_year && !cross_batch;
     return {
       row: r, idx,
       level_rank: rankOf(r.level),
-      known,
-      margin: known ? lr - ur : null,
+      known: has,
+      comparable,
+      cross_year,
+      cross_batch,
+      margin: has ? lr - ur : null,
     };
   });
+  // 排序：档位 → 可比优先 → 余量降序 → 原序
   decorated.sort((a, b) => {
     if (a.level_rank !== b.level_rank) return a.level_rank - b.level_rank;
-    if (a.known !== b.known) return a.known ? -1 : 1;   // 有数据的排前，无数据的附后
-    if (a.known && b.known && a.margin !== b.margin) return b.margin - a.margin;
-    return a.idx - b.idx;                               // 其余保持原表顺序，避免随机跳动
+    if (a.known !== b.known) return a.known ? -1 : 1;          // 有数据排前
+    if (a.known && b.known) {
+      if (a.comparable !== b.comparable) return a.comparable ? -1 : 1;  // 同口径优先
+      if (a.margin !== b.margin) return b.margin - a.margin;
+    }
+    return a.idx - b.idx;                                      // 其余保持原表顺序
   });
   let seq = 0;
   const items = decorated.map((d) => {
     seq += 1;
     const r = d.row;
-    const margin_label = !d.known
-      ? "无投档线数据，不参与余量排序"
-      : d.margin >= 0
+    let margin_label;
+    if (!d.known) {
+      margin_label = "无投档线数据，不参与余量排序";
+    } else {
+      const year_tag = d.cross_year
+        ? `（数据年份 ${r.line_year}，与参考年 ${reference_year} 不同）`
+        : "";
+      const batch_tag = d.cross_batch
+        ? `（批次「${r.batch}」与参考批次「${reference_batch}」不同）`
+        : "";
+      const tag = (year_tag + batch_tag) || "";
+      margin_label = (d.margin >= 0
         ? `位次余量 +${d.margin}（可稳够）`
-        : `位次差 ${d.margin}（冲刺，门槛比你的位次靠前 ${Math.abs(d.margin)} 名）`;
+        : `位次差 ${d.margin}（冲刺，门槛比你的位次靠前 ${Math.abs(d.margin)} 名）`) +
+        (tag ? `${tag}，余量仅供参考` : "");
+    }
     return {
       seq, name: r.name, tier: r.tier || "", level: r.level || "",
       line_rank: d.known ? Number(r.line_rank) : null,
+      line_year: d.known ? Number(r.line_year) || null : null,
+      batch: r.batch || "",
       margin: d.margin, margin_label, major: r.major || "",
       has_line_data: d.known,
+      comparable: d.comparable,
+      cross_year: d.cross_year,
+      cross_batch: d.cross_batch,
     };
   });
   const unknown_count = items.filter((it) => !it.has_line_data).length;
-  const basis = "先按档位（冲 → 稳 → 保）；同档内按位次余量从大到小" +
+  const incomparable_count = items.filter((it) => it.has_line_data && !it.comparable).length;
+  const cross_year = items.filter((it) => it.cross_year).length;
+  const cross_batch = items.filter((it) => it.cross_batch).length;
+  let basis = "先按档位（冲 → 稳 → 保）；同档内按位次余量从大到小" +
     "（余量 = 该校最低投档位次 − 你的位次，越大越安全）；" +
     "无投档线数据的行附在同档末尾，不参与余量排序。";
-  return { items, basis, unknown_count, total: items.length };
+  if (reference_year) {
+    basis += `位次余量只在同一年、同一批次口径下可比；本表参考年为 ${reference_year}` +
+      (reference_batch ? `、参考批次为「${reference_batch}」` : "") +
+      `，与参考口径不同的行已标注「余量仅供参考」。`;
+  }
+  return { items, basis, unknown_count, incomparable_count,
+           reference_year, reference_batch, cross_year, cross_batch, total: items.length };
 }
 
 /** 填报顺序的纯文本清单（可直接照抄，含序号与档位）。 */
@@ -335,6 +404,11 @@ export function buildFillOrderText(plan, order, timeLabel) {
   lines.push("省份：" + (p.province || "-") + " | 科类：" + (p.subject || "-") +
     " | 位次：" + (p.user_rank || "-"));
   lines.push("生成时间：" + (timeLabel || "-"));
+  if (o.reference_year) {
+    lines.push("位次余量参考口径：年份 " + o.reference_year +
+      (o.reference_batch ? "、批次「" + o.reference_batch + "」" : "") +
+      "（与参考口径不同的行，余量仅供参考）");
+  }
   lines.push("排序依据：" + (o.basis || "-"));
   lines.push("");
   if (!o.items || !o.items.length) {
@@ -351,6 +425,10 @@ export function buildFillOrderText(plan, order, timeLabel) {
   if (o.unknown_count) {
     lines.push("注：其中 " + o.unknown_count + " 所缺往年投档位次，已附在同档末尾，" +
       "顺序不代表可及性判断。");
+  }
+  if (o.incomparable_count) {
+    lines.push("另：其中 " + o.incomparable_count + " 所投档线与参考年份/批次口径不同，" +
+      "其位次余量仅供参考，不宜直接用来比较冲刺性价比。");
   }
   lines.push("说明：顺序仅反映往年投档位次的相对关系，不构成录取承诺；" +
     "正式填报请以省考试院与院校招生网公布的当年计划为准。");
@@ -371,8 +449,10 @@ export function buildPlanText(plan, groups, timeLabel) {
     if (!g.rows.length) lines.push("（暂无）");
     g.rows.forEach((r, i) => {
       const yearTag = r.line_year ? "（" + r.line_year + "）" : "";
+      const batchTag = r.batch ? "「" + r.batch + "」" : "";
       const lineInfo = r.line
-        ? "  去年最低 " + r.line + " 分" + yearTag + (r.line_rank ? " / 位次 " + r.line_rank : "")
+        ? "  去年最低 " + r.line + " 分" + yearTag + batchTag +
+          (r.line_rank ? " / 位次 " + r.line_rank : "")
         : "";
       lines.push((i + 1) + ". " + r.name + "（" + r.tier + "）" + lineInfo +
         "  拟报专业：" + (r.major || "（待填）"));

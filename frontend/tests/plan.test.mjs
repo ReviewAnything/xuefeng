@@ -261,6 +261,48 @@ eq(/1\. \[冲\]/.test(orderText), true, "导出文本含序号与档位");
 eq(/其中 1 所缺往年投档位次/.test(orderText), true, "导出文本说明无数据行的处理");
 eq(/不构成录取承诺/.test(orderText), true, "结尾再次声明不构成承诺");
 
+console.log("\n▎S9-B 位次余量跨年/跨批次可比性");
+// 参考年取最新年份；与参考年/批次不同的行标记 comparable=false，余量仅供参考
+const cmpPlan = {
+  province: "河南", subject: "物理类", user_rank: 58000, major: "计算机科学与技术",
+  at: "2026-10-20T02:30:00.000Z",
+  tiers: [
+    { level: "稳", tier: "211", schools: [
+      { name: "郑州大学", min_rank: 66000, line_year: 2025, batch: "本科批" },
+      { name: "武汉理工", min_rank: 70000, line_year: 2024, batch: "本科批" },        // 跨年
+      { name: "合肥工大", min_rank: 72000, line_year: 2025, batch: "国家专项计划批" }, // 跨批次
+    ] },
+  ],
+};
+const cmp = fillOrder(cmpPlan, flattenPlan(cmpPlan));
+eq(cmp.reference_year, 2025, "参考年取最新年份 2025");
+eq(cmp.reference_batch, "本科批", "参考批次取众数 本科批");
+const cz = cmp.items.find((i) => i.name === "郑州大学");
+const wh = cmp.items.find((i) => i.name === "武汉理工");
+const hf = cmp.items.find((i) => i.name === "合肥工大");
+eq(cz.comparable, true, "同口径行(2025/本科批) comparable=true");
+eq(wh.comparable, false, "跨年行(2024) comparable=false");
+eq(hf.comparable, false, "跨批次行 comparable=false");
+eq(wh.cross_year, true, "跨年标记");
+eq(hf.cross_batch, true, "跨批次标记");
+eq(wh.margin_label.indexOf("余量仅供参考") >= 0, true, "跨年余量标注「仅供参考」");
+eq(hf.margin_label.indexOf("余量仅供参考") >= 0, true, "跨批次余量标注「仅供参考」");
+eq(cmp.incomparable_count, 2, "统计不可比行数");
+// 同档内可比优先：郑州(可比) 排在前，跨年/跨批次行附后（按余量降序）
+eq(cmp.items.map((i) => i.name), ["郑州大学", "合肥工大", "武汉理工"], "可比行优先排前");
+const cmpText = buildFillOrderText(cmpPlan, cmp, "2026-10-20 10:30");
+eq(/参考口径：年份 2025/.test(cmpText), true, "导出含参考年");
+eq(/批次「本科批」/.test(cmpText), true, "导出含参考批次");
+eq(/另：其中 2 所投档线/.test(cmpText), true, "导出含不可比说明");
+
+// 全部同口径时不报不可比
+const samePlan = { user_rank: 1000, tiers: [{ level: "保", tier: "t", schools: [
+  { name: "甲", min_rank: 5000, line_year: 2025, batch: "本科批" },
+  { name: "乙", min_rank: 6000, line_year: 2025, batch: "本科批" }] }] };
+const same = fillOrder(samePlan, flattenPlan(samePlan));
+eq(same.incomparable_count, 0, "同口径全可比 → 无不可比");
+eq(same.items.every((i) => i.comparable), true, "同口径每行 comparable=true");
+
 console.log("\n▎API 地址解析 api.js");
 const savedWindow = globalThis.window;
 globalThis.window = { __XUEFENG_API__: "https://api.example.com" };

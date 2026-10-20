@@ -189,6 +189,7 @@ def recommend_schools(province: str, subject: str, user_rank: int,
             s["min_rank"] = rec["min_rank"]
             s["line_year"] = rec["year"]
             s["group_code"] = rec.get("group_code") or ""
+            s["batch"] = rec.get("batch") or ""   # S9-B：批次随校线透传，供位次余量跨批次可比性判断
             s["data_source"] = "school_line"
             hits += 1
         t["school_line_hits"] = hits

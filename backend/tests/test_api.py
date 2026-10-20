@@ -2,7 +2,12 @@
 import main
 from fastapi.testclient import TestClient
 
+from sqlalchemy import delete
+
 from db import repository as repo
+from db import session_scope
+from db.models import SchoolLine
+from services import school_lines as SL
 
 c = TestClient(main.app)
 
@@ -216,6 +221,64 @@ def test_official_coverage_expanded_to_11_provinces():
 
 
 # ---------------------------------------------------------------- P1→P2 批量核验
+
+def test_school_line_official_coverage_structure():
+    """S9-D：官方行覆盖率结构正确，且不能把「少数 official 行」误读成「数据都官方」。
+
+    默认种子库不含 official 校线（官方行须经管理端「一键落库」写入），故此处显式落一批
+    官方种子行以验证覆盖率口径，结束后清理，避免污染其它用例。
+
+    断言：
+      - 返回含 groups / schools 两大块；
+      - groups 含 official/total/ratio/ratio_pct 四键；
+      - 22 行 985/211 官方入门投档远小于全量专业组，故 official < total 且 ratio_pct < 100；
+      - schools 含 official/total/ratio 三键。
+    """
+    # 默认确实无 official 行（设计：官方行须经「一键落库」写入）
+    assert SL.official_coverage()["groups"]["official"] == 0
+    try:
+        SL.import_seed(include=["official"])
+        cov = SL.official_coverage()
+        assert set(cov) == {"groups", "schools"}, cov
+        g = cov["groups"]
+        assert set(g) == {"official", "total", "ratio", "ratio_pct"}, g
+        sch = cov["schools"]
+        assert set(sch) == {"official", "total", "ratio"}, sch
+        assert g["official"] > 0, "落库后应有 official 专业组被统计"
+        assert g["total"] > g["official"], "全量专业组应显著多于官方覆盖专业组"
+        assert 0 < g["ratio_pct"] < 100, f"覆盖率应为 0~100 之间，实际 {g['ratio_pct']}"
+        assert round(g["ratio"] * 100, 1) == g["ratio_pct"]
+        assert sch["official"] > 0 and sch["total"] >= sch["official"]
+    finally:
+        with session_scope() as s:
+            s.execute(delete(SchoolLine).where(
+                SchoolLine.data_source == "official", SchoolLine.year == 2024))
+        SL.invalidate_cache()
+
+
+def test_health_exposes_school_line_official_coverage():
+    """S9-D：/api/health 的 school_lines.official_coverage 透传结构。"""
+    r = c.get("/api/health")
+    assert r.status_code == 200
+    j = r.json()
+    cov = j["school_lines"]["official_coverage"]
+    assert set(cov) == {"groups", "schools"}, cov
+    assert set(cov["groups"]) == {"official", "total", "ratio", "ratio_pct"}
+
+
+def test_verify_school_line_summary_has_official_coverage():
+    """S9-D：/api/verify 的 school_line_summary 携带 official_coverage。"""
+    majors = c.get("/api/majors").json()["majors"]
+    name = majors[0]["name"]
+    r = c.post("/api/verify", json={
+        "province": "河南", "subject": "物理类", "user_rank": 40000,
+        "major_name": name})
+    assert r.status_code == 200, r.text
+    j = r.json()
+    cov = j["school_line_summary"]["official_coverage"]
+    assert set(cov) == {"groups", "schools"}, cov
+    assert cov["groups"]["total"] > 0
+
 
 def test_verify_batch_summary_and_reachability_order():
     majors = c.get("/api/majors").json()["majors"]
