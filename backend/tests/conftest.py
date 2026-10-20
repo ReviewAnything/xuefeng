@@ -20,9 +20,15 @@ import pytest
 
 @pytest.fixture(scope="session", autouse=True)
 def seed_school_lines_once():
-    """预播种校线（estimated_real 14020 行），幂等。"""
+    """预播种校线（estimated_real 14020 行），幂等。
+
+    先 init_db 建表再 import_seed——import_seed 本身不建表，
+    只跑单文件（如 test_rank_tables）时不能依赖套件里其它测试先行建表。
+    """
+    from db.database import init_db
     from services import school_lines as SL
 
+    init_db(seed=True)
     report = SL.import_seed(commit=True, include=["estimated"])
     assert "error" not in report, report
     yield

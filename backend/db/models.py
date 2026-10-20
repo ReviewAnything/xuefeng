@@ -267,3 +267,33 @@ class Setting(Base):
     key: Mapped[str] = mapped_column(String(64), primary_key=True)
     value: Mapped[str] = mapped_column(Text, default="")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+
+class RankSegment(Base):
+    """一分一段表（省考试院官方「成绩分段统计表」转录）。
+
+    口径：``score`` 降序排列；``cum_*`` 为该分数的累计人数（即该省该科类
+    此分数对应的最低位次）。``seg_ben``/``cum_ben`` 为本科档（含本科层次加分），
+    ``seg_zhuan``/``cum_zhuan`` 为专科档（含专科层次加分）——两档位次可能不同，
+    绝不能混用。数据必须带可点开的 ``source_url``（省考试院通知页）。
+    """
+
+    __tablename__ = "rank_segments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    year: Mapped[int] = mapped_column(Integer, index=True)
+    province: Mapped[str] = mapped_column(String(32), index=True)
+    subject: Mapped[str] = mapped_column(String(16), index=True)      # 物理类 / 历史类
+    score: Mapped[int] = mapped_column(Integer, index=True)
+    seg_ben: Mapped[int] = mapped_column(Integer, default=0)          # 本科档本段人数
+    cum_ben: Mapped[int] = mapped_column(Integer, default=0)          # 本科档累计人数
+    seg_zhuan: Mapped[int] = mapped_column(Integer, default=0)        # 专科档本段人数
+    cum_zhuan: Mapped[int] = mapped_column(Integer, default=0)        # 专科档累计人数
+    data_source: Mapped[str] = mapped_column(String(32), default="official")
+    source_url: Mapped[str] = mapped_column(String(512), default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+    __table_args__ = (
+        UniqueConstraint("year", "province", "subject", "score", name="uq_rank_segment"),
+        Index("ix_rank_seg_query", "year", "province", "subject", "score"),
+    )

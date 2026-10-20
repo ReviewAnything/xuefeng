@@ -37,6 +37,7 @@ from pydantic import BaseModel, Field
 from services import content as C
 from services import admission as A
 from services import control_lines as CL
+from services import rank_tables as RT
 from services import verify as V
 from services import equiv_score as E
 from services import recommend as R
@@ -224,6 +225,30 @@ def control_lines(year: int, province: str = None):
     数据来自阳光高考逐年官方主表，含 source_url 可追溯，不含一分一段位次。
     """
     return CL.get_control_lines(year, province)
+
+
+@app.get("/api/rank-tables")
+def rank_tables_overview():
+    """一分一段表覆盖概览：年份 × 省份 × 科类（官方成绩分段统计，按年落盘）。"""
+    return {"years": RT.years()}
+
+
+@app.get("/api/rank-tables/{year}/{province}")
+def rank_table_doc(year: int, province: str):
+    """单年单省完整一分一段表（含 source_url 溯源与顶部分数备注）。"""
+    d = RT.doc(year, province)
+    if not d:
+        raise HTTPException(404, f"无 {province} {year} 年一分一段数据")
+    return d
+
+
+@app.get("/api/rank-tables/lookup")
+def rank_table_lookup(year: int, province: str, subject: str, score: int):
+    """分数 -> 位次（cum_ben=本科档累计、cum_zhuan=专科档累计，两档口径不同）。"""
+    r = RT.lookup(year, province, subject, score)
+    if not r:
+        raise HTTPException(404, "无匹配数据（年份/省份/科类/分数超出覆盖）")
+    return r
 
 
 @app.get("/api/content")
