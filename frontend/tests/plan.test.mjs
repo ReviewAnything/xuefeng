@@ -7,6 +7,8 @@ import {
   formatTime,
   fillStats,
   buildPlanText,
+  applyMajors,
+  collectMajors,
 } from "../src/utils/plan.js";
 import { resolveBase } from "../src/utils/api.js";
 
@@ -67,6 +69,39 @@ const text = buildPlanText(plan, groups, "2026-10-20 10:30");
   ["缺失投档线不渲染该字段", "1. 郑州大学（211）  拟报专业"],
   ["含免责声明", "以考试院/院校招生网为准"],
 ].forEach(([label, needle]) => (text.includes(needle) ? ok(label) : bad(label + " → 未找到 " + needle)));
+
+console.log("\n▎拟报专业持久化（回归：离开页面即丢）");
+const draft = flattenPlan({
+  province: "河南",
+  subject: "物理类",
+  user_rank: 58000,
+  tiers: [{ level: "冲", tier: "985", schools: [{ name: "甲大学" }, { name: "乙大学" }] }],
+});
+draft[0].major = "软件工程";
+draft[1].major = "   ";
+const savedMajors = collectMajors(draft);
+eq(savedMajors, { "985-甲大学": "软件工程" }, "只落盘非空拟报专业");
+const restored = applyMajors(
+  flattenPlan({ tiers: [{ level: "冲", tier: "985", schools: [{ name: "甲大学" }, { name: "乙大学" }] }] }),
+  savedMajors,
+);
+eq(restored[0].major, "软件工程", "重新进入页面后回填拟报专业");
+eq(restored[1].major, "", "空值不覆盖默认专业");
+eq(applyMajors(draft, null) === draft, true, "无历史草稿时安全返回");
+
+console.log("\n▎院校投档线年份（回归：savePlan 丢字段导致「去年最低」永远为空）");
+const lineRows = flattenPlan({
+  tiers: [{
+    level: "稳",
+    tier: "211",
+    schools: [{ name: "郑州大学", min_score: 589, min_rank: 29731, line_year: 2024, data_source: "school_line" }],
+  }],
+});
+eq(lineRows[0].line, 589, "投档分透传");
+eq(lineRows[0].line_rank, 29731, "投档位次透传");
+eq(lineRows[0].line_year, 2024, "投档年份透传");
+const lineText = buildPlanText({ province: "河南", subject: "物理类", user_rank: 1 }, groupRows(lineRows), "-");
+eq(lineText.includes("去年最低 589 分（2024） / 位次 29731"), true, "导出文本带年份");
 
 console.log("\n▎API 地址解析 api.js");
 const savedWindow = globalThis.window;

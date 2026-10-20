@@ -34,6 +34,7 @@
           <wd-tag type="primary" plain>C2</wd-tag>
         </view>
         <text class="small">用上方省份/科类，把某一年的分数或位次换算到另一年；锚点是稀疏批次线，区间外为外推值。</text>
+        <text v-if="eqHint" class="small warn-text">{{ eqHint }}</text>
 
         <wd-cell-group border>
           <wd-picker v-model="eq.year" label="源年份" :columns="yearLabels" placeholder="请选择" label-width="30%"></wd-picker>
@@ -220,6 +221,15 @@ const eqLoading = ref(false);
 const eqOpen = ref("");
 
 const yearLabels = computed(() => years.value.map((y) => y.year + " · " + dsLabel(y.data_source)));
+// 等位分可用性提示（抽成 computed：模板里写复合 v-else-if 会编译失败，是踩过的坑）
+const eqHint = computed(() => {
+  if (!p.province || !p.subject) return "";
+  if (years.value.length === 1) {
+    return `该省/科类目前只有 ${years.value[0].year} 年有可用锚点（${dsLabel(years.value[0].data_source)}），暂无法跨年换算。`;
+  }
+  if (!years.value.length) return "该省/科类暂无可用锚点（后端未连接或数据未覆盖），无法跨年换算。";
+  return "";
+});
 const deltaLabel = computed(() => {
   const r = eqRes.value;
   if (!r) return "";

@@ -43,6 +43,13 @@ RANK_MAX = 2_000_000
 
 _CACHE = {}
 
+_SOURCE_LABEL = {
+    "official": "官方省控线/投档线",
+    "official_table": "官方一分一段表",
+    "estimated": "模型估算基线",
+    "sample": "参数化样例",
+}
+
 
 def _norm_subject(subject: str) -> str:
     return SUBJECT_ALIASES.get(subject, subject)
@@ -162,14 +169,18 @@ def curve(province: str, subject: str, year: int) -> dict:
 
 
 def available_years(province: str, subject: str) -> list:
-    """该省/科类可用年份列表（含数据源标签与锚点数），按年份降序。"""
+    """该省/科类可用年份列表（含数据源标签与锚点数），按年份降序。
+
+    只列「真实可用」的年份：``sample``（参数化样例，年份是虚构的演示值）不参与换算，
+    否则用户会把 2025 样例年当成真实年份去换算，得到看似精确的错误结论。
+    """
     years = {}
-    for path, source in ((_OFFICIAL, "official"), (_REAL, "estimated"), (_SAMPLE, "sample")):
+    for path in (_OFFICIAL, _REAL):
         y = _year_of(path, 0)
         if not y:
             continue
         c = curve(province, subject, y)
-        if c.get("ok"):
+        if c.get("ok") and c.get("data_source") != "sample":
             years[y] = {"year": y, "data_source": c["data_source"], "anchors": len(c["anchors"])}
     tables = _load_json(_SCORE_TABLES)
     for y in tables.get(province, {}).get(_norm_subject(subject), {}):
@@ -190,14 +201,18 @@ def _clamp(v, lo, hi):
 
 
 def score_of_rank(cur: dict, rank: float) -> tuple:
-    """位次 → 分数（分段线性插值；区间外按端点斜率外推）。返回 (score, extrapolated)。"""
+    """位次 → 分数（分段线性插值；区间外按端点斜率外推）。返回 (score, extrapolated)。
+
+    恰落在某个锚点上时不算外推（早期版本用 ``<=``，把「正好是省控线位次」也标成外推，
+    前端会误报「落在锚点区间之外」）。
+    """
     pts = cur["anchors"]
-    if rank <= pts[0]["rank"]:
+    if rank < pts[0]["rank"]:
         x1, y1 = pts[0]["rank"], pts[0]["score"]
         x2, y2 = pts[1]["rank"], pts[1]["score"]
         slope = (y2 - y1) / (x2 - x1) if x2 != x1 else 0
         return _clamp(round(y1 + slope * (rank - x1), 1), SCORE_MIN, SCORE_MAX), True
-    if rank >= pts[-1]["rank"]:
+    if rank > pts[-1]["rank"]:
         x1, y1 = pts[-2]["rank"], pts[-2]["score"]
         x2, y2 = pts[-1]["rank"], pts[-1]["score"]
         slope = (y2 - y1) / (x2 - x1) if x2 != x1 else 0
@@ -208,18 +223,18 @@ def score_of_rank(cur: dict, rank: float) -> tuple:
             x2, y2 = pts[i]["rank"], pts[i]["score"]
             t = (rank - x1) / (x2 - x1) if x2 != x1 else 0
             return round(y1 + t * (y2 - y1), 1), False
-    return pts[-1]["score"], True
+    return pts[-1]["score"], False
 
 
 def rank_of_score(cur: dict, score: float) -> tuple:
     """分数 → 位次（反向插值；分数越高位次越小）。返回 (rank, extrapolated)。"""
     pts = cur["anchors"]
-    if score >= pts[0]["score"]:
+    if score > pts[0]["score"]:
         x1, y1 = pts[0]["score"], pts[0]["rank"]
         x2, y2 = pts[1]["score"], pts[1]["rank"]
         slope = (y2 - y1) / (x2 - x1) if x2 != x1 else 0
         return int(_clamp(round(y1 + slope * (score - x1)), 1, RANK_MAX)), True
-    if score <= pts[-1]["score"]:
+    if score < pts[-1]["score"]:
         x1, y1 = pts[-2]["score"], pts[-2]["rank"]
         x2, y2 = pts[-1]["score"], pts[-1]["rank"]
         slope = (y2 - y1) / (x2 - x1) if x2 != x1 else 0
@@ -230,7 +245,7 @@ def rank_of_score(cur: dict, score: float) -> tuple:
             x2, y2 = pts[i]["score"], pts[i]["rank"]
             t = (score - x1) / (x2 - x1) if x2 != x1 else 0
             return int(_clamp(round(y1 + t * (y2 - y1)), 1, RANK_MAX)), False
-    return pts[-1]["rank"], True
+    return pts[-1]["rank"], False
 
 
 # ------------------------------------------------------------ 换算入口
@@ -255,6 +270,12 @@ def convert(province: str, subject: str, year: int, target_year: int,
         return dst
 
     caveats = []
+    # 0) 口径提示：官方省控线锚点与估算基线锚点混用会放大误差，必须显式说明
+    if src.get("data_source") != dst.get("data_source"):
+        caveats.append(
+            f"源年锚点为「{_SOURCE_LABEL.get(src.get('data_source'), src.get('data_source'))}」、"
+            f"目标年为「{_SOURCE_LABEL.get(dst.get('data_source'), dst.get('data_source'))}」，"
+            "两年口径不同，换算偏差可能较大")
     # 1) 源年：拿到 (score, rank)
     if rank is not None:
         if not (isinstance(rank, int) and not isinstance(rank, bool)) or rank <= 0:

@@ -27,11 +27,31 @@ export function flattenPlan(plan) {
         // 院校级真实投档线（D1 导入后才有，缺省为空 → 页面回退到层次提示）
         line: s.min_score || null,
         line_rank: s.min_rank || null,
+        line_year: s.line_year || null,
         data_source: s.data_source || "",
       });
     });
   });
   return out;
+}
+
+/** 收集用户手填的「拟报专业」：{行 key: 专业名}，用于落盘后续填。 */
+export function collectMajors(rows) {
+  const out = {};
+  (Array.isArray(rows) ? rows : []).forEach((r) => {
+    const v = (r.major || "").trim();
+    if (v) out[r.key] = v;
+  });
+  return out;
+}
+
+/** 把上次填写的拟报专业回填到行上（原地修改 rows）。 */
+export function applyMajors(rows, majors) {
+  if (!majors || typeof majors !== "object") return rows;
+  (Array.isArray(rows) ? rows : []).forEach((r) => {
+    if (majors[r.key]) r.major = majors[r.key];
+  });
+  return rows;
 }
 
 /** 按 冲/稳/保 分组，保持固定顺序（缺失的档也保留空组，便于页面提示）。 */
@@ -74,8 +94,9 @@ export function buildPlanText(plan, groups, timeLabel) {
     lines.push("【" + g.title + "】");
     if (!g.rows.length) lines.push("（暂无）");
     g.rows.forEach((r, i) => {
+      const yearTag = r.line_year ? "（" + r.line_year + "）" : "";
       const lineInfo = r.line
-        ? "  去年最低 " + r.line + " 分" + (r.line_rank ? " / 位次 " + r.line_rank : "")
+        ? "  去年最低 " + r.line + " 分" + yearTag + (r.line_rank ? " / 位次 " + r.line_rank : "")
         : "";
       lines.push((i + 1) + ". " + r.name + "（" + r.tier + "）" + lineInfo +
         "  拟报专业：" + (r.major || "（待填）"));

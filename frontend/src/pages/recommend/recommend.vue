@@ -44,7 +44,7 @@
           <view class="tier-head">
             <text class="tier-name">{{ t.tier }}</text>
             <wd-tag :type="levelType(t.level)" plain>{{ t.level }}</wd-tag>
-            <wd-tag :type="dsType(t.data_source)" plain>{{ t.data_source === "official" ? "官方" : "估算" }}</wd-tag>
+            <wd-tag :type="dsType(t.data_source)" plain>{{ sourceTag(t) }}</wd-tag>
           </view>
           <text class="tier-meta">门槛 ≈{{ t.min_score }} 分 / 位次 {{ t.min_rank }} · {{ t.pool_label }}（共 {{ t.pool_total }} 所，展示前 {{ t.schools.length }} 所）</text>
           <text class="basis">{{ t.basis }}</text>
@@ -59,8 +59,11 @@
                 </view>
               </view>
               <text class="school-meta">{{ s.province }}<text v-if="s.city"> · {{ s.city }}</text><text v-if="s.category"> · {{ s.category }}</text></text>
+              <text v-if="s.min_score" class="school-line">去年最低 {{ s.min_score }} 分<text v-if="s.min_rank"> · 位次 {{ s.min_rank }}</text><text v-if="s.line_year">（{{ s.line_year }} 年投档线）</text></text>
+              <text v-else class="school-line muted">该省未导入该校投档线，仅按层次估算</text>
             </view>
           </view>
+          <text v-else-if="t.pool_shared_with" class="small">院校已在上方「{{ t.pool_shared_with }}」档展示（同一院校池）。</text>
           <text v-else class="small">该层次暂无匹配院校（请放宽筛选条件）。</text>
         </view>
       </view>
@@ -127,6 +130,14 @@ function dsType(ds) {
   return ds === "official" ? "success" : "warning";
 }
 
+// 官方值可能是往年沿用（carried），必须把真实来源年份显示出来，
+// 否则「2026 官方 532 分」其实是 2024 特控线，属于误导。
+function sourceTag(t) {
+  if (!t || t.data_source !== "official") return "估算";
+  if (t.carried && t.source_year) return "官方·沿用" + t.source_year;
+  return "官方";
+}
+
 async function run() {
   err.value = "";
   if (!f.province || !f.subject || !f.user_rank) {
@@ -166,7 +177,18 @@ function savePlan() {
       level: t.level,
       min_score: t.min_score,
       min_rank: t.min_rank,
-      schools: t.schools.map((s) => ({ name: s.name, province: s.province, nature: s.nature })),
+      data_source: t.data_source,
+      source_year: t.source_year,
+      carried: t.carried,
+      pool_shared_with: t.pool_shared_with || null,
+      schools: t.schools.map((s) => ({
+        name: s.name, province: s.province, nature: s.nature,
+        // D1 校线字段必须一起落盘，否则志愿表里的「去年最低」永远是空的
+        min_score: s.min_score || null,
+        min_rank: s.min_rank || null,
+        line_year: s.line_year || null,
+        data_source: s.data_source || "",
+      })),
     })),
   });
 }
@@ -217,6 +239,8 @@ function goGroups(s) {
 .chev { font-size: 20rpx; color: #6db3f2; }
 .school-name { font-size: 25rpx; color: #c7ccd4; }
 .school-meta { display: block; font-size: 20rpx; color: #6b7280; margin-top: 4rpx; }
+.school-line { display: block; font-size: 20rpx; color: #5fd87f; margin-top: 4rpx; }
+.school-line.muted { color: #5a606b; }
 
 .notes { margin-top: 16rpx; }
 .note { display: block; font-size: 20rpx; color: #f0ad4e; line-height: 1.6; }

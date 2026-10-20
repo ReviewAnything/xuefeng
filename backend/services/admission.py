@@ -144,6 +144,8 @@ def _thresholds_from_json(province: str, subject: str, diff: dict, baseline: dic
     if not tiers:
         return []
     official = _load_official()
+    off_year = int(official.get("meta", {}).get("year") or 0)
+    base_year = int(baseline.get("meta", {}).get("year") or 0)
     official_batch = official.get("batch_lines", {}).get(province, {}).get(subject, {})
     official_school = official.get("school_tier_lines", {}).get(province, {}).get(subject, {})
     out = []
@@ -154,19 +156,23 @@ def _thresholds_from_json(province: str, subject: str, diff: dict, baseline: dic
         min_score = base["min_score"] + diff["score_add"]
         min_rank = max(1, round(base["min_rank"] * diff["rank_factor"]))
         src, line, school = "estimated", None, None
+        source_year, carried = base_year, False
         ov = official_batch.get(tier)
         if ov:
             min_score = ov["score"] + diff["score_add"]
             min_rank = max(1, round(ov["rank"] * diff["rank_factor"]))
             src, line = "official", ov.get("line")
+            source_year, carried = (off_year or base_year), bool(off_year and base_year and off_year < base_year)
         if tier in ("985", "211"):
             sv = official_school.get(tier)
             if sv:
                 min_score = sv["score"] + diff["score_add"]
                 min_rank = max(1, round(sv["rank"] * diff["rank_factor"]))
                 src, line, school = "official", sv.get("line"), sv.get("school")
+                source_year, carried = (off_year or base_year), bool(off_year and base_year and off_year < base_year)
         out.append({"tier": tier, "min_score": min_score, "min_rank": min_rank,
-                    "data_source": src, "line": line, "school": school})
+                    "data_source": src, "line": line, "school": school,
+                    "source_year": source_year, "carried": carried})
     return out
 
 
@@ -193,6 +199,9 @@ def major_thresholds(province: str, subject: str, major_name: str, major_cat: st
                 "data_source": r["data_source"],
                 "line": r["line"],
                 "school": r["school"],
+                # 口径透明：官方值可能是往年沿用（carried），调用方必须能显示真实年份
+                "source_year": r.get("source_year") or r.get("year"),
+                "carried": bool(r.get("carried")),
             })
         if out:
             return {"ok": True, "province": province, "subject": subject, "major": major_name,
@@ -269,11 +278,11 @@ def _load_national() -> dict:
 
 
 def universities(province: str = None, tier: str = None, category: str = None,
-                 level: str = None, q: str = None, limit: int = 500, offset: int = 0,
+                 level: str = None, q: str = None, limit: int | None = 500, offset: int = 0,
                  nature: str = None) -> dict:
     """按条件筛选全国普通高等学校静态总表（教育部官方名单，2868 所）。
 
-    数据库优先；不可用时回落到 JSON。
+    数据库优先；不可用时回落到 JSON。``limit=None`` 表示取全量（供推荐侧构建完整院校池）。
     """
     repo = _db()
     if repo:
@@ -304,7 +313,10 @@ def universities(province: str = None, tier: str = None, category: str = None,
         items = [u for u in items if q in u["name"]]
     total_matched = len(items)
     offset = max(0, offset)
-    items = items[offset:offset + limit]
+    if limit is None:
+        items = items[offset:]
+    else:
+        items = items[offset:offset + limit]
     meta = data["meta"]
     return {"ok": True, "count": len(items), "total_matched": total_matched,
             "offset": offset, "limit": limit,

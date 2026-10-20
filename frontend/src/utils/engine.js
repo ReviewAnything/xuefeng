@@ -3,6 +3,10 @@
 
 export const VIEW_LABEL = { recommend: "推荐", caution: "慎选", avoid: "避坑" };
 
+// 与后端 services/major_groups.py 的 SUBJECT_REQ 保持一致：这两类是「物理」必选，
+// 历史类考生报不了。早期只按 cat 过滤，会把它们当「体制内」推荐给历史类，口径自相矛盾。
+const PHYSICS_ONLY = ["定向士官", "军校"];
+
 export function buildStrategy(tier) {
   if (tier === "冲刺985")
     return "<b>985层面学校牌子够硬</b>：可适度追好专业；若只能进985冷门天坑，优先考虑转专业/考研换方向，而非死磕专业。";
@@ -16,12 +20,14 @@ export function buildStrategy(tier) {
 export function pickMajors(d, majors) {
   let pool = majors.filter((m) => m.view !== "avoid");
   if (d.subject === "历史类")
-    pool = pool.filter(
-      (m) =>
-        ["文科保底", "体制内"].includes(m.cat) ||
-        m.name.includes("法学") ||
-        m.name.includes("汉语言")
-    );
+    pool = pool
+      .filter(
+        (m) =>
+          ["文科保底", "体制内"].includes(m.cat) ||
+          m.name.includes("法学") ||
+          m.name.includes("汉语言")
+      )
+      .filter((m) => !PHYSICS_ONLY.includes(m.name));
   const stable =
     d.familyBg === "寒门(容错率低)" ||
     d.riskPref === "求稳优先" ||

@@ -16,7 +16,9 @@ v2 在 v1 纯前端 PWA 基础上做了三件事：
 ```
 zhiyuan-app-v2/
 ├── docs/
-│   └── data-management.md     # 后端数据管理方案（数据分层 / 年度更新 SOP / 校验规则）
+│   ├── data-management.md     # 后端数据管理方案（数据分层 / 年度更新 SOP / 校验规则）
+│   ├── deployment.md          # 部署（Docker / Render / GitHub Pages）
+│   └── regression-audit-2026-10-20.md  # 全量回归审计：问题清单、证据与修复记录
 ├── shared/
 │   └── content.json          # 单一数据源：majors / resources / questions / 版本 / CONTENT_SOURCE（前端与后端共用）
 ├── backend/                  # Python FastAPI 后端（P2 数据层 + 管理端 API）
@@ -210,12 +212,12 @@ python scripts/manage_data.py rollback 2026                 # 回滚到历史版
 ```bash
 # 后端：pytest（FastAPI TestClient，无需起服务）
 cd backend && pip install -r requirements.txt pytest && pytest -q
-# 期望：102 passed（API / 落库 / 管理端 / 数据版本 / 批量核验 / 输入校验 / CORS / 内容可溯 /
-#        等位分 / 院校推荐 / 专业组 / 登录限流锁定 / 校线导入 / 可观测与备份）
+# 期望：112 passed（API / 落库 / 管理端 / 数据版本 / 批量核验 / 输入校验 / CORS / 内容可溯 /
+#        等位分 / 院校推荐 / 专业组 / 登录限流锁定 / 校线导入 / 可观测与备份 / 回归用例）
 
 # 前端：决策引擎 + 志愿表工具 + 模板编译校验（均零依赖，无需 npm install）
 cd frontend && npm test
-# 期望：引擎 8 通过、志愿表 27 通过、模板 9 通过 / 0 失败
+# 期望：引擎 9 通过、志愿表 35 通过、模板 9 通过 / 0 失败
 #       （模板项复用管理端 vendor 的 Vue 编译器在 Node 内编译 SFC 与 admin/index.html）
 ```
 
@@ -228,7 +230,7 @@ cd frontend && npm test
 |---|---|---|
 | `universities` | 教育部全国普通高校 | 2868 |
 | `elite_universities` | 985/211 权威清单（含军校） | 112 |
-| `admission_baselines` | (省, 科类, 批次) 录取门槛，官方值已合并 | 280 行（官方 48） |
+| `admission_baselines` | (省, 科类, 批次) 录取门槛，官方值已合并 | 280 行（官方 84，均为 2024 沿用） |
 | `majors` / `resources` | 专业图谱 / 开源资源 | 38 / 10 |
 | `query_events` | 匿名查询事件（省/科类/位次/结论） | 持续增长 |
 | `sync_jobs` | 同步任务与结果 | 持续增长 |
@@ -348,7 +350,7 @@ python scripts/import_school_lines.py --file ... --commit --mode replace
 - 匹配顺序：精确 → 去括号（中外合作/较高收费/单列等）→ 包含（长度差 ≤6）→ 模糊（相似度 ≥0.86）；**匹配不上的行不入库**。
 - 表头自动识别常见别名（院校名称/学校/招生院校、最低分/投档分、最低位次/位次…），前几行是标题会跳过。
 - 导入后 `/api/recommend/schools` 的院校行会带 `min_score` / `min_rank` / `line_year` / `data_source=school_line`，
-  前端显示「去年最低 xx 分」；未覆盖的院校保持 `estimated`，不假装精确。
+  推荐页与志愿表都会显示「去年最低 xx 分（YYYY）/ 位次」；未覆盖的院校保持 `estimated` 并明确提示「校线未导入」，不假装精确。
 
 ### 安全与运维（D2/D3）
 
@@ -376,6 +378,10 @@ python scripts/import_school_lines.py --file ... --commit --mode replace
 ## 八、已知边界
 
 - 录取数据：**11 省**（河南/四川/山东/广东/江苏/河北/安徽/湖南/湖北/福建/重庆）的**批次线**与 **6 省 985/211 入门投档位次**均已用 2024 官方数据（高置信）；其余省份仍为 gaokao-advisor 参数推算（标注 estimated），**非官方数据**；正式填报以各省考试院为准（逐省来源见 `backend/data/SOURCES.md`）。
+- **官方值可能「沿用」**：当前生效版本是 2026 年，其中的官方批次线/投档位次来自 2024 年（`carried=true`、`source_year=2024`）。
+  接口会返回这两个字段，前端标签显示「官方·沿用2024」，不会把它伪装成 2026 年的官方线。
+- **推荐档位口径**：新高考合并本科批的省份，`普通一本`=特殊类型招生控制线、`普通二本`=本科批线，两者**共用同一个本科院校池**。
+  为避免同一所学校在志愿表里出现两次，院校只在其中一档展开，另一档明确标注「院校池相同，已合并展示」。
 - 院校清单：全国 2868 所普通高校为教育部官方静态名单；军校不列入（故 985 计 38）；**仓库不内置逐年录取分数**。
 - **院校投档线（D1）**：能力已就绪（CLI + 管理端上传 + 匹配报告），但**仓库不附带真实投档表**；
   未导入时推荐结果仍是层次估算，导入后对应院校才显示「去年最低分/位次」。导入数据须自行确认来源合规性。
@@ -390,8 +396,8 @@ python scripts/import_school_lines.py --file ... --commit --mode replace
 - **投档线铺开**（数据侧）：把已导入的省份从样例扩到 11 省官方覆盖，最好到「院校专业组 × 专业」粒度；
   需要各省考试院原始表，导入器已能直接用。
 - **推荐算法加入计划数**（产品）：现在冲/稳/保只比位次阈值，未考虑招生计划增减与大小年波动。
-- **CI 补后端 job**（工程）：当前 GitHub Actions 只跑前端测试，后端 102 项 pytest 仍靠本地；
-  加一个 `backend-ci.yml`（Python 3.13 + pytest + 覆盖率）即可闭环。
+- **后端 CI 已闭环**：`.github/workflows/ci.yml` 的后端 job 会跑 pytest + 当年数据校验（临时库，不污染仓库数据），
+  下一步只需补覆盖率门槛与 `backend-ci` 独立工作流（可选）。
 - **部署形态**（工程）：补 Dockerfile / compose，把 `backup_db.py` 挂成 cron；Render 之外可一键自托管。
 - **小程序端联调**（产品）：`manifest.json` 的 mp-weixin appid 仍是占位，需真机走查授权与分享路径。
 - **权限模型**（安全）：目前只有单一 admin 角色，后续按「只读运营 / 数据编辑 / 发布」拆 RBAC 并导出审计。

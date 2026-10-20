@@ -412,8 +412,15 @@ def import_table(raw: bytes, filename: str, defaults: dict, dry_run: bool = True
 
         if mode == "replace" and records:
             scopes = {(r["year"], r["province"], r["subject"]) for r in records}
-            keep = {(r["university"], r["group_code"]) for r in records}
+            # keep 必须按 (年, 省, 科类) 分开：一个文件可能含多个 scope，
+            # 用全局 keep 会让「本 scope 已不存在、但别的 scope 里有」的旧行漏删。
+            keep_by_scope: dict[tuple, set] = {}
+            for r in records:
+                keep_by_scope.setdefault(
+                    (r["year"], r["province"], r["subject"]), set()).add(
+                    (r["university"], r["group_code"]))
             for year, province, subject in scopes:
+                keep = keep_by_scope.get((year, province, subject), set())
                 rows = s.scalars(select(SchoolLine).where(
                     SchoolLine.year == year, SchoolLine.province == province,
                     SchoolLine.subject == subject)).all()

@@ -136,6 +136,8 @@ def thresholds(province: str, subject: str, year: int | None = None) -> dict | N
                 "min_score": r.min_score, "min_rank": r.min_rank,
                 "data_source": r.data_source, "line": r.line or None,
                 "school": r.school or None, "year": r.year,
+                # 版本年份 ≠ 数据年份：官方值可能是往年沿用（carried），必须带出真实出处
+                "source_year": r.source_year or r.year,
                 "source_url": r.source_url or None,
                 "carried": bool(r.carried),
             }
@@ -217,15 +219,25 @@ def university_counts() -> dict:
 
 
 def universities(province=None, tier=None, category=None, level=None, q=None,
-                 nature=None, limit: int = 500, offset: int = 0) -> dict:
+                 nature=None, limit: int | None = 500, offset: int = 0) -> dict:
+    """院校检索。
+
+    ``limit=None`` 表示**不分页取全量**（供推荐算法构建院校池）：
+    对外 API 仍按 1000 封顶，避免单次响应过大；但推荐侧需要完整池，
+    否则 1308 所本科 / 1560 所专科会被截断，部分省份院校永远不出现。
+    """
     offset = max(0, int(offset or 0))
-    limit = max(1, min(int(limit or 500), 1000))
+    if limit is None:
+        limit = None
+    else:
+        limit = max(1, min(int(limit or 500), 1000))
     with session_scope() as s:
         stmt = _uni_filters(select(University), province, level, tier, category, q, nature)
         total_matched = int(s.scalar(select(func.count()).select_from(stmt.subquery())) or 0)
-        rows = s.scalars(
-            stmt.order_by(University.province, University.id).offset(offset).limit(limit)
-        ).all()
+        page = stmt.order_by(University.province, University.id).offset(offset)
+        if limit is not None:
+            page = page.limit(limit)
+        rows = s.scalars(page).all()
         items = [{
             "id": r.id, "name": r.name, "province": r.province, "city": r.city,
             "level": r.level, "nature": r.nature, "supervisor": r.supervisor,

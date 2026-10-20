@@ -35,13 +35,37 @@ def _read_json(path: str) -> dict:
         return json.load(f)
 
 
+def _file_stamp(path: str):
+    try:
+        st = os.stat(path)
+        return (st.st_mtime_ns, st.st_size)
+    except OSError:
+        return None
+
+
+_SIG_CACHE: dict[tuple, str] = {}
+
+
 def _signature(*paths: str) -> str:
+    """源文件签名（SHA-256 前 32 位），用于「文件没变就跳过播种」。
+
+    按 (路径, mtime, size) 缓存：管理端看板一次要算 5 个文件的签名，
+    每次都整读 2MB+ JSON 会让 /api/admin/sources 慢到 1s 以上。
+    """
+    stamps = tuple((p, _file_stamp(p)) for p in paths)
+    cached = _SIG_CACHE.get(stamps)
+    if cached is not None:
+        return cached
     h = hashlib.sha256()
-    for p in paths:
-        if os.path.exists(p):
+    for p, stamp in stamps:
+        if stamp is not None:
             with open(p, "rb") as f:
                 h.update(f.read())
-    return h.hexdigest()[:32]
+    value = h.hexdigest()[:32]
+    if len(_SIG_CACHE) > 64:  # 文件状态变化会累积键，简单限容
+        _SIG_CACHE.clear()
+    _SIG_CACHE[stamps] = value
+    return value
 
 
 def _get_setting(session, key: str) -> str | None:

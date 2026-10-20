@@ -32,6 +32,18 @@ const hist = pickMajors({ subject: "历史类" }, MAJORS);
 hist.every((m) => ["文科保底", "体制内"].includes(m.cat) || m.name.includes("法学")) && !hist.some((m) => m.cat === "理工硬核")
   ? ok("历史类过滤掉理工硬核") : bad("历史类过滤异常");
 
+// 2b. 历史类不得推荐「物理必选」的体制内方向（与后端 SUBJECT_REQ 对齐）
+const histWithPhysicsOnly = pickMajors({ subject: "历史类" }, [
+  ...MAJORS,
+  { name: "军校", cat: "体制内", view: "recommend", tags: [], reason: "r", bias: "b" },
+  { name: "定向士官", cat: "体制内", view: "recommend", tags: [], reason: "r", bias: "b" },
+  { name: "警校/公安类", cat: "体制内", view: "recommend", tags: [], reason: "r", bias: "b" },
+]);
+!histWithPhysicsOnly.some((m) => ["军校", "定向士官"].includes(m.name))
+  && histWithPhysicsOnly.some((m) => m.name === "警校/公安类")
+  ? ok("历史类剔除物理必选的军校/士官，保留公安类")
+  : bad("历史类选科过滤异常：" + histWithPhysicsOnly.map((m) => m.name).join(","));
+
 // 3. 求稳优先过滤：普通家庭求稳应剔除无壁垒的纯理工（保留有国网/越老越香/医学/体制内/文科）
 const stable = pickMajors({ subject: "物理类", familyBg: "普通家庭", riskPref: "求稳优先", goal: "稳定/有编有岗" }, MAJORS);
 !stable.some((m) => m.name === "计算机科学与技术") && stable.some((m) => m.name === "电气工程及其自动化")

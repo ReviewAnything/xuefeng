@@ -11,6 +11,10 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    env:
+      # 测试/校验都跑在临时库上，避免污染仓库内的 backend/data/xuefeng.db，
+      # 也让「本地怎么跑、CI 就怎么跑」保持一致。
+      XUEFENG_DB_PATH: ${{ runner.temp }}/xuefeng_ci.db
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -39,6 +43,8 @@ jobs:
         run: node tests/engine.test.mjs
       - name: SFC template compile check (zero-dep)
         run: node tests/template.test.mjs
+      - name: Plan/export unit test (zero-dep)
+        run: node tests/plan.test.mjs
       - name: "Single lockfile guard - npm only"
         run: |
           node -e "
@@ -64,7 +70,9 @@ jobs:
         with:
           node-version: "20"
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        # 用 npm ci 而不是 npm install：可复现、且 lockfile 与 package.json
+        # 不一致时会直接失败（npm install 会悄悄改 lockfile 把问题带到部署）。
+        run: npm ci
       - name: Build H5 (validates wot-design-uni integration)
         run: npm run build:h5
 

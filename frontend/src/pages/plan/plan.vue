@@ -32,7 +32,7 @@
               <text class="row-idx">{{ i + 1 }}</text>
               <view class="row-info">
                 <text class="row-name">{{ r.name }}</text>
-                <text class="row-meta">{{ r.tier }} · {{ r.province }}<text v-if="r.line"> · 去年 {{ r.line }} 分</text></text>
+                <text class="row-meta">{{ r.tier }} · {{ r.province }}<text v-if="r.line"> · 去年 {{ r.line }} 分<text v-if="r.line_rank"> / 位次 {{ r.line_rank }}</text><text v-if="r.line_year">（{{ r.line_year }}）</text></text></text>
               </view>
             </view>
             <input class="row-major" v-model="r.major" placeholder="拟报专业" />
@@ -59,11 +59,11 @@
 </template>
 
 <script setup>
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { onLoad } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
 import { themeVars } from "@/utils/theme.js";
-import { PLAN_KEY, buildPlanText, fillStats, flattenPlan, formatTime, groupRows } from "@/utils/plan.js";
+import { PLAN_KEY, applyMajors, buildPlanText, collectMajors, fillStats, flattenPlan, formatTime, groupRows } from "@/utils/plan.js";
 
 const toast = useToast();
 const plan = ref(null);
@@ -79,8 +79,19 @@ onLoad(() => {
   const p = uni.getStorageSync(PLAN_KEY);
   if (!p) return;
   plan.value = p;
-  rows.value = flattenPlan(p);
+  // 回填上次手填的拟报专业，避免离开页面后全部丢失
+  rows.value = applyMajors(flattenPlan(p), p.majors);
 });
+
+// 拟报专业改动即写入本机草稿（仅本地存储，不上传）
+watch(rows, () => {
+  if (!plan.value) return;
+  try {
+    uni.setStorageSync(PLAN_KEY, { ...plan.value, majors: collectMajors(rows.value) });
+  } catch (e) {
+    // 存储失败（配额/隐私模式）不应打断填写
+  }
+}, { deep: true });
 
 function levelClass(level) {
   if (level === "冲") return "reach";

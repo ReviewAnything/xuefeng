@@ -154,8 +154,8 @@ def _source_signatures() -> dict:
     }
 
 
-def _pending_sync() -> list[str]:
-    sigs = _source_signatures()
+def _pending_sync(sigs: dict | None = None) -> list[str]:
+    sigs = sigs or _source_signatures()
     pending = []
     with session_scope() as s:
         for target, sig in sigs.items():
@@ -407,7 +407,7 @@ def sources(admin: dict = Depends(auth.require_admin)):
         ("content", "专业图谱与资源", os.path.join(seed_mod.SHARED_DIR, "content.json")),
     ]
     sigs = _source_signatures()
-    pending = _pending_sync()
+    pending = _pending_sync(sigs)
     out = []
     for key, label, path in specs:
         if not os.path.exists(path):

@@ -194,6 +194,11 @@ def login(username: str, password: str, ip: str = "", user_agent: str = "") -> d
             _record(s, username, ip, False, "locked", user_agent)
             return {"ok": False, "reason": "locked", "retry_after": retry,
                     "detail": f"账号已锁定，请 {math.ceil(retry / 60)} 分钟后再试"}
+        if locked_until:
+            # 锁定期已过但计数还停在阈值上：不清零的话，解锁后只要再输错一次
+            # 就会立刻重新锁定 15 分钟，正确密码也进不来（实测过的坑）。
+            user.failed_attempts = 0
+            user.locked_until = None
 
         if not verify_password(password, user.password_hash, user.salt):
             user.failed_attempts = int(user.failed_attempts or 0) + 1

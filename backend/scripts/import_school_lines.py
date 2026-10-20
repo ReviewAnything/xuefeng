@@ -31,6 +31,18 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from services import school_lines as SL  # noqa: E402
 
 
+def _ensure_schema() -> None:
+    """建表（幂等）。
+
+    CLI 可能跑在全新 checkout 上（仓库不提交 *.db）：没有这一步，`school_lines`
+    表不存在，`--coverage` / `--commit` 会直接抛 OperationalError。
+    只建表不播种，导入本身只依赖 JSON 院校名单做校名匹配。
+    """
+    from db.database import init_db
+
+    init_db(seed=False)
+
+
 def _print(data) -> None:
     print(json.dumps(data, ensure_ascii=False, indent=2))
 
@@ -49,6 +61,8 @@ def main() -> int:
     ap.add_argument("--coverage", action="store_true", help="只看导入覆盖概况")
     ap.add_argument("--json", action="store_true", help="单行 JSON 输出（便于 CI 消费）")
     args = ap.parse_args()
+
+    _ensure_schema()
 
     if args.coverage:
         data = SL.coverage()
