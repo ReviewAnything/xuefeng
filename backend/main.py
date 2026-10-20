@@ -36,6 +36,7 @@ from pydantic import BaseModel, Field
 
 from services import content as C
 from services import admission as A
+from services import control_lines as CL
 from services import verify as V
 from services import equiv_score as E
 from services import recommend as R
@@ -207,6 +208,22 @@ def health():
         "observability": OBS.snapshot(recent=5),
         "admin_console": None if DISABLE_ADMIN else "/admin",
     }
+
+
+@app.get("/api/admission/control-line-years")
+def control_line_years():
+    """近五年官方省控线：可用年份、覆盖省份、来源链接（年度罗盘入口）。"""
+    return CL.available_years()
+
+
+@app.get("/api/admission/control-lines")
+def control_lines(year: int, province: str = None):
+    """近五年官方省控线按年查询（年度罗盘）。
+
+    year：必填，2022–2026 之一；province：可选，限定单省。
+    数据来自阳光高考逐年官方主表，含 source_url 可追溯，不含一分一段位次。
+    """
+    return CL.get_control_lines(year, province)
 
 
 @app.get("/api/content")
