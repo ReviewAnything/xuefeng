@@ -80,7 +80,7 @@
             <view class="acts">
               <wd-button v-for="l in item.links" :key="l.u" size="small"
                          :type="l.t.indexOf('GitHub') >= 0 ? 'primary' : 'default'"
-                         :plain="l.t.indexOf('GitHub') < 0" @click="open(l.u)">
+                         :plain="l.t.indexOf('GitHub') < 0" @click="openLink(l.u)">
                 {{ l.t }} ↗
               </wd-button>
             </view>
@@ -93,6 +93,7 @@
         <text class="p">本应用由 AI 基于公开资料与开源社区内容整理，<text class="strong">仅供学习参考，不构成正式升学/志愿填报建议</text>。实际填报请以各省教育考试院官方数据为准。收录的开源项目多为社区自发纪念与二次创作，与商业主体无关联。录取基线中 11 省为官方省控线/投档位次，其余为模型推算，已在接口逐条标注来源。</text>
       </view>
     </view>
+    <wd-toast />
   </wd-config-provider>
 </template>
 
@@ -115,7 +116,7 @@ const resCats = RES_CATS;
 const cur = ref("all");
 const list = computed(() => RESOURCES.filter((r) => cur.value === "all" || r.cat === cur.value));
 
-function open(u) {
+function openLink(u) {
   // #ifdef H5
   window.open(u, "_blank");
   // #endif
