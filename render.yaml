@@ -1,0 +1,28 @@
+# Render Blueprint：一键部署「只读公开后端」，给 H5 demo 提供 API。
+#
+# 用法：Render → New → Blueprint → 选本仓库，会读取本文件创建服务。
+# 部署完成后把服务地址（形如 https://xuefeng-api.onrender.com）填到 GitHub 仓库
+# 变量 XUEFENG_API_BASE，再跑一次 Deploy H5 workflow，demo 就能连上后端。
+#
+# 安全：XUEFENG_DISABLE_ADMIN=true 会关掉管理端（/admin 与 /api/admin/*），
+# 只保留公开只读 API；不要在不设该变量的情况下把管理端暴露到公网。
+services:
+  - type: web
+    name: xuefeng-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: XUEFENG_DISABLE_ADMIN
+        value: "true"
+      # 填你的前端域名（GitHub Pages 域名），多个用逗号分隔；不要填 *
+      - key: XUEFENG_CORS_ORIGINS
+        sync: false
+      # 免费实例无持久化磁盘：库放 /tmp，重启后由 JSON 源文件重新播种
+      - key: XUEFENG_DB_PATH
+        value: /tmp/xuefeng.db

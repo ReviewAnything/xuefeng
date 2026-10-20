@@ -9,6 +9,12 @@ FastAPI 应用，提供：
   - GET  /api/universities      全国普通高等学校静态总表（2868 所：本科 1308 + 专科 1560）
   - POST /api/verify            观点×数据 交叉核验（P2 核心）
   - POST /api/verify/batch      批量交叉核验（P1→P2 打通：画布推荐方向一次算完）
+  - GET  /api/equiv/years       等位分换算：某省/科类可用的年份与数据源
+  - GET  /api/equiv/curve       等位分换算：某年「位次→分数」锚点曲线
+  - GET  /api/equiv/convert     等位分换算：分数/位次 跨年换算（rank / percentile 两法）
+  - GET  /api/recommend/schools 院校推荐：按位次给出 冲/稳/保 院校清单（A3）
+  - GET  /api/major-groups/universities 院校选择器（按省/层次/985/211/关键字）
+  - GET  /api/major-groups     新高考「院校专业组」推导（专业选科要求 × 院校类别专业池）
   - /api/admin/*                管理端：登录、看板、数据浏览、同步、导出
   - /admin                      管理端控制台（Vue3 + Element Plus）
 
@@ -19,7 +25,7 @@ FastAPI 应用，提供：
 """
 import os
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -28,6 +34,9 @@ from pydantic import BaseModel, Field
 from services import content as C
 from services import admission as A
 from services import verify as V
+from services import equiv_score as E
+from services import recommend as R
+from services import major_groups as MG
 from db import init_db
 from db import repository as repo
 from routers import admin as admin_api
@@ -72,15 +81,21 @@ try:
 except Exception as exc:  # 落库失败时仍可依赖 JSON 兜底对外服务
     DB_BOOT = {"error": f"{type(exc).__name__}: {exc}"}
 
-app.include_router(admin_api.router)
+# 公开 demo 部署（C1）时可用 XUEFENG_DISABLE_ADMIN=1 关掉管理端：
+# 只保留只读的公开 API，避免把管理端控制台/默认口令暴露在公网上。
+DISABLE_ADMIN = os.environ.get("XUEFENG_DISABLE_ADMIN", "").strip().lower() in ("1", "true", "yes")
+if not DISABLE_ADMIN:
+    app.include_router(admin_api.router)
 
 _ADMIN_DIR = os.path.join(os.path.dirname(__file__), "admin")
-if os.path.isdir(_ADMIN_DIR):
+if os.path.isdir(_ADMIN_DIR) and not DISABLE_ADMIN:
     app.mount("/admin", StaticFiles(directory=_ADMIN_DIR, html=True), name="admin")
 
 
 @app.get("/", include_in_schema=False)
 def root():
+    if DISABLE_ADMIN:
+        return {"app": "志愿决策助手 · 公开 API", "docs": "/docs", "health": "/api/health"}
     return RedirectResponse("/admin")
 
 
@@ -106,7 +121,7 @@ def health():
             "count_985": db_counts.get("count_985", 0),
             "count_211": db_counts.get("count_211", 0),
         },
-        "admin_console": "/admin",
+        "admin_console": None if DISABLE_ADMIN else "/admin",
     }
 
 
@@ -225,6 +240,94 @@ def verify_batch(req: VerifyBatchRequest):
                       user_rank=req.user_rank, major_name=f"{len(result['results'])}个专业",
                       alignment=f"冲突{s['conflict']}/谨慎{s['caution']}/一致{s['aligned']}")
     return result
+
+
+# ---------------------------------------------------------------- 等位分换算（C2）
+
+@app.get("/api/equiv/years")
+def equiv_years(province: str, subject: str):
+    """某省/科类可用年份：官方省控线年 + 估算基线年 + 可选的一分一段表年。"""
+    return {"ok": True, "province": province, "subject": subject,
+            "years": E.available_years(province, subject)}
+
+
+@app.get("/api/equiv/curve")
+def equiv_curve(province: str, subject: str, year: int = Query(..., ge=2000, le=2100)):
+    """某年「位次 → 分数」锚点曲线（一分一段的稀疏近似）。"""
+    r = E.curve(province, subject, year)
+    if not r["ok"]:
+        raise HTTPException(status_code=404, detail=r["error"])
+    return r
+
+
+@app.get("/api/equiv/convert")
+def equiv_convert(province: str, subject: str,
+                  year: int = Query(..., ge=2000, le=2100),
+                  target_year: int = Query(..., ge=2000, le=2100),
+                  score: float = Query(None, ge=0, le=750),
+                  rank: int = Query(None, ge=1, le=A.MAX_USER_RANK),
+                  method: str = Query("rank", pattern="^(rank|percentile)$")):
+    """跨年等位分换算：分数/位次 → 目标年的等效分数与位次。
+
+    score 与 rank 至少给一个（同时给出以 rank 为准）。
+    method=rank（同位次等效分，默认）或 percentile（按考生规模归一，需 cohort_size）。
+    """
+    r = E.convert(province, subject, year, target_year, score=score, rank=rank, method=method)
+    if not r["ok"]:
+        code = 404 if "暂无" in r["error"] else 400
+        raise HTTPException(status_code=code, detail=r["error"])
+    repo.record_event("equiv", province=province, subject=subject,
+                      user_rank=r["from"]["rank"], alignment=f"{year}->{target_year}")
+    return r
+
+
+# ---------------------------------------------------------------- 院校推荐（A3）
+
+@app.get("/api/recommend/schools")
+def recommend_schools(province: str, subject: str,
+                      user_rank: int = Query(..., gt=0, le=A.MAX_USER_RANK),
+                      major_name: str = None,
+                      limit: int = Query(12, ge=1, le=R.MAX_LIMIT),
+                      nature: str = None, category: str = None, q: str = None,
+                      prefer_local: bool = True):
+    """按位次给出 冲/稳/保 三档院校清单（教育部 2868 所名单 + 各省批次门槛位次）。"""
+    r = R.recommend_schools(province=province, subject=subject, user_rank=user_rank,
+                            major_name=major_name, limit=limit, nature=nature,
+                            category=category, q=q, prefer_local=prefer_local)
+    if not r["ok"]:
+        code = 404 if "暂无" in r["error"] else 400
+        raise HTTPException(status_code=code, detail=r["error"])
+    top = next((t for t in r["tiers"] if t["level"] != "不可及"), None)
+    repo.record_event("recommend", province=province, subject=subject, user_rank=user_rank,
+                      major_name=major_name or "", best_tier=top["tier"] if top else "")
+    return r
+
+
+# ---------------------------------------------------------------- 院校专业组（P4）
+
+@app.get("/api/major-groups/universities")
+def major_group_universities(province: str = None, level: str = None,
+                             only_985: bool = False, only_211: bool = False,
+                             q: str = None,
+                             limit: int = Query(30, ge=1, le=100)):
+    """院校选择器：按省 / 本科专科 / 985·211 / 关键字筛选（含类别与类别来源）。"""
+    return MG.list_universities(province=province, level=level, only_985=only_985,
+                                only_211=only_211, q=q, limit=limit)
+
+
+@app.get("/api/major-groups")
+def major_groups(university: str, subject: str = "物理类"):
+    """推导某院校的「院校专业组」结构：按专业选科要求聚组，返回是否可报。
+
+    数据为规则推导（estimated），非官方公布的专业组划分。
+    """
+    r = MG.groups_for(university=university, subject=subject)
+    if not r["ok"]:
+        raise HTTPException(status_code=404, detail=r["error"])
+    repo.record_event("major_groups", province=r["university"].get("province") or "",
+                      subject=r["student_subject"], major_name=university,
+                      best_tier=f"{r['eligible_groups']}/{r['total_groups']}")
+    return r
 
 
 if __name__ == "__main__":

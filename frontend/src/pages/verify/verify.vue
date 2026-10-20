@@ -22,8 +22,56 @@
         <view class="actions">
           <wd-button type="primary" block size="large" :loading="loading" @click="run">开始交叉核验</wd-button>
           <wd-button v-if="canvasPicks.length" plain block @click="importFromCanvas">从诊断画布导入（{{ canvasPicks.length }} 个方向）并批量核验</wd-button>
+          <wd-button plain block @click="goRecommend">查看院校推荐（冲/稳/保 院校池）</wd-button>
         </view>
         <text v-if="err" class="err">{{ err }}</text>
+      </view>
+
+      <!-- C2 等位分换算：跨年换算分数/位次 -->
+      <view class="section">
+        <view class="section-head">
+          <text class="h3">等位分换算（跨年）</text>
+          <wd-tag type="primary" plain>C2</wd-tag>
+        </view>
+        <text class="small">用上方省份/科类，把某一年的分数或位次换算到另一年；锚点是稀疏批次线，区间外为外推值。</text>
+
+        <wd-cell-group border>
+          <wd-picker v-model="eq.year" label="源年份" :columns="yearLabels" placeholder="请选择" label-width="30%"></wd-picker>
+          <wd-picker v-model="eq.target" label="目标年份" :columns="yearLabels" placeholder="请选择" label-width="30%"></wd-picker>
+          <wd-input v-model="eq.score" label="源年分数" type="digit" placeholder="可空（默认用上方位次）" label-width="30%"></wd-input>
+        </wd-cell-group>
+
+        <view class="actions">
+          <wd-button type="primary" plain block :loading="eqLoading" @click="runEquiv">换算等位分</wd-button>
+        </view>
+        <text v-if="eqErr" class="err">{{ eqErr }}</text>
+
+        <view v-if="eqRes" class="eq-box">
+          <view class="eq-line">
+            <text class="eq-k">{{ eqRes.from.year }} 年</text>
+            <text class="eq-v">≈{{ eqRes.from.score }} 分 / 位次 {{ eqRes.from.rank }}</text>
+          </view>
+          <view class="eq-line">
+            <text class="eq-k">{{ eqRes.to.year }} 年</text>
+            <text class="eq-v">≈{{ eqRes.to.score }} 分 / 位次 {{ eqRes.to.rank }}</text>
+          </view>
+          <view class="eq-line">
+            <text class="eq-k">等效分差</text>
+            <text class="eq-v">{{ deltaLabel }}</text>
+          </view>
+          <text class="small">换算方法：{{ methodLabel }}</text>
+          <text v-if="eqRes.caveat" class="small warn-text">{{ eqRes.caveat }}</text>
+          <text class="dsrc">{{ eqRes.note }}</text>
+
+          <wd-collapse v-model="eqOpen">
+            <wd-collapse-item title="查看目标年锚点（位次→分数）" name="anchors">
+              <view class="anchor" v-for="a in eqRes.to.anchors" :key="a.tier">
+                <text class="anchor-t">{{ a.tier }}</text>
+                <text class="anchor-v">{{ a.score }} 分 / 位次 {{ a.rank }}</text>
+              </view>
+            </wd-collapse-item>
+          </wd-collapse>
+        </view>
       </view>
 
       <!-- 批量核验：P1→P2 打通 -->
@@ -134,7 +182,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import { onLoad } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
 import { MAJORS } from "@/utils/content.js";
@@ -162,6 +210,86 @@ const canvasPicks = ref([]);     // 端侧存储的画布结果（仅本机）
 const batch = ref(null);
 const batchErr = ref("");
 const batchLoading = ref(false);
+
+// —— C2 等位分换算 ——
+const eq = reactive({ year: "", target: "", score: "" });
+const years = ref([]);
+const eqRes = ref(null);
+const eqErr = ref("");
+const eqLoading = ref(false);
+const eqOpen = ref("");
+
+const yearLabels = computed(() => years.value.map((y) => y.year + " · " + dsLabel(y.data_source)));
+const deltaLabel = computed(() => {
+  const r = eqRes.value;
+  if (!r) return "";
+  const d = r.delta_score;
+  const word = d > 0 ? "更高" : d < 0 ? "更低" : "持平";
+  return (d > 0 ? "+" : "") + d + " 分（目标年" + word + "）";
+});
+const methodLabel = computed(() => {
+  const m = eqRes.value && eqRes.value.method;
+  return m === "percentile" ? "按考生规模归一（percentile）" : "同位次等效分（rank）";
+});
+
+function dsLabel(ds) {
+  if (ds === "official") return "官方";
+  if (ds === "official_table") return "一分一段表";
+  if (ds === "estimated") return "估算";
+  return "样例";
+}
+
+// picker 的值是 "2024 · 官方" 这类标签，取前四位年份数字
+function yearOf(v) {
+  const m = String(v || "").match(/\d{4}/);
+  return m ? Number(m[0]) : 0;
+}
+
+async function loadYears() {
+  if (!p.province || !p.subject) return;
+  try {
+    const j = await api.equivYears(p.province, p.subject);
+    years.value = j.years || [];
+    if (years.value.length >= 2 && !eq.year) {
+      eq.year = yearLabels.value[0];
+      eq.target = yearLabels.value[1];
+    }
+  } catch (e) {
+    years.value = [];   // 后端未连接时静默，不打断主流程
+  }
+}
+
+async function runEquiv() {
+  eqErr.value = "";
+  if (!p.province || !p.subject) {
+    toast.show("请先选择省份 / 科类");
+    return;
+  }
+  const y = yearOf(eq.year);
+  const t = yearOf(eq.target);
+  if (!y || !t) {
+    toast.show("请先选择源年份与目标年份");
+    return;
+  }
+  const params = { province: p.province, subject: p.subject, year: y, target_year: t };
+  if (eq.score) params.score = Number(eq.score);
+  else if (p.user_rank) params.rank = Number(p.user_rank);
+  else {
+    toast.show("请填写位次或分数");
+    return;
+  }
+  eqLoading.value = true;
+  try {
+    eqRes.value = await api.equivConvert(params);
+  } catch (e) {
+    eqErr.value = "换算失败（后端未连接？）：" + (e.message || e);
+  } finally {
+    eqLoading.value = false;
+  }
+}
+
+// 省份/科类变化后刷新可用年份
+watch(() => p.province + "|" + p.subject, loadYears);
 
 const viewTagType = computed(() => {
   const v = res.value && res.value.view;
@@ -274,6 +402,16 @@ onLoad((q) => {
   }
 });
 
+// 带着省份/科类/位次进入「院校推荐」页
+function goRecommend() {
+  if (!p.province || !p.subject || !p.user_rank) {
+    toast.show("请先填写省份 / 科类 / 位次");
+    return;
+  }
+  const q = `province=${encodeURIComponent(p.province)}&subject=${encodeURIComponent(p.subject)}&user_rank=${encodeURIComponent(p.user_rank)}`;
+  uni.navigateTo({ url: `/pages/recommend/recommend?${q}` });
+}
+
 async function run() {
   if (!p.province || !p.subject || !p.user_rank || !p.major_name) {
     err.value = "请完整填写省份 / 科类 / 位次 / 专业";
@@ -341,6 +479,16 @@ async function run() {
 .brow-head { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; }
 .brow-name { font-size: 26rpx; color: #e6e8ec; font-weight: 600; }
 .brow-meta { display: block; margin-top: 8rpx; font-size: 21rpx; color: #8a909c; line-height: 1.6; }
+
+/* C2 等位分换算 */
+.eq-box { margin-top: 18rpx; background: #16191f; border: 1px solid #23262e; border-radius: 12rpx; padding: 16rpx; }
+.eq-line { display: flex; align-items: center; justify-content: space-between; padding: 8rpx 0; }
+.eq-k { font-size: 23rpx; color: #8a909c; }
+.eq-v { font-size: 25rpx; color: #e6e8ec; font-weight: 600; }
+.warn-text { color: #f0ad4e; }
+.anchor { display: flex; align-items: center; justify-content: space-between; padding: 6rpx 0; }
+.anchor-t { font-size: 22rpx; color: #8a909c; }
+.anchor-v { font-size: 22rpx; color: #c7ccd4; }
 
 .dsrc { font-size: 21rpx; color: #6db3f2; display: block; margin-top: 8rpx; line-height: 1.6; }
 .uni-wrap { display: flex; flex-wrap: wrap; gap: 10rpx; padding: 4rpx 0 10rpx; }

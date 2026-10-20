@@ -1,0 +1,223 @@
+<template>
+  <wd-config-provider theme="dark" :theme-vars="themeVars">
+    <view class="page">
+      <view class="hero">
+        <text class="h1">院校推荐 · 冲稳保</text>
+        <text class="sub">按你的位次给出各层次（985 / 211 / 普通本科 / 专科）的门槛判定与院校池。</text>
+      </view>
+
+      <view class="section">
+        <view class="section-head">
+          <text class="h3">输入你的条件</text>
+          <wd-tag type="primary" plain>教育部 2868 所</wd-tag>
+        </view>
+
+        <wd-cell-group border>
+          <wd-picker v-model="f.province" label="高考省份" :columns="provinces" placeholder="请选择" label-width="30%"></wd-picker>
+          <wd-picker v-model="f.subject" label="选科方向" :columns="subjects" placeholder="请选择" label-width="30%"></wd-picker>
+          <wd-input v-model="f.user_rank" label="高考位次" type="number" placeholder="如：40000" label-width="30%"></wd-input>
+          <wd-picker v-model="f.major" label="目标专业" :columns="majorOptions" placeholder="请选择" label-width="30%"></wd-picker>
+        </wd-cell-group>
+
+        <view class="actions">
+          <wd-button type="primary" block size="large" :loading="loading" @click="run">生成院校推荐</wd-button>
+        </view>
+        <text v-if="err" class="err">{{ err }}</text>
+      </view>
+
+      <view class="section" v-if="hasResult">
+        <view class="section-head">
+          <text class="h3">梯度概览</text>
+          <text class="bk-sub">{{ result.province }} · {{ result.subject }} · 位次 {{ result.user_rank }}</text>
+        </view>
+        <view class="sum">
+          <text class="sum-i reach">冲 {{ result.summary.reach }}</text>
+          <text class="sum-i match">稳 {{ result.summary.match }}</text>
+          <text class="sum-i safe">保 {{ result.summary.safe }}</text>
+          <text class="sum-i none">不可及 {{ result.summary.unreachable }}</text>
+        </view>
+        <text class="small">数据源：{{ sourceLabel }}</text>
+      </view>
+
+      <view class="section" v-if="hasResult">
+        <view v-for="t in result.tiers" :key="t.tier" class="tier-card">
+          <view class="tier-head">
+            <text class="tier-name">{{ t.tier }}</text>
+            <wd-tag :type="levelType(t.level)" plain>{{ t.level }}</wd-tag>
+            <wd-tag :type="dsType(t.data_source)" plain>{{ t.data_source === "official" ? "官方" : "估算" }}</wd-tag>
+          </view>
+          <text class="tier-meta">门槛 ≈{{ t.min_score }} 分 / 位次 {{ t.min_rank }} · {{ t.pool_label }}（共 {{ t.pool_total }} 所，展示前 {{ t.schools.length }} 所）</text>
+          <text class="basis">{{ t.basis }}</text>
+
+          <view v-if="t.schools.length" class="schools">
+            <view v-for="s in t.schools" :key="s.name" class="school" @click="goGroups(s)">
+              <view class="school-top">
+                <text class="school-name">{{ s.name }}</text>
+                <view class="school-right">
+                  <wd-tag v-if="s.nature" type="default" plain>{{ s.nature }}</wd-tag>
+                  <text class="chev">专业组 ›</text>
+                </view>
+              </view>
+              <text class="school-meta">{{ s.province }}<text v-if="s.city"> · {{ s.city }}</text><text v-if="s.category"> · {{ s.category }}</text></text>
+            </view>
+          </view>
+          <text v-else class="small">该层次暂无匹配院校（请放宽筛选条件）。</text>
+        </view>
+      </view>
+
+      <view class="section" v-if="hasResult">
+        <view class="actions">
+          <wd-button block plain @click="goPlan">生成志愿表（可打印 / 导出 PDF）</wd-button>
+        </view>
+        <view class="notes">
+          <text v-for="(n, i) in result.notes" :key="i" class="note">· {{ n }}</text>
+        </view>
+      </view>
+    </view>
+    <wd-toast></wd-toast>
+  </wd-config-provider>
+</template>
+
+<script setup>
+import { computed, reactive, ref } from "vue";
+import { onLoad } from "@dcloudio/uni-app";
+import { useToast } from "wot-design-uni";
+import { MAJORS } from "@/utils/content.js";
+import { api } from "@/utils/api.js";
+import { themeVars } from "@/utils/theme.js";
+
+const toast = useToast();
+
+const provinces = ["北京", "天津", "河北", "山西", "内蒙古", "辽宁", "吉林", "黑龙江", "上海", "江苏", "浙江", "安徽", "福建", "江西", "山东", "河南", "湖北", "湖南", "广东", "广西", "海南", "重庆", "四川", "贵州", "云南", "西藏", "陕西", "甘肃", "青海", "宁夏", "新疆"];
+const subjects = ["物理类", "历史类", "综合/未改革"];
+const NO_MAJOR = "不限（用省份基线）";
+const majorOptions = [NO_MAJOR].concat(MAJORS.map((m) => m.name));
+
+const f = reactive({ province: "", subject: "", user_rank: "", major: NO_MAJOR });
+const result = ref(null);
+const err = ref("");
+const loading = ref(false);
+
+const hasResult = computed(() => {
+  const r = result.value;
+  return !!(r && r.tiers && r.tiers.length);
+});
+const sourceLabel = computed(() => {
+  const ds = result.value ? result.value.data_source : "";
+  if (ds === "official_overlay") return "官方省控线覆盖层（11 省）+ 估算基线";
+  if (ds === "real") return "gaokao-advisor 估算基线";
+  return "参数化样例";
+});
+
+onLoad((q) => {
+  if (!q) return;
+  if (q.province) f.province = decodeURIComponent(q.province);
+  if (q.subject) f.subject = decodeURIComponent(q.subject);
+  if (q.user_rank) f.user_rank = decodeURIComponent(q.user_rank);
+});
+
+function levelType(level) {
+  if (level === "冲") return "warning";
+  if (level === "稳") return "primary";
+  if (level === "保") return "success";
+  return "info";
+}
+
+function dsType(ds) {
+  return ds === "official" ? "success" : "warning";
+}
+
+async function run() {
+  err.value = "";
+  if (!f.province || !f.subject || !f.user_rank) {
+    toast.show("请先填写省份 / 科类 / 位次");
+    return;
+  }
+  const rank = Number(f.user_rank);
+  if (!(rank > 0)) {
+    toast.show("位次必须为正整数");
+    return;
+  }
+  loading.value = true;
+  try {
+    const params = { province: f.province, subject: f.subject, user_rank: rank, limit: 8 };
+    if (f.major !== NO_MAJOR) params.major_name = f.major;
+    result.value = await api.recommendSchools(params);
+    savePlan();
+  } catch (e) {
+    err.value = "后端未连接（请先启动 Python 后端 uvicorn main:app --port 8000）：" + (e.message || e);
+  } finally {
+    loading.value = false;
+  }
+}
+
+// 落盘本机的「志愿表草稿」，供导出页读取（仅存本机，不上传）
+function savePlan() {
+  const r = result.value;
+  if (!r) return;
+  uni.setStorageSync("zhiyuan_plan_v1", {
+    province: r.province,
+    subject: r.subject,
+    user_rank: r.user_rank,
+    major: r.major,
+    at: Date.now(),
+    tiers: r.tiers.map((t) => ({
+      tier: t.tier,
+      level: t.level,
+      min_score: t.min_score,
+      min_rank: t.min_rank,
+      schools: t.schools.map((s) => ({ name: s.name, province: s.province, nature: s.nature })),
+    })),
+  });
+}
+
+function goPlan() {
+  uni.navigateTo({ url: "/pages/plan/plan" });
+}
+
+// 点击院校 → 查看该校「院校专业组」结构（按当前选科）
+function goGroups(s) {
+  const subj = result.value ? result.value.subject : f.subject;
+  const q = `university=${encodeURIComponent(s.name)}&subject=${encodeURIComponent(subj)}`;
+  uni.navigateTo({ url: `/pages/majorGroup/majorGroup?${q}` });
+}
+</script>
+
+<style scoped>
+.page { padding: 24rpx 24rpx 60rpx; }
+.hero { padding: 16rpx 8rpx 24rpx; }
+.h1 { font-size: 40rpx; font-weight: 700; color: #ffd24d; }
+.sub { display: block; margin-top: 10rpx; font-size: 24rpx; color: #8a909c; line-height: 1.6; }
+
+.section { margin-bottom: 24rpx; }
+.section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14rpx; }
+.h3 { font-size: 30rpx; font-weight: 600; color: #e6e8ec; }
+.bk-sub { font-size: 21rpx; color: #6b7280; }
+.actions { display: flex; flex-direction: column; gap: 16rpx; margin-top: 18rpx; }
+.small { font-size: 21rpx; color: #6b7280; display: block; margin-top: 10rpx; line-height: 1.6; }
+.err { font-size: 22rpx; color: #ff6b6b; display: block; margin-top: 12rpx; line-height: 1.5; }
+
+.sum { display: flex; flex-wrap: wrap; gap: 12rpx; }
+.sum-i { font-size: 22rpx; padding: 4rpx 16rpx; border-radius: 999rpx; border: 1px solid #2a2e37; }
+.sum-i.reach { color: #f0ad4e; }
+.sum-i.match { color: #6db3f2; }
+.sum-i.safe { color: #5fd87f; }
+.sum-i.none { color: #6b7280; }
+
+.tier-card { border: 1px solid #22262e; border-radius: 16rpx; padding: 20rpx; margin-bottom: 18rpx; }
+.tier-head { display: flex; align-items: center; gap: 12rpx; margin-bottom: 8rpx; }
+.tier-name { font-size: 30rpx; font-weight: 600; color: #e6e8ec; }
+.tier-meta { display: block; font-size: 22rpx; color: #8a909c; line-height: 1.6; }
+.basis { display: block; font-size: 20rpx; color: #6b7280; margin-top: 4rpx; line-height: 1.5; }
+
+.schools { margin-top: 14rpx; }
+.school { padding: 12rpx 0; border-top: 1px solid #1c2027; }
+.school-top { display: flex; align-items: center; justify-content: space-between; }
+.school-right { display: flex; align-items: center; gap: 10rpx; }
+.chev { font-size: 20rpx; color: #6db3f2; }
+.school-name { font-size: 25rpx; color: #c7ccd4; }
+.school-meta { display: block; font-size: 20rpx; color: #6b7280; margin-top: 4rpx; }
+
+.notes { margin-top: 16rpx; }
+.note { display: block; font-size: 20rpx; color: #f0ad4e; line-height: 1.6; }
+</style>

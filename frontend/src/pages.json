@@ -9,6 +9,9 @@
     { "path": "pages/diagnose/diagnose", "style": { "navigationBarTitleText": "自我诊断" } },
     { "path": "pages/majors/majors", "style": { "navigationBarTitleText": "专业图谱" } },
     { "path": "pages/verify/verify", "style": { "navigationBarTitleText": "观点×数据核验" } },
+    { "path": "pages/recommend/recommend", "style": { "navigationBarTitleText": "院校推荐·冲稳保" } },
+    { "path": "pages/plan/plan", "style": { "navigationBarTitleText": "志愿表草稿" } },
+    { "path": "pages/majorGroup/majorGroup", "style": { "navigationBarTitleText": "院校专业组" } },
     { "path": "pages/resources/resources", "style": { "navigationBarTitleText": "开源资源" } },
     { "path": "pages/about/about", "style": { "navigationBarTitleText": "关于" } }
   ],

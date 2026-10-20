@@ -93,6 +93,10 @@
           <text class="small">该列表由后端按你的位次实时计算，是"观点→数据"打通的第一步。</text>
         </view>
         <text v-if="searchErr" class="err">{{ searchErr }}</text>
+        <view class="actions">
+          <wd-button plain block @click="goRecommend">查看院校推荐（冲/稳/保 院校池）</wd-button>
+          <wd-button plain block @click="goGroups">院校专业组（新高考选科）</wd-button>
+        </view>
       </view>
     </view>
     <wd-toast />
@@ -187,6 +191,19 @@ function goVerifyBatch() {
   persistPicks();
   const q = `province=${encodeURIComponent(form.province)}&subject=${encodeURIComponent(form.subject)}&user_rank=${encodeURIComponent(rankInput.value)}&batch=1`;
   uni.navigateTo({ url: `/pages/verify/verify?${q}` });
+}
+
+// 带着省份/科类/位次进入「院校推荐」页，看 冲/稳/保 三个档位的院校池
+function goRecommend() {
+  if (!requireConditions()) return;
+  const q = `province=${encodeURIComponent(form.province)}&subject=${encodeURIComponent(form.subject)}&user_rank=${encodeURIComponent(rankInput.value)}`;
+  uni.navigateTo({ url: `/pages/recommend/recommend?${q}` });
+}
+
+// 进入「院校专业组」页，按当前选科查看专业组结构
+function goGroups() {
+  const q = form.subject ? `?subject=${encodeURIComponent(form.subject)}` : "";
+  uni.navigateTo({ url: `/pages/majorGroup/majorGroup${q}` });
 }
 
 async function enrich() {

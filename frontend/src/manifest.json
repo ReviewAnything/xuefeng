@@ -20,8 +20,10 @@
     "usingComponents": true
   },
   "h5": {
-    "router": { "mode": "hash" },
-    "darkmode": false
+    "router": { "mode": "hash", "base": "./" },
+    "darkmode": false,
+    "title": "志愿决策助手",
+    "devServer": { "port": 5173, "https": false }
   },
   "vueVersion": "3"
 }

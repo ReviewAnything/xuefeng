@@ -1,5 +1,12 @@
 name: Deploy H5 (GitHub Pages)
 
+# 把前端构建成 H5 静态站并部署到 GitHub Pages（公开 demo）。
+#
+# 首次使用：仓库 Settings → Pages → Source 选 "GitHub Actions"。
+# 想让 demo 连上真实后端：Settings → Secrets and variables → Actions → Variables
+# 增加一个 XUEFENG_API_BASE（形如 https://xuefeng-api.onrender.com）。
+# 留空则 demo 只跑本地内容（诊断/专业图谱/资源可用；需要后端的核验会提示未连接）。
+#
 # 默认手动触发；如需「推送到 master 自动部署」，取消下方 push 段注释。
 on:
   workflow_dispatch:
@@ -10,6 +17,10 @@ permissions:
   contents: read
   pages: write
   id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -22,10 +33,34 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - run: npm install
-      - name: Build H5
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 安装依赖（锁定版本，保证可复现）
+        run: npm ci
+
+      - name: 前端测试（决策引擎 + SFC 模板编译）
+        run: npm test
+
+      - name: 构建 H5（hash 路由 + 相对路径，适配 Pages 子路径）
+        env:
+          VITE_API_BASE: ${{ vars.XUEFENG_API_BASE }}
         run: npm run build:h5
-      # 部署前请把 src/utils/api.js 的 API_BASE 改为你的后端地址（HTTPS + 小程序需配置 request 合法域名）
+
+      # 变量存在时把后端地址写进 index.html（部署后不重新构建也能改）
+      - name: 注入后端地址
+        if: vars.XUEFENG_API_BASE != ''
+        working-directory: frontend/dist/build/h5
+        env:
+          XUEFENG_API_BASE: ${{ vars.XUEFENG_API_BASE }}
+        run: |
+          sed -i "s|<head>|<head><script>window.__XUEFENG_API__='${XUEFENG_API_BASE}';</script>|" index.html
+          grep -c "__XUEFENG_API__" index.html
+
+      - name: 列出产物（便于排查路径）
+        run: ls -R dist | head -40
+
+      - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: frontend/dist/build/h5

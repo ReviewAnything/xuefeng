@@ -1,0 +1,261 @@
+"""新高考「院校专业组」建模（P4）。
+
+真实院校专业组由各省考试院 / 院校招生网按「省 × 院校 × 选科」逐年公布，本项目
+尚未接入该数据源。本模块用**可解释规则**推导专业组颗粒度，作为志愿表的建模基础：
+
+    1) 专业 → 选科要求：理科/工科/医学多为「物理+化学」，人文社科多为「不限」或「历史」。
+    2) 院校类别 → 可提供专业池：综合/理工/师范/医药/财经/农林/政法/语言/艺术/民族/体育。
+       教育部名单仅 112 所（985/211）带官方类别，其余 2756 所按校名关键词推断。
+    3) 按选科要求把专业池聚成「专业组」，组号 01/02…，即新高考的志愿填报单元。
+
+所有结果标注 ``estimated``，不构成录取承诺；正式填报以各省考试院与院校招生网为准。
+"""
+from __future__ import annotations
+
+import json
+import os
+import threading
+
+_DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+_UNI_FILE = os.path.join(_DATA_DIR, "universities_national.json")
+_CONTENT_FILE = os.path.join(os.path.dirname(_DATA_DIR), "..", "shared", "content.json")
+
+# 选科要求（新高考 3+1+2 口径）。专业名 → 要求。
+SUBJECT_REQ = {
+    # 理工硬核
+    "计算机科学与技术": "物理+化学",
+    "软件工程": "物理+化学",
+    "电子信息类": "物理+化学",
+    "电气工程及其自动化": "物理+化学",
+    "自动化": "物理+化学",
+    "机械类": "物理+化学",
+    # 医学类
+    "临床医学": "物理+化学",
+    "口腔医学": "物理+化学",
+    "医学影像技术": "物理+化学",
+    "医学检验技术": "物理+化学",
+    "护理学": "物理+化学",
+    "口腔医学技术": "物理+化学",
+    # 文科保底
+    "法学": "不限",
+    "汉语言文学": "不限",
+    "会计学/财务管理": "不限",
+    "师范类": "不限",
+    "经济学类": "不限",
+    # 体制内（特殊招生类型）
+    "公费师范生": "不限",
+    "警校/公安类": "不限",
+    "定向士官": "物理",
+    "军校": "物理",
+    # 避坑天坑
+    "生物工程": "物理+化学",
+    "化学/应用化学": "物理+化学",
+    "环境工程": "物理+化学",
+    "材料科学与工程": "物理+化学",
+    "新闻学": "不限",
+    "金融学(无背景)": "不限",
+    "工商管理": "不限",
+    "市场营销": "不限",
+    "哲学": "不限",
+    "历史学": "历史",
+    "心理学": "不限",
+    "考古学": "历史",
+    "土木工程": "物理+化学",
+    "建筑学": "物理",
+    "旅游管理": "不限",
+    "酒店管理": "不限",
+    "公共管理/社工": "不限",
+}
+
+REQ_ORDER = ["物理+化学", "物理", "不限", "历史"]
+
+# 院校类别 → 可提供专业池（专业名须与 shared/content.json 一致）
+_ALL_MAJORS = list(SUBJECT_REQ.keys())
+_NON_GENERAL = {"公费师范生", "警校/公安类", "定向士官", "军校"}
+
+CATEGORY_POOL = {
+    "综合": [m for m in _ALL_MAJORS if m not in _NON_GENERAL],
+    "理工": ["计算机科学与技术", "软件工程", "电子信息类", "电气工程及其自动化", "自动化",
+             "机械类", "土木工程", "建筑学", "材料科学与工程", "化学/应用化学",
+             "环境工程", "生物工程", "会计学/财务管理", "经济学类", "工商管理",
+             "市场营销", "心理学"],
+    "师范": ["师范类", "公费师范生", "汉语言文学", "法学", "心理学", "历史学", "哲学",
+             "会计学/财务管理", "经济学类", "计算机科学与技术", "新闻学", "旅游管理"],
+    "医药": ["临床医学", "口腔医学", "医学影像技术", "医学检验技术", "护理学",
+             "口腔医学技术", "生物工程", "化学/应用化学", "心理学"],
+    "财经": ["会计学/财务管理", "经济学类", "金融学(无背景)", "工商管理", "市场营销",
+             "法学", "公共管理/社工", "旅游管理", "酒店管理", "计算机科学与技术", "新闻学"],
+    "农林": ["生物工程", "化学/应用化学", "环境工程", "材料科学与工程",
+             "会计学/财务管理", "经济学类", "工商管理", "旅游管理", "酒店管理"],
+    "政法": ["法学", "公共管理/社工", "警校/公安类", "哲学", "历史学", "新闻学",
+             "市场营销", "汉语言文学"],
+    "语言": ["汉语言文学", "新闻学", "法学", "经济学类", "工商管理", "旅游管理",
+             "酒店管理", "市场营销"],
+    "艺术": ["新闻学", "汉语言文学", "旅游管理", "酒店管理", "市场营销", "心理学"],
+    "民族": ["汉语言文学", "法学", "经济学类", "工商管理", "旅游管理", "公共管理/社工",
+             "心理学", "历史学", "计算机科学与技术"],
+    "体育": ["师范类", "护理学", "旅游管理", "酒店管理", "市场营销", "公共管理/社工", "心理学"],
+}
+
+# 校名关键词 → 类别（用于官方类别缺失时的推断，按顺序匹配）
+_NAME_RULES = [
+    (("医科", "医药", "中医药", "医学"), "医药"),
+    (("师范",), "师范"),
+    (("财经", "财贸", "经济", "商学院", "商业"), "财经"),
+    (("农业", "农林", "林业", "农学院"), "农林"),
+    (("政法", "公安", "警察", "警官", "司法"), "政法"),
+    (("外国语", "外语", "语言"), "语言"),
+    (("艺术", "美术", "音乐", "戏剧", "电影", "传媒", "舞蹈"), "艺术"),
+    (("民族",), "民族"),
+    (("体育",), "体育"),
+    (("理工", "工业", "科技", "工程", "交通", "电子", "邮电", "航空", "航天",
+      "建筑", "矿业", "石油", "地质", "化工", "信息"), "理工"),
+]
+
+# 学生科类 → 可报的选科要求集合（None 表示不限制，综合/未改革）
+ELIGIBLE = {
+    "物理类": {"物理+化学", "物理", "不限"},
+    "历史类": {"历史", "不限"},
+    "综合/未改革": None,
+}
+SUBJECT_ALIAS = {"物理": "物理类", "历史": "历史类", "综合": "综合/未改革", "未改革": "综合/未改革"}
+
+_lock = threading.Lock()
+_CACHE: dict = {"uni": None, "majors": None, "by_name": None}
+
+
+def _content_path() -> str:
+    # shared/content.json 相对 backend/ 的上一级
+    return os.path.abspath(os.path.join(os.path.dirname(_DATA_DIR), "..", "shared", "content.json"))
+
+
+def _load() -> tuple[dict, dict]:
+    """加载院校索引与专业图谱（进程内缓存）。"""
+    with _lock:
+        if _CACHE["by_name"] is not None and _CACHE["majors"] is not None:
+            return _CACHE["by_name"], _CACHE["majors"]
+        with open(_UNI_FILE, encoding="utf-8") as f:
+            uni = json.load(f).get("universities", [])
+        by_name = {u["name"]: u for u in uni}
+        majors = {}
+        try:
+            with open(_content_path(), encoding="utf-8") as f:
+                for m in json.load(f).get("MAJORS", []):
+                    majors[m["name"]] = m
+        except (OSError, ValueError):
+            majors = {name: {"name": name, "cat": ""} for name in _ALL_MAJORS}
+        _CACHE["by_name"] = by_name
+        _CACHE["majors"] = majors
+        return by_name, majors
+
+
+def invalidate_cache() -> None:
+    with _lock:
+        _CACHE["uni"] = _CACHE["majors"] = _CACHE["by_name"] = None
+
+
+def infer_category(name: str, official: str | None) -> tuple[str, str]:
+    """返回 (类别, 来源)。官方类别优先，缺失时按校名关键词推断，再兜底「综合」。"""
+    if official:
+        return official, "official"
+    for keys, cat in _NAME_RULES:
+        if any(k in name for k in keys):
+            return cat, "inferred"
+    return "综合", "default"
+
+
+def _norm_subject(subject: str) -> str:
+    s = (subject or "").strip()
+    return SUBJECT_ALIAS.get(s, s if s in ELIGIBLE else "综合/未改革")
+
+
+def list_universities(province: str | None = None, level: str | None = None,
+                      only_985: bool = False, only_211: bool = False,
+                      q: str | None = None, limit: int = 30) -> dict:
+    """院校选择器：按省 / 层次 / 985/211 / 关键字筛选（最多返回 limit 条）。"""
+    by_name, _ = _load()
+    rows = []
+    q = (q or "").strip()
+    for u in by_name.values():
+        if province and u.get("province") != province:
+            continue
+        if level and u.get("level") != level:
+            continue
+        if only_985 and not u.get("is_985"):
+            continue
+        if only_211 and not u.get("is_211"):
+            continue
+        if q and q not in u["name"]:
+            continue
+        cat, src = infer_category(u["name"], u.get("category"))
+        rows.append({
+            "name": u["name"], "province": u.get("province"), "city": u.get("city"),
+            "level": u.get("level"), "nature": u.get("nature"),
+            "is_985": bool(u.get("is_985")), "is_211": bool(u.get("is_211")),
+            "category": cat, "category_source": src,
+        })
+    rows.sort(key=lambda r: (not r["is_985"], not r["is_211"], r["name"]))
+    total = len(rows)
+    return {"ok": True, "total": total, "items": rows[:max(1, int(limit))]}
+
+
+def groups_for(university: str, subject: str = "物理类") -> dict:
+    """推导某院校在给定科类下的「院校专业组」结构。"""
+    by_name, majors = _load()
+    u = by_name.get((university or "").strip())
+    if not u:
+        return {"ok": False, "error": f"院校未收录：{university}"}
+
+    subj = _norm_subject(subject)
+    cat, cat_src = infer_category(u["name"], u.get("category"))
+    pool = CATEGORY_POOL.get(cat, CATEGORY_POOL["综合"])
+
+    buckets: dict[str, list[dict]] = {}
+    for name in pool:
+        req = SUBJECT_REQ.get(name, "不限")
+        meta = majors.get(name, {"name": name, "cat": ""})
+        buckets.setdefault(req, []).append({"name": name, "cat": meta.get("cat", "")})
+
+    allow = ELIGIBLE.get(subj)
+    groups = []
+    idx = 0
+    for req in REQ_ORDER:
+        names = buckets.get(req)
+        if not names:
+            continue
+        idx += 1
+        code = f"{idx:02d}"
+        eligible = True if allow is None else (req in allow)
+        groups.append({
+            "group_code": code,
+            "group_name": f"第{code}组（{req}）",
+            "subject_req": req,
+            "eligible": eligible,
+            "major_count": len(names),
+            "majors": names,
+        })
+
+    eligible_count = sum(1 for g in groups if g["eligible"])
+    notes = [
+        "院校专业组为本项目按「专业选科要求 × 院校类别专业池」推导，非官方公布数据。",
+        "同一院校在不同省份的专业组划分可能不同；本模型不区分省份，仅用于结构演示。",
+    ]
+    if cat_src != "official":
+        notes.append(f"该校官方类别缺失，类别「{cat}」由校名推断，专业池可能偏差。")
+    return {
+        "ok": True,
+        "university": {
+            "name": u["name"], "province": u.get("province"), "city": u.get("city"),
+            "level": u.get("level"), "nature": u.get("nature"),
+            "is_985": bool(u.get("is_985")), "is_211": bool(u.get("is_211")),
+            "category": cat, "category_source": cat_src,
+        },
+        "student_subject": subj,
+        "groups": groups,
+        "total_groups": len(groups),
+        "eligible_groups": eligible_count,
+        "estimated": True,
+        "data_source": "estimated",
+        "basis": "专业选科要求（新高考 3+1+2 常见口径）× 院校类别专业池，按选科要求聚组",
+        "notes": notes,
+    }
