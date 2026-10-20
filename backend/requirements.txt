@@ -5,3 +5,8 @@ sqlalchemy>=2.0
 # 管理端院校投档线导入（D1）：multipart 上传 + xlsx 解析
 python-multipart>=0.0.9
 openpyxl>=3.1
+# 可选：在「系统设置 → 数据库配置」里切到别的数据库时才需要对应驱动（页面会提示安装命令）
+#   PostgreSQL : pip install "psycopg[binary]"    （或 psycopg2-binary）
+#   MySQL      : pip install pymysql              （或 mysqlclient）
+#   MariaDB    : pip install pymysql              （或 mariadb）
+#   SQL Server : pip install pyodbc               （另需系统 ODBC Driver 18）

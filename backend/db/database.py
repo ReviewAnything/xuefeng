@@ -16,13 +16,46 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DEFAULT_DB_PATH = os.path.join(BASE_DIR, "data", "xuefeng.db")
 
 
+# 管理端运行时配置（services/db_config.apply 写入），不落环境变量，避免污染进程环境
+_override_url = ""
+
+
 def database_url() -> str:
+    """解析生效连接串，优先级：环境变量 > 管理端运行时配置 > SQLite 默认文件。
+
+    环境变量（XUEFENG_DATABASE_URL / XUEFENG_DB_PATH）始终最高，保证部署态不会被
+    页面上的一次误操作覆盖；管理端在「系统设置」里保存的配置写入
+    ``backend/data/db_config.json``，由 services/db_config 在启动时/应用时装载进来。
+    """
     url = os.environ.get("XUEFENG_DATABASE_URL")
     if url:
         return url
+    if _override_url:
+        return _override_url
     path = os.environ.get("XUEFENG_DB_PATH", DEFAULT_DB_PATH)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     return f"sqlite:///{path}"
+
+
+def set_database_url(url: str) -> None:
+    """设置运行时连接串；空串表示恢复默认 SQLite。仅影响本进程。"""
+    global _override_url
+    _override_url = (url or "").strip()
+
+
+def get_database_url_override() -> str:
+    return _override_url
+
+
+def active_url_source() -> str:
+    """当前连接串来自哪：env / admin-config / default。"""
+    if os.environ.get("XUEFENG_DATABASE_URL"):
+        return "env"
+    if os.environ.get("XUEFENG_DB_PATH"):
+        return "env-path"
+    if _override_url:
+        return "admin-config"
+    return "default"
 
 
 class Base(DeclarativeBase):

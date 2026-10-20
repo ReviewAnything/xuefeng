@@ -24,3 +24,8 @@ __pycache__/
 
 # 官方文件溯源台账（运行时生成，记录实际落过库的原表）
 /backend/data/official/sources.json
+
+# 管理端数据库配置（S9-A 运行时落盘，含数据库口令，绝不入库）
+/backend/data/db_config.json
+# 切换测试 / 临时库
+/backend/data/*.db-other

@@ -6,6 +6,12 @@ export const DATA_DATE = data.DATA_DATE;
 export const QUESTIONS = data.QUESTIONS;
 export const MAJORS = data.MAJORS;
 export const RESOURCES = data.RESOURCES;
+// 学校图谱（层次圈层 + 高校联盟）：由 backend/scripts/build_school_graph.py 生成
+import graph from "@shared/school_graph.json";
+export const SCHOOL_GRAPH = graph;
+export const SCHOOL_TIERS = graph.tiers;
+export const SCHOOL_LEAGUES = graph.leagues;
+export const SCHOOLS = graph.schools;
 // 内容可溯：观点整理年份与证据口径（每个专业另带 source_year / source_note）
 export const CONTENT_SOURCE = data.CONTENT_SOURCE || {};
 

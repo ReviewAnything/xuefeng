@@ -43,6 +43,7 @@ from services import major_groups as MG
 from services import school_lines as SL
 from services import verdict as VD
 from services import observability as OBS
+from services import db_config as DBC
 from db import init_db
 from db import repository as repo
 from routers import admin as admin_api
@@ -83,9 +84,12 @@ app.add_middleware(
 # 访问日志：每请求一个 request id + 一行 JSON（慢请求标 warn）
 OBS.install(app)
 
-# 启动即初始化数据库：建表 + 幂等播种（源文件未变则跳过）
+# 启动先装载管理端落盘的数据库配置（backend/data/db_config.json），
+# 再初始化数据库：建表 + 幂等播种（源文件未变则跳过）。
+# 环境变量 XUEFENG_DATABASE_URL / XUEFENG_DB_PATH 优先级更高，部署态不会被页面配置覆盖。
 DB_BOOT = {}
 try:
+    DBC.bootstrap()
     DB_BOOT = init_db()
 except Exception as exc:  # 落库失败时仍可依赖 JSON 兜底对外服务
     DB_BOOT = {"error": f"{type(exc).__name__}: {exc}"}
@@ -110,6 +114,12 @@ def root():
 
 @app.get("/api/health")
 def health():
+    try:
+        from db.database import active_url_source, database_url
+        DBC_ACTIVE_URL = database_url()          # 运行期可切换，故每次现取
+        DBC_SOURCE = active_url_source()
+    except Exception:
+        DBC_ACTIVE_URL, DBC_SOURCE = "", "unknown"
     try:
         db_counts = repo.university_counts()
         db_info = repo.db_info()
@@ -159,6 +169,9 @@ def health():
         "cors_origins": CORS_ORIGINS,
         "database": {
             "enabled": db_ok,
+            "dialect": DBC._dialect_of_url(DBC_ACTIVE_URL),
+            "url": DBC._mask_url(DBC_ACTIVE_URL),
+            "config_source": DBC_SOURCE,
             "size_kb": db_info.get("size_kb", 0),
             "universities": db_counts.get("total", 0),
             "count_985": db_counts.get("count_985", 0),

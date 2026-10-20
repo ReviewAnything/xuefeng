@@ -358,6 +358,19 @@ html.dark {
 .pipe-title > b { font-size: 13.5px; color: var(--text); }
 .pipe-desc { margin: 6px 0 4px; font-size: 12.5px; color: var(--muted); line-height: 1.6; }
 
+/* 数据库配置（管理端多数据库配置） */
+.db-alert { margin-bottom: 12px; }
+.db-form { max-width: 760px; }
+.db-form .el-form-item { margin-bottom: 12px; }
+.db-row { display: flex; gap: 14px; flex-wrap: wrap; }
+.db-item { flex: 1 1 200px; min-width: 160px; }
+.db-item-sm { flex: 0 0 110px; min-width: 90px; }
+.db-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
+.db-seed { margin-left: 4px; }
+.db-now { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--muted); line-height: 1.7; }
+.db-now > b, .db-now b { color: var(--text); }
+.opt-note { float: right; color: var(--faint); font-size: 11.5px; margin-left: 12px; }
+
 /* 校线导入（D1） */
 .line-form { margin-top: 14px; }
 .line-form .el-form-item { margin-bottom: 12px; }

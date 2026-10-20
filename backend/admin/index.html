@@ -1020,9 +1020,99 @@
           </div>
 
           <div class="panel">
+            <div class="panel-head">
+              <div><h3>数据库配置</h3><p>切换 SQLite / PostgreSQL / MySQL / MariaDB / SQL Server；保存即建表播种</p></div>
+              <el-tag v-if="dbState" size="small" effect="plain" :type="dbState.env_locked ? 'warning' : 'success'">
+                {{ dbState.active.label }}
+              </el-tag>
+            </div>
+
+            <el-alert v-if="dbState && dbState.env_locked" class="db-alert" type="warning" show-icon :closable="false"
+                      title="环境变量优先级更高：当前由 XUEFENG_DATABASE_URL / XUEFENG_DB_PATH 决定连接，页面保存的配置不会覆盖它。"></el-alert>
+            <el-alert v-if="dbState && dbState.saved" class="db-alert" type="info" show-icon :closable="false">
+              <div class="db-now">
+                <span>已落盘配置：<b>{{ dbState.config.url_preview }}</b></span>
+                <span v-if="dbState.last_applied">上次初始化：{{ fmtTime(dbState.last_applied.at) }} · 院校 {{ dbState.last_applied.stats.universities }} 所 · 表 {{ dbState.last_applied.stats.tables }} 张</span>
+              </div>
+            </el-alert>
+
+            <el-form label-position="top" class="db-form">
+              <div class="db-row">
+                <el-form-item label="数据库类型" class="db-item">
+                  <el-select v-model="dbForm.dialect" @change="onDialectChange">
+                    <el-option v-for="d in dbDialects" :key="d.key" :label="d.label" :value="d.key">
+                      <span>{{ d.label }}</span>
+                      <span class="opt-note">{{ d.ready ? '驱动就绪' : '缺驱动' }}</span>
+                    </el-option>
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="高级模式：直接填连接串" class="db-item">
+                  <el-switch v-model="dbForm.mode" active-value="url" inactive-value="form"></el-switch>
+                </el-form-item>
+              </div>
+
+              <el-form-item v-if="dbForm.mode === 'url'" label="连接串（SQLAlchemy 格式）">
+                <el-input v-model="dbForm.url" placeholder="postgresql+psycopg://user:pass@host:5432/xuefeng"></el-input>
+              </el-form-item>
+
+              <template v-if="dbForm.mode === 'form'">
+                <el-form-item v-if="dbForm.dialect === 'sqlite'" label="数据库文件路径">
+                  <el-input v-model="dbForm.path" placeholder="/abs/path/xuefeng.db"></el-input>
+                </el-form-item>
+                <template v-if="dbForm.dialect !== 'sqlite'">
+                  <div class="db-row">
+                    <el-form-item label="主机" class="db-item">
+                      <el-input v-model="dbForm.host" placeholder="127.0.0.1"></el-input>
+                    </el-form-item>
+                    <el-form-item label="端口" class="db-item db-item-sm">
+                      <el-input v-model="dbForm.port" placeholder="5432"></el-input>
+                    </el-form-item>
+                    <el-form-item label="数据库名" class="db-item">
+                      <el-input v-model="dbForm.database" placeholder="xuefeng"></el-input>
+                    </el-form-item>
+                  </div>
+                  <div class="db-row">
+                    <el-form-item label="账号" class="db-item">
+                      <el-input v-model="dbForm.username" placeholder="xuefeng"></el-input>
+                    </el-form-item>
+                    <el-form-item label="口令" class="db-item">
+                      <el-input v-model="dbForm.password" type="password" show-password
+                                :placeholder="dbState && dbState.config.password_set ? '已保存，留空则沿用' : '数据库口令'"></el-input>
+                    </el-form-item>
+                  </div>
+                </template>
+              </template>
+
+              <div class="db-actions">
+                <el-button :loading="dbTesting" @click="testDb">测试连接</el-button>
+                <el-button type="primary" :loading="dbApplying" @click="applyDb">保存并初始化</el-button>
+                <el-button type="danger" plain :loading="dbResetting" @click="resetDb">恢复默认 SQLite</el-button>
+                <el-checkbox v-model="dbForm.seed" class="db-seed">初始化时播种数据</el-checkbox>
+              </div>
+            </el-form>
+
+            <el-alert v-if="dbResult" class="db-alert" :type="dbResult.ok ? 'success' : 'error'"
+                      :closable="false" :title="dbResultTitle">
+              <div class="db-now">
+                <span v-if="dbResult.error">错误：{{ dbResult.error }}</span>
+                <span v-if="dbResult.hint">提示：{{ dbResult.hint }}</span>
+                <span v-if="dbResult.server_version">服务端：{{ dbResult.server_version }}（{{ dbResult.latency_ms }} ms）</span>
+                <span v-if="dbResult.stats">落库：院校 {{ dbResult.stats.universities }} 所 · 基线 {{ dbResult.stats.baselines }} 行 · 校线 {{ dbResult.stats.school_lines }} 行 · 表 {{ dbResult.stats.tables }} 张</span>
+                <span v-if="dbResult.admin_carried">管理员账号迁移 {{ dbResult.admin_carried }} 个（登录态保持有效）</span>
+              </div>
+            </el-alert>
+
+            <p class="hint">
+              保存流程：先试连（连不上就拒绝保存）→ 写入 <code>backend/data/db_config.json</code>（权限 600，已 gitignore）
+              → 切换连接 → 建表 + 迁移 + 幂等播种。任一步失败都会回滚到切换前的库，服务不会中断。
+              缺驱动时页面会给出安装命令，例如 PostgreSQL：<code>pip install "psycopg[binary]"</code>。
+            </p>
+          </div>
+
+          <div class="panel">
             <div class="panel-head"><div><h3>系统信息</h3><p>运行环境与数据概况</p></div></div>
             <div class="info-grid">
-              <div class="info"><span>数据库</span><b>SQLite · {{ overview ? overview.kpis.db_size_kb : '—' }} KB</b></div>
+              <div class="info"><span>数据库</span><b>{{ dbState ? dbState.active.label : 'SQLite' }} · {{ overview ? overview.kpis.db_size_kb : '—' }} KB</b></div>
               <div class="info"><span>院校总数</span><b>{{ overview ? overview.kpis.universities : '—' }} 所</b></div>
               <div class="info"><span>录取基线</span><b>{{ overview ? overview.kpis.baseline_rows : '—' }} 行</b></div>
               <div class="info"><span>官方覆盖</span><b>{{ overview ? overview.kpis.official_provinces : '—' }} 省</b></div>

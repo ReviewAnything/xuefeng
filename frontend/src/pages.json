@@ -8,12 +8,11 @@
   "pages": [
     { "path": "pages/verdict/verdict", "style": { "navigationBarTitleText": "结论" } },
     { "path": "pages/diagnose/diagnose", "style": { "navigationBarTitleText": "自我诊断" } },
-    { "path": "pages/majors/majors", "style": { "navigationBarTitleText": "专业图谱" } },
+    { "path": "pages/graph/graph", "style": { "navigationBarTitleText": "图谱" } },
     { "path": "pages/verify/verify", "style": { "navigationBarTitleText": "观点×数据核验" } },
     { "path": "pages/recommend/recommend", "style": { "navigationBarTitleText": "院校推荐·冲稳保" } },
     { "path": "pages/plan/plan", "style": { "navigationBarTitleText": "志愿表草稿" } },
     { "path": "pages/majorGroup/majorGroup", "style": { "navigationBarTitleText": "院校专业组" } },
-    { "path": "pages/resources/resources", "style": { "navigationBarTitleText": "开源资源" } },
     { "path": "pages/about/about", "style": { "navigationBarTitleText": "关于" } },
     { "path": "pages/webview/webview", "style": { "navigationBarTitleText": "原始数据", "navigationBarTextStyle": "white", "navigationBarBackgroundColor": "#0f1115" } }
   ],
@@ -30,9 +29,8 @@
     "borderStyle": "black",
     "list": [
       { "pagePath": "pages/verdict/verdict", "text": "结论" },
-      { "pagePath": "pages/majors/majors", "text": "专业" },
+      { "pagePath": "pages/graph/graph", "text": "图谱" },
       { "pagePath": "pages/verify/verify", "text": "核验" },
-      { "pagePath": "pages/resources/resources", "text": "资源" },
       { "pagePath": "pages/about/about", "text": "关于" }
     ]
   }

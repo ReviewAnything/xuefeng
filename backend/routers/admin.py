@@ -20,6 +20,7 @@ from services import admission as A
 from services import admin_auth as auth
 from services import data_sync as DS
 from services import data_versions as DV
+from services import db_config as DBC
 from services import school_lines as SL
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -138,6 +139,62 @@ def change_password(req: ChangePasswordRequest, request: Request,
     profile = auth.admin_profile(admin["username"])
     token = auth.create_token(profile["username"], profile["role"], pwd=result["pwd"])
     return {"ok": True, "message": "密码已更新，旧登录已全部失效", "user": profile, **token}
+
+
+# ---------------------------------------------------------------- 数据库配置（S9-A）
+
+class DbConfigRequest(BaseModel):
+    """多数据库配置。``password`` 留空且目标库未变时表示沿用已保存口令。"""
+    dialect: str = "sqlite"
+    mode: str = "form"                 # form：按字段拼装 | url：直接填连接串
+    host: str = ""
+    port: int | None = None
+    database: str = ""
+    username: str = ""
+    password: str = ""
+    path: str = ""
+    url: str = ""
+    ssl: bool = False
+    seed: bool = True                  # apply 时是否立即播种（默认：配置成功即落盘数据）
+
+
+@router.get("/db-config")
+def db_config_state(admin: dict = Depends(auth.require_admin)):
+    """当前数据库配置（口令掩码）+ 各方言驱动可用性 + 上次应用结果。"""
+    return DBC.state()
+
+
+@router.post("/db-config/test")
+def db_config_test(req: DbConfigRequest, admin: dict = Depends(auth.require_admin_ready)):
+    """只试连：不改配置、不切换、不落盘。"""
+    try:
+        result = DBC.test_connection(req.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"ok": result["ok"], **result}
+
+
+@router.post("/db-config/apply")
+def db_config_apply(req: DbConfigRequest, admin: dict = Depends(auth.require_admin_ready)):
+    """试连 → 落盘配置 → 切换连接 → 建表迁移播种（立即初始化并落盘数据）。"""
+    try:
+        result = DBC.apply_config(req.model_dump(), seed=req.seed, username=admin.get("username", ""))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if not result.get("ok"):
+        # 连通性/初始化失败都以 400 返回，附修复提示；服务仍停在原库上
+        raise HTTPException(status_code=400, detail=result.get("error") or "配置失败",
+                            headers={"X-Db-Hint": (result.get("hint") or "")[:200]})
+    return {"ok": True, "message": "数据库已切换并完成初始化播种", **result}
+
+
+@router.post("/db-config/reset")
+def db_config_reset(admin: dict = Depends(auth.require_admin_ready)):
+    """恢复默认 SQLite：清除落盘配置并重新初始化。"""
+    result = DBC.reset_to_default(username=admin.get("username", ""))
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error") or "恢复默认失败")
+    return {"ok": True, "message": "已恢复默认 SQLite 数据库", **result}
 
 
 # ---------------------------------------------------------------- 看板

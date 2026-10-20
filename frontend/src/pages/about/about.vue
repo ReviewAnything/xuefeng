@@ -23,7 +23,7 @@
           <wd-cell title="UI 组件库" value="wot-design-uni" />
           <wd-cell title="后端" value="Python FastAPI" />
           <wd-cell title="数据落库" value="SQLite + SQLAlchemy" />
-          <wd-cell title="数据规模" value="2868 所院校 · 38 专业" />
+          <wd-cell title="数据规模" :value="'2868 所院校 · ' + majorCount + ' 专业 · ' + schoolCount + ' 所入图谱'" />
           <wd-cell title="管理端" value="/admin" is-link @click="openAdmin" />
         </wd-cell-group>
       </view>
@@ -60,6 +60,34 @@
         <text class="p small">专业图谱内每个专业均标注 source_year（观点整理年份）与 source_note（该大类证据口径）。</text>
       </view>
 
+      <view class="section">
+        <text class="h3">开源资源</text>
+        <text class="p small">与志愿决策 / 升学规划相关的开源项目，均提供进入入口。</text>
+        <scroll-view class="filters" scroll-x="true">
+          <view class="chips">
+            <wd-tag v-for="r in resCats" :key="r.key" :type="cur === r.key ? 'primary' : 'default'"
+                    :plain="cur !== r.key" round @click="cur = r.key">{{ r.label }}</wd-tag>
+          </view>
+        </scroll-view>
+        <view class="grid">
+          <view v-for="item in list" :key="item.name" class="res">
+            <view class="top">
+              <text class="name">{{ item.name }}</text>
+              <wd-tag type="default" plain>{{ item.lic }}</wd-tag>
+            </view>
+            <text class="meta">{{ item.meta }}</text>
+            <text class="desc">{{ item.desc }}</text>
+            <view class="acts">
+              <wd-button v-for="l in item.links" :key="l.u" size="small"
+                         :type="l.t.indexOf('GitHub') >= 0 ? 'primary' : 'default'"
+                         :plain="l.t.indexOf('GitHub') < 0" @click="open(l.u)">
+                {{ l.t }} ↗
+              </wd-button>
+            </view>
+          </view>
+        </view>
+      </view>
+
       <view class="section warn">
         <text class="h3">免责声明</text>
         <text class="p">本应用由 AI 基于公开资料与开源社区内容整理，<text class="strong">仅供学习参考，不构成正式升学/志愿填报建议</text>。实际填报请以各省教育考试院官方数据为准。收录的开源项目多为社区自发纪念与二次创作，与商业主体无关联。录取基线中 11 省为官方省控线/投档位次，其余为模型推算，已在接口逐条标注来源。</text>
@@ -69,14 +97,32 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
-import { APP_VERSION, DATA_DATE, CONTENT_SOURCE } from "@/utils/content.js";
+import { ref, computed } from "vue";
+import { useToast } from "wot-design-uni";
+import { APP_VERSION, DATA_DATE, CONTENT_SOURCE, RESOURCES, RES_CATS, MAJORS, SCHOOLS } from "@/utils/content.js";
 import { themeVars } from "@/utils/theme.js";
 
 const version = APP_VERSION;
 const date = DATA_DATE;
+const majorCount = MAJORS.length;
+const schoolCount = SCHOOLS.length;
 const open = ref("1");
 const src = CONTENT_SOURCE;
+
+/* 开源资源（原「资源」tab 已并入本页） */
+const toast = useToast();
+const resCats = RES_CATS;
+const cur = ref("all");
+const list = computed(() => RESOURCES.filter((r) => cur.value === "all" || r.cat === cur.value));
+
+function open(u) {
+  // #ifdef H5
+  window.open(u, "_blank");
+  // #endif
+  // #ifndef H5
+  uni.setClipboardData({ data: u, success: () => toast.show("链接已复制，请在浏览器打开") });
+  // #endif
+}
 
 function openAdmin() {
   // #ifdef H5
@@ -101,4 +147,15 @@ function openAdmin() {
 .p { font-size: 24rpx; color: #c7ccd4; line-height: 1.75; }
 .p.small { display: block; margin-top: 12rpx; font-size: 21rpx; color: #8a909c; }
 .strong { color: #ffd24d; font-weight: 600; }
+
+/* 开源资源（资源 tab 迁入） */
+.filters { white-space: nowrap; margin: 14rpx 0 12rpx; }
+.chips { display: inline-flex; gap: 12rpx; padding: 2rpx 2rpx 6rpx; }
+.grid { display: flex; flex-direction: column; gap: 20rpx; }
+.res { background: #16191f; border: 1px solid #23262e; border-radius: 16rpx; padding: 22rpx; }
+.top { display: flex; justify-content: space-between; align-items: center; gap: 12rpx; }
+.name { font-size: 27rpx; font-weight: 600; color: #e6e8ec; }
+.meta { display: block; font-size: 21rpx; color: #6b7280; margin-top: 8rpx; }
+.desc { font-size: 23rpx; color: #9aa0aa; line-height: 1.7; display: block; margin: 12rpx 0 16rpx; }
+.acts { display: flex; flex-wrap: wrap; gap: 12rpx; }
 </style>
