@@ -38,29 +38,37 @@ def test_admission_search_unknown_province():
     assert r.status_code == 404
 
 
-def test_verify_aligned():
+def test_verify_reachability_high():
     r = c.post("/api/verify", json={"province": "河南", "subject": "物理类", "user_rank": 30000, "major_name": "计算机科学与技术"})
     assert r.status_code == 200
     j = r.json()
     assert j["view"] == "recommend"
-    assert j["alignment"] == "aligned"
-    # 河南物理 985 官方入门位次 44463；rank 30000 真实可达 985（旧估算仅到 211）
+    # S0：证据一致性因缺校线趋势恒为 unverified，不再给 aligned/conflict
+    assert j["alignment"] == "unverified"
+    assert j["reachability"] == "high"   # 位次可达 985/211 层次
     assert j["best_reachable"]["tier"] in ("985", "211")
+    # 治理字段已随 content.json 升级补齐
+    assert j["evidence_grade"] == "A"
+    assert j["view_source"]
 
 
-def test_verify_caution_low_tier_recommend():
+def test_verify_reachability_low_tier():
     r = c.post("/api/verify", json={"province": "河南", "subject": "物理类", "user_rank": 210000, "major_name": "临床医学"})
     assert r.status_code == 200
     j = r.json()
-    assert j["alignment"] == "caution"
+    assert j["alignment"] == "unverified"
+    assert j["reachability"] == "low"   # 位次只够二本/专科
     assert j["best_reachable"]["tier"] in ("普通二本", "专科")
 
 
-def test_verify_conflict_avoid_low_tier():
-    # 真实 31 省基线更精细：210000 已能冲上「普通一本」，故用更低位次确保只够低位次批次 -> 冲突
+def test_verify_avoid_low_tier_is_reachability_not_conflict():
+    # 避坑专业 + 低位次：S0 之前误报「冲突」，现在是诚实的 reachability=low，alignment 恒 unverified
     r = c.post("/api/verify", json={"province": "河南", "subject": "物理类", "user_rank": 280000, "major_name": "生物工程"})
     assert r.status_code == 200
-    assert r.json()["alignment"] == "conflict"
+    j = r.json()
+    assert j["alignment"] == "unverified"
+    assert j["reachability"] == "low"
+    assert j["reachability_label"] == "仅够低层次"
 
 
 def test_verify_unknown_major():
@@ -174,7 +182,7 @@ def test_official_coverage_expanded_to_11_provinces():
 
 # ---------------------------------------------------------------- P1→P2 批量核验
 
-def test_verify_batch_returns_summary_and_risk_first_order():
+def test_verify_batch_summary_and_reachability_order():
     majors = c.get("/api/majors").json()["majors"]
     names = [m["name"] for m in majors[:8]]
     r = c.post("/api/verify/batch", json={
@@ -182,12 +190,31 @@ def test_verify_batch_returns_summary_and_risk_first_order():
     assert r.status_code == 200, r.text
     j = r.json()
     assert j["count"] == 8
-    assert j["summary"]["total"] == 8
-    assert j["summary"]["aligned"] + j["summary"]["caution"] + j["summary"]["conflict"] == 8
-    order = {"conflict": 0, "caution": 1, "aligned": 2}
-    seq = [order[x["alignment"]] for x in j["results"]]
-    assert seq == sorted(seq), "结果应按 冲突 → 需谨慎 → 一致 排序"
+    s = j["summary"]
+    assert s["total"] == 8
+    assert s["out_of_reach"] + s["low"] + s["mid"] + s["high"] == 8
+    # 风险优先：不可及 → 低位次 → 一本 → 高层次
+    order = {"out_of_reach": 0, "low": 1, "mid": 2, "high": 3}
+    seq = [order[x["reachability"]] for x in j["results"]]
+    assert seq == sorted(seq), "结果应按可及性风险优先排序"
     assert all(x["province"] == "河南" for x in j["results"])
+    # S0 验收：批量结果不得出现 conflict/aligned（alignment 恒 unverified）
+    assert all(x["alignment"] == "unverified" for x in j["results"])
+
+
+def test_no_alignment_conflict_or_aligned_without_school_line_trend():
+    """S0 验收：缺校线趋势证据时，任何专业都不得返回 conflict/aligned。"""
+    majors = c.get("/api/majors").json()["majors"]
+    for m in majors:
+        for rank in (2000, 40000, 120000, 280000):
+            r = c.post("/api/verify", json={
+                "province": "河南", "subject": "物理类", "user_rank": rank,
+                "major_name": m["name"]})
+            if r.status_code != 200:
+                continue
+            j = r.json()
+            assert j["alignment"] == "unverified"
+            assert j["reachability"] in ("out_of_reach", "low", "mid", "high")
 
 
 def test_verify_batch_rejects_empty_and_too_many():
@@ -255,6 +282,34 @@ def test_content_provenance_is_exposed():
     cs = j["content_source"]
     assert cs["compiled_year"] >= 2026
     assert cs["view_basis"] and cs["data_basis"] and cs["caveat"]
+    assert cs.get("framework") == "就业确定性优先（普通家庭 + 就业导向的务实决策方法）"
     majors = c.get("/api/majors").json()["majors"]
     assert len(majors) == 38
     assert all(m.get("source_year") and m.get("source_note") for m in majors)
+
+
+def test_content_governance_fields_present():
+    """S1：每条观点都补齐治理字段（view_source / evidence_grade / reviewed_at / expires_at）。"""
+    majors = c.get("/api/majors").json()["majors"]
+    assert len(majors) == 38
+    for m in majors:
+        assert m.get("evidence_grade") in ("A", "B", "C")
+        assert m.get("view_source")
+        assert m.get("reviewed_at")
+        assert m.get("expires_at")
+
+
+def test_health_reports_pending_view_reviews():
+    """S1 验收：/api/health 能报「待复核观点 N 条」。"""
+    j = c.get("/api/health").json()
+    assert "pending_views" in j
+    assert isinstance(j["pending_views"], int)
+    assert j["pending_views"] >= 0
+
+
+def test_validate_content_ok():
+    from services import content as C
+    res = C.validate_content()
+    assert res["ok"] is True, res
+    assert res["stats"]["majors"] == 38
+    assert "pending" in res["stats"]

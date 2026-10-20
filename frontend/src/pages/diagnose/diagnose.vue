@@ -30,7 +30,7 @@
           <wd-button type="primary" block size="large" @click="run">生成决策画布</wd-button>
           <wd-button plain block @click="clear">清空</wd-button>
         </view>
-        <text class="tip muted">本工具体现张雪峰"普通家庭+就业导向"视角，并已加入偏见校正层，请结合自身判断。</text>
+        <text class="tip muted">本工具体现「就业确定性优先（普通家庭+就业导向）」视角，并已加入偏见校正层，请结合自身判断。</text>
       </view>
 
       <view class="section" v-if="canvas">

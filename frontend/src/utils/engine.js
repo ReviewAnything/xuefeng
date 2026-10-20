@@ -47,8 +47,8 @@ export function pickMajors(d, majors) {
 
 export function buildBiasWarn(d) {
   if (d.familyBg === "资源型(有人脉/可试错)")
-    return "你家庭容错率较高，张雪峰的'普通家庭求稳'框架对你约束较弱，可更重视兴趣与长期主义。";
-  return "你处于张雪峰框架的核心适用人群（普通/寒门），但请记住：<b>兴趣不是第一标准，但也不该被完全牺牲</b>；国家也需要基础学科人才。";
+    return "你家庭容错率较高，就业确定性优先的'普通家庭求稳'框架对你约束较弱，可更重视兴趣与长期主义。";
+  return "你处于本框架（就业确定性优先）的核心适用人群（普通/寒门），但请记住：<b>兴趣不是第一标准，但也不该被完全牺牲</b>；国家也需要基础学科人才。";
 }
 
 export function buildCanvas(d, majors) {
@@ -60,9 +60,9 @@ export function buildCanvas(d, majors) {
     .slice(0, 4)
     .map((m) => m.name);
   const next = [
-    "到「专业图谱」查候选专业的张雪峰观点 + 偏见校正",
+    "到「专业图谱」查候选专业的就业导向观点 + 偏见校正",
     "到「核验」页用真实录取位次做 观点×数据 交叉核验",
-    "去招聘网站搜岗位，看要求什么专业/技能（张雪峰原话）",
+    "去招聘网站搜岗位，看要求什么专业/技能（就业导向原话）",
   ];
   return { strategy, picks, biasWarn, avoidHint, next };
 }

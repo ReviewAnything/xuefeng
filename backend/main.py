@@ -51,7 +51,7 @@ APP_VERSION = C.APP_VERSION
 
 app = FastAPI(
     title="志愿决策助手 · 后端",
-    description="张雪峰框架 + 开源资源 + P2 观点×数据交叉核验 API + 管理端",
+    description="就业确定性优先 + 开源资源 + P2 观点×数据交叉核验 API + 管理端",
     version=APP_VERSION,
 )
 
@@ -139,6 +139,7 @@ def health():
         },
         "school_lines": {"total": school_lines.get("total", 0),
                          "years": [y["year"] for y in school_lines.get("years", [])]},
+        "pending_views": C.pending_reviews(),
         "observability": OBS.snapshot(recent=5),
         "admin_console": None if DISABLE_ADMIN else "/admin",
     }
@@ -253,11 +254,11 @@ def verify_batch(req: VerifyBatchRequest):
         best = r.get("best_reachable") or {}
         repo.record_event("verify", province=req.province, subject=req.subject,
                           user_rank=req.user_rank, major_name=r["major"],
-                          alignment=r["alignment"], best_tier=best.get("tier", ""))
+                          alignment=r["reachability"], best_tier=best.get("tier", ""))
     s = result["summary"]
     repo.record_event("verify_batch", province=req.province, subject=req.subject,
                       user_rank=req.user_rank, major_name=f"{len(result['results'])}个专业",
-                      alignment=f"冲突{s['conflict']}/谨慎{s['caution']}/一致{s['aligned']}")
+                      alignment=f"不可及{s['out_of_reach']}/低{s['low']}/一本{s['mid']}/高{s['high']}")
     return result
 
 

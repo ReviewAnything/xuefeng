@@ -1,94 +1,138 @@
 """P2 核心：观点 × 数据 交叉核验。
 
-把「张雪峰定性观点（推荐/慎选/避坑）」与「后端定量录取数据（可达批次/冲稳保）」做一致性校验，
-输出 alignment（一致/需谨慎/冲突）与可执行建议，强化偏见校正层。
+语义分层（设计评审 S0 落地）
+------------------------
+  - ``reachability``（可及性）：候选位次能否触及该专业观点所隐含的质量层次。
+    这是对「考生自己」的事实陈述，由「观点 × 可达批次门槛」决定，诚实且无歧义。
+  - ``alignment``（证据一致性）：数据是否真正支持/反驳观点。
+    这需要逐校投档线的「位次趋势」证据（S2 导入 ``school_lines`` 后才能算）。
+    在缺乏该证据时，``alignment`` 恒为 ``unverified``（数据未覆盖），
+    界面只展示「数据未覆盖」，不出现「一致/冲突」横幅。
+
+设计红线：绝不允许把「可达批次门槛」这张表渲染成「数据反驳/支持观点」——
+那是命题错配（观点答「值不值」，数据答「够不够」）。
 """
-from .admission import analyze_major, classify, validate_user_rank
+from .admission import analyze_major, validate_user_rank
 from .content import VIEW_LABEL
 
-# 高危低位次批次：在这些批次读到"推荐"专业，需提示 bias 风险
+# 高危低位次批次：在这些批次读到「推荐」专业，原 bias 提示的风险会被放大
 LOW_TIERS = {"普通二本", "专科"}
+
+# 可及性分级：最受限 → 最宽裕（批量排序用，风险优先）
+REACHABILITY_ORDER = {"out_of_reach": 0, "low": 1, "mid": 2, "high": 3}
+REACHABILITY_LABEL = {
+    "out_of_reach": "位次不可及",
+    "low": "仅够低层次",
+    "mid": "可达一本",
+    "high": "可达高层次",
+}
+
+# 证据一致性：在缺乏校线趋势证据时恒为 unverified（S2 后才可能变）
+ALIGNMENT_UNVERIFIED = "unverified"
+ALIGNMENT_LABEL = {"unverified": "数据未覆盖"}
+
+
+def _reachability(view: str, best_tier) -> str:
+    """候选位次相对观点隐含层次的真实可及性。"""
+    if best_tier is None:
+        return "out_of_reach"
+    if best_tier in LOW_TIERS:
+        return "low"
+    if best_tier == "普通一本":
+        return "mid"
+    return "high"  # 985 / 211
+
+
+def _reachability_message(major_name: str, view: str, best: dict, reach: str) -> str:
+    """可及性提示：只描述「你的位次能摸到哪个层次」，不宣称数据支持/反驳观点。"""
+    if reach == "out_of_reach":
+        floor = best["min_rank"] if best else "—"
+        return (f"你的位次在所有批次都够不到「{major_name}」"
+                f"（最易批次门槛位次 {floor}），"
+                f"建议优先看冲稳保梯度内的专业。")
+    tier = best["tier"]
+    level = best["level"]
+    rank = best["min_rank"]
+    if view == "recommend":
+        if reach == "low":
+            return (f"「{major_name}」观点为<b>推荐</b>，但你的位次只能摸到"
+                    f"<b>{tier}</b>层次（门槛位次 {rank}，判定「{level}」）。"
+                    f"推荐通常假设进入较优质培养单位，低位次段就读时原 bias 提示的风险会被放大。"
+                    f"这是<b>可及性</b>提示，不代表数据否定该观点。")
+        return (f"「{major_name}」观点为<b>推荐</b>，且你的位次可够到"
+                f"<b>{tier}</b>层次（门槛位次 {rank}，判定「{level}」）——"
+                f"推荐所隐含的「较优质培养单位」前提成立。这是<b>可及性</b>提示，"
+                f"数据侧暂无法核验观点本身。")
+    if view == "caution":
+        return (f"「{major_name}」观点为<b>慎选</b>，你的位次可摸到"
+                f"<b>{tier}</b>层次（判定「{level}」）。"
+                f"该专业并非完全不可，但需满足条件（如深造/转方向）才成立。"
+                f"这是<b>可及性</b>提示，数据侧暂无法核验观点本身。")
+    # avoid
+    if reach == "low":
+        return (f"「{major_name}」观点为<b>避坑</b>，而你的位次正好落在"
+                f"<b>{tier}</b>层次——这恰是该观点最不推荐的处境，"
+                f"需重点评估 bias 例外方向。这是<b>可及性</b>提示，数据侧暂无法核验观点本身。")
+    return (f"「{major_name}」观点为<b>避坑</b>，但你的位次能摸到"
+            f"<b>{tier}</b>层次（判定「{level}」）。"
+            f"若你确有资源/热爱，可在充分了解风险后谨慎考虑。"
+            f"这是<b>可及性</b>提示，数据侧暂无法核验观点本身。")
+
+
+def _suggestions(view: str, bias: str, reach: str) -> list:
+    if reach == "out_of_reach":
+        return [
+            "回到诊断画布查看可达专业清单（数据侧已按你的位次筛出 冲/稳/保）",
+            "若坚持该专业，需显著提高位次或考虑同大类更易录取的方向",
+        ]
+    base = [f"仍需核对 bias 提示，避免把观点当定论：{bias}"]
+    if view == "recommend":
+        if reach == "low":
+            return base + [
+                "若只能读低位次院校，优先选同大类中门槛更低但仍有壁垒的方向",
+                "用资源中心的 gaokao-advisor 核验该专业在你位次段的真实招生量",
+            ]
+        return base + ["用资源中心工具核验该专业目标院校的真实录取位次波动"]
+    if view == "caution":
+        return [
+            f"关键看 bias 提示里的「前提条件」：{bias}",
+            "仅在能满足前提（如坚定读研、能啃硬课）时纳入",
+        ]
+    # avoid
+    if reach == "low":
+        return [
+            f"务必阅读 bias 提示里的「例外方向」：{bias}",
+            "优先用数据侧筛出的 稳/保 专业替换",
+        ]
+    return [
+        f"仅当满足 bias 提示中的例外（如热爱科研且规划读博）才考虑：{bias}",
+        "普通家庭无背景时，建议仍按避坑处理",
+    ]
 
 
 def verify(province: str, subject: str, user_rank: int, major_name: str, major_cat: str,
-           view: str, reason: str, bias: str) -> dict:
-    """交叉核验单个专业。"""
+           view: str, reason: str, bias: str,
+           view_source: str = "", evidence_grade: str = "", source_url: str = "") -> dict:
+    """交叉核验单个专业（语义分层版）。"""
     ana = analyze_major(province, subject, user_rank, major_name, major_cat)
     if not ana["ok"]:
         return ana
 
     best = ana["best_reachable"]
-    if best is None:
-        # 用户位次无法达到该专业的任何批次
-        alignment = "conflict"
-        message = (f"你的位次（{user_rank}）在所有批次都够不到「{major_name}」"
-                   f"（最易批次门槛位次 {ana['tiers'][-1]['min_rank']}），"
-                   f"该专业当前对你属于「不可及」，建议优先看冲稳保梯度内的专业。")
-        suggestions = [
-            "回到诊断画布查看可达专业清单（数据侧已按你的位次筛出 冲/稳/保）",
-            "若坚持该专业，需显著提高位次或考虑同大类更易录取的方向",
-        ]
-        return _pack(province, subject, user_rank, major_name, view, reason, bias, ana,
-                     alignment, message, suggestions)
+    reach = _reachability(view, best["tier"] if best else None)
+    reach_msg = _reachability_message(major_name, view, best, reach)
 
-    best_tier = best["tier"]
-    best_level = best["level"]
+    # 证据一致性：缺乏校线趋势证据，恒为 unverified
+    alignment = ALIGNMENT_UNVERIFIED
+    alignment_label = ALIGNMENT_LABEL[alignment]
+    alignment_msg = ("暂无逐校投档线趋势（school_lines）佐证观点，无法判定证据一致/冲突；"
+                     "以上为可及性提示，不等于数据支持或反驳该观点。")
 
-    # —— 一致性判定 ——
-    if view == "recommend":
-        if best_tier in LOW_TIERS:
-            alignment = "caution"
-            message = (f"「{major_name}」张雪峰视角为<b>推荐</b>，但你的位次只能摸到"
-                       f"<b>{best_tier}</b>层次（门槛位次 {best['min_rank']}，判定「{best_level}」）。"
-                       f"该推荐通常假设进入较优质的培养单位；低位次段就读时，原 bias 提示的风险会被放大。")
-            suggestions = [
-                f"对照 bias 提示逐条评估：{bias}",
-                "若只能读低位次院校，优先选 same 大类中门槛更低但仍有壁垒的方向",
-                "用资源中心的 gaokao-advisor 核验该专业在你位次段的真实招生量",
-            ]
-        else:
-            alignment = "aligned"
-            message = (f"「{major_name}」张雪峰视角为<b>推荐</b>，且你的位次可够到"
-                       f"<b>{best_tier}</b>层次（门槛位次 {best['min_rank']}，判定「{best_level}」），"
-                       f"观点与数据方向一致，可作为重点候选。")
-            suggestions = [
-                f"仍需核对 bias 提示，避免把推荐当定论：{bias}",
-                "用资源中心工具核验该专业目标院校的真实录取位次波动",
-            ]
-    elif view == "caution":
-        alignment = "caution"
-        message = (f"「{major_name}」张雪峰视角为<b>慎选</b>，你的位次可摸到"
-                   f"<b>{best_tier}</b>层次（判定「{best_level}」）。"
-                   f"该专业并非完全不可，但需满足条件（如深造/转方向）才成立。")
-        suggestions = [
-            f"关键看 bias 提示里的「前提条件」：{bias}",
-            "仅在能满足前提（如坚定读研、能啃硬课）时纳入",
-        ]
-    else:  # avoid
-        if best_tier in LOW_TIERS:
-            alignment = "conflict"
-            message = (f"「{major_name}」张雪峰视角为<b>避坑</b>，而你的位次正好落在"
-                       f"<b>{best_tier}</b>层次——这正是该观点最不推荐的处境，建议坚决规避或仅作保底。")
-            suggestions = [
-                f"务必阅读 bias 提示里的「例外方向」：{bias}",
-                "优先用数据侧筛出的 稳/保 专业替换",
-            ]
-        else:
-            alignment = "caution"
-            message = (f"「{major_name}」张雪峰视角为<b>避坑</b>，但你的位次能摸到"
-                       f"<b>{best_tier}</b>层次（判定「{best_level}」）。"
-                       f"若你确有资源/热爱，可在充分了解风险后谨慎考虑。")
-            suggestions = [
-                f"仅当满足 bias 提示中的例外（如热爱科研且规划读博）才考虑：{bias}",
-                "普通家庭无背景时，建议仍按避坑处理",
-            ]
-
+    suggestions = _suggestions(view, bias, reach)
     return _pack(province, subject, user_rank, major_name, view, reason, bias, ana,
-                 alignment, message, suggestions)
+                 reach, alignment, reach_msg, alignment_msg, suggestions,
+                 view_source, evidence_grade, source_url)
 
-
-ALIGNMENT_ORDER = {"conflict": 0, "caution": 1, "aligned": 2}   # 冲突优先，便于用户先看风险
-ALIGNMENT_LABEL = {"aligned": "观点与数据一致", "caution": "需谨慎", "conflict": "存在冲突"}
 
 MAX_BATCH = 20
 
@@ -99,13 +143,17 @@ def verify_major_entry(province, subject, user_rank, major) -> dict:
         province=province, subject=subject, user_rank=user_rank,
         major_name=major["name"], major_cat=major["cat"], view=major["view"],
         reason=major["reason"], bias=major["bias"],
+        view_source=major.get("view_source", ""),
+        evidence_grade=major.get("evidence_grade", ""),
+        source_url=major.get("source_url", ""),
     )
 
 
 def verify_many(province: str, subject: str, user_rank: int, majors: list[dict]) -> dict:
-    """批量交叉核验（P1→P2 打通）：一次算出多个专业的 一致/需谨慎/冲突 判定。
+    """批量交叉核验（P1→P2 打通）：一次算出多个专业的 可及性 判定。
 
-    返回按「冲突 → 需谨慎 → 一致」排序的结果列表 + 汇总计数，供前端一次渲染。
+    返回按「不可及 → 仅够低层次 → 可达一本 → 可达高层次」排序的结果列表 +
+    可及性分布计数，供前端一次渲染（风险优先，先看最受限项）。
     """
     err = validate_user_rank(user_rank)
     if err:
@@ -121,10 +169,10 @@ def verify_many(province: str, subject: str, user_rank: int, majors: list[dict])
             continue
         results.append(r)
 
-    results.sort(key=lambda r: (ALIGNMENT_ORDER.get(r["alignment"], 9), r["major"]))
-    summary = {"total": len(results), "aligned": 0, "caution": 0, "conflict": 0}
+    results.sort(key=lambda r: (REACHABILITY_ORDER.get(r["reachability"], 9), r["major"]))
+    summary = {"total": len(results), "out_of_reach": 0, "low": 0, "mid": 0, "high": 0}
     for r in results:
-        summary[r["alignment"]] = summary.get(r["alignment"], 0) + 1
+        summary[r["reachability"]] = summary.get(r["reachability"], 0) + 1
 
     return {
         "ok": True,
@@ -138,18 +186,24 @@ def verify_many(province: str, subject: str, user_rank: int, majors: list[dict])
 
 
 def _pack(province, subject, user_rank, major_name, view, reason, bias, ana,
-          alignment, message, suggestions) -> dict:
+          reach, alignment, reach_msg, alignment_msg, suggestions,
+          view_source, evidence_grade, source_url) -> dict:
     return {
         "ok": True,
         "province": province, "subject": subject, "user_rank": user_rank,
         "major": major_name,
         "view": view, "view_label": VIEW_LABEL.get(view, view),
+        "view_source": view_source, "evidence_grade": evidence_grade, "source_url": source_url,
         "reason": reason, "bias": bias,
         "best_reachable": ana["best_reachable"],
         "tiers": ana["tiers"],
+        "reachability": reach,
+        "reachability_label": REACHABILITY_LABEL[reach],
+        "reachability_message": reach_msg,
         "alignment": alignment,
         "alignment_label": ALIGNMENT_LABEL[alignment],
-        "message": message,
+        "alignment_message": alignment_msg,
+        "message": reach_msg,
         "suggestions": suggestions,
         "data_source": ana["data_source"],
         "reachable_tier": ana.get("reachable_tier"),

@@ -1,7 +1,7 @@
 {
   "APP_VERSION": "2.2.0",
   "DATA_DATE": "2026-10-20",
-  "NOTE": "单一数据源：uni-app 前端与 Python 后端共用。年度更新只改本文件并 bump APP_VERSION。内容来源：张雪峰公开观点(社区整理) + 开源资源核实，仅供学习参考。",
+  "NOTE": "单一数据源：uni-app 前端与 Python 后端共用。年度更新只改本文件并 bump APP_VERSION。内容来源：公开就业导向观点（社区整理）+ 开源资源核实，仅供学习参考。",
   "QUESTIONS": [
     {
       "id": "province",
@@ -104,7 +104,12 @@
       "bias": "行业内卷明显、需持续学新技术；AI 编码工具会压缩初级岗位，应往系统/算法/垂直行业纵深走。",
       "verify": "gaokao-advisor 查真实录取位次：https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。"
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "A",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "软件工程",
@@ -118,7 +123,12 @@
       "bias": "同计算机，警惕纯 CRUD 岗位被外包/AI 替代，需积累架构与领域经验。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。"
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "A",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "电子信息类",
@@ -132,7 +142,12 @@
       "bias": "课程难度大、数理要求高，普通家庭无背景也能靠技术立足，但需能啃硬课。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。"
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "A",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "电气工程及其自动化",
@@ -146,7 +161,12 @@
       "bias": "并非所有去向都进国网，县局/私企待遇差异大；仍是普通家庭确定性极高的选择。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。"
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "A",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "自动化",
@@ -160,7 +180,12 @@
       "bias": "方向杂需自己聚焦（控制/嵌入式/AI），否则容易样样通样样松。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。"
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "A",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "机械类",
@@ -174,7 +199,12 @@
       "bias": "传统机械黄金期已过，须往机电一体化/机器人/新能源方向靠，否则易沦为车间岗。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。"
+      "source_note": "就业侧参考公开就业质量报告与市场招聘行情；录取位次请查各省考试院 / gaokao-advisor。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "临床医学",
@@ -188,7 +218,12 @@
       "bias": "低分院校临床就业极差、前期倒贴钱；普通家庭需评估时间成本，能接受长周期才选。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "培养周期与执业门槛参考国家医师资格考试、住院医师规范化培训等公开制度规定。"
+      "source_note": "培养周期与执业门槛参考国家医师资格考试、住院医师规范化培训等公开制度规定。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "A",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "口腔医学",
@@ -202,7 +237,12 @@
       "bias": "分数已不低、竞争加剧；开办诊所需资金与资质，并非轻松致富。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "培养周期与执业门槛参考国家医师资格考试、住院医师规范化培训等公开制度规定。"
+      "source_note": "培养周期与执业门槛参考国家医师资格考试、住院医师规范化培训等公开制度规定。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "A",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "医学影像技术",
@@ -216,7 +256,12 @@
       "bias": "属技术岗非医师，晋升与薪资天花板低于临床，但确定性高。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "培养周期与执业门槛参考国家医师资格考试、住院医师规范化培训等公开制度规定。"
+      "source_note": "培养周期与执业门槛参考国家医师资格考试、住院医师规范化培训等公开制度规定。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "A",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "医学检验技术",
@@ -230,7 +275,12 @@
       "bias": "AI 辅助诊断会替代部分常规操作，需向复合型检验人才发展。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "培养周期与执业门槛参考国家医师资格考试、住院医师规范化培训等公开制度规定。"
+      "source_note": "培养周期与执业门槛参考国家医师资格考试、住院医师规范化培训等公开制度规定。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "A",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "护理学",
@@ -244,7 +294,12 @@
       "bias": "工作强度大、夜班多、职业尊重度参差；男护需求更旺但需心理准备。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "培养周期与执业门槛参考国家医师资格考试、住院医师规范化培训等公开制度规定。"
+      "source_note": "培养周期与执业门槛参考国家医师资格考试、住院医师规范化培训等公开制度规定。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "A",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "口腔医学技术",
@@ -258,7 +313,12 @@
       "bias": "注意与口腔医学区别：这是技工岗不是医师，不能考医师证开诊所。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "培养周期与执业门槛参考国家医师资格考试、住院医师规范化培训等公开制度规定。"
+      "source_note": "培养周期与执业门槛参考国家医师资格考试、住院医师规范化培训等公开制度规定。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "法学",
@@ -272,7 +332,12 @@
       "bias": "连续多年红牌、司考难、普通院校内卷；需名校或过硬实力，否则易沦为廉价劳动力。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "考公/考编岗位参考公开招录职位表；「就业面窄」为观点性判断，个体差异较大。"
+      "source_note": "考公/考编岗位参考公开招录职位表；「就业面窄」为观点性判断，个体差异较大。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "A",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "汉语言文学",
@@ -286,7 +351,12 @@
       "bias": "纯文科上限靠个人能力，需叠加写作/新媒体等可迁移技能。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "考公/考编岗位参考公开招录职位表；「就业面窄」为观点性判断，个体差异较大。"
+      "source_note": "考公/考编岗位参考公开招录职位表；「就业面窄」为观点性判断，个体差异较大。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "A",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "会计学/财务管理",
@@ -300,7 +370,12 @@
       "bias": "基础核算受财务软件/AI 冲击，须往CPA/管理会计/审计纵深。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "考公/考编岗位参考公开招录职位表；「就业面窄」为观点性判断，个体差异较大。"
+      "source_note": "考公/考编岗位参考公开招录职位表；「就业面窄」为观点性判断，个体差异较大。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "A",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "师范类",
@@ -314,7 +389,12 @@
       "bias": "人口下行致教师编竞争加剧、部分学科饱和；优先选理科/紧缺学科师范。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "考公/考编岗位参考公开招录职位表；「就业面窄」为观点性判断，个体差异较大。"
+      "source_note": "考公/考编岗位参考公开招录职位表；「就业面窄」为观点性判断，个体差异较大。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "A",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "经济学类",
@@ -328,7 +408,12 @@
       "bias": "金融本质资源变现，普通家庭无背景难立足；慎选无特色的经济专业。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "考公/考编岗位参考公开招录职位表；「就业面窄」为观点性判断，个体差异较大。"
+      "source_note": "考公/考编岗位参考公开招录职位表；「就业面窄」为观点性判断，个体差异较大。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "B",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "公费师范生",
@@ -342,7 +427,12 @@
       "bias": "需签订服务期、定向就业，违约成本高；适合求稳且接受基层者。",
       "verify": "各省教育考试院公费师范招生简章",
       "source_year": 2026,
-      "source_note": "参考公务员 / 事业单位公开招录条件与专业要求，各地口径可能不同。"
+      "source_note": "参考公务员 / 事业单位公开招录条件与专业要求，各地口径可能不同。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "A",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "警校/公安类",
@@ -356,7 +446,12 @@
       "bias": "需政审+体测+面试，身体条件不符直接出局，提前核验资格。",
       "verify": "各省警校招生体检面试标准",
       "source_year": 2026,
-      "source_note": "参考公务员 / 事业单位公开招录条件与专业要求，各地口径可能不同。"
+      "source_note": "参考公务员 / 事业单位公开招录条件与专业要求，各地口径可能不同。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "A",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "定向士官",
@@ -370,7 +465,12 @@
       "bias": "服役年限与转业安置需了解清楚，并非人人适合军旅。",
       "verify": "各省征兵办/军校招生网",
       "source_year": 2026,
-      "source_note": "参考公务员 / 事业单位公开招录条件与专业要求，各地口径可能不同。"
+      "source_note": "参考公务员 / 事业单位公开招录条件与专业要求，各地口径可能不同。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "A",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "军校",
@@ -384,7 +484,12 @@
       "bias": "体检政审极严、管理军事化，须确认自己适配。",
       "verify": "军校招生官方平台",
       "source_year": 2026,
-      "source_note": "参考公务员 / 事业单位公开招录条件与专业要求，各地口径可能不同。"
+      "source_note": "参考公务员 / 事业单位公开招录条件与专业要求，各地口径可能不同。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "A",
+      "source_url": "",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "生物工程",
@@ -398,7 +503,12 @@
       "bias": "若真热爱科研且规划读博可走；否则本科就业面窄、转行率高。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "C",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "化学/应用化学",
@@ -412,7 +522,12 @@
       "bias": "新能源/半导体材料方向例外，传统化学方向慎选。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "C",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "环境工程",
@@ -426,7 +541,12 @@
       "bias": "双碳政策长期有利，但短期薪酬与岗位仍有限。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "C",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "材料科学与工程",
@@ -440,7 +560,12 @@
       "bias": "半导体/新能源前沿材料例外，传统金属/无机材料慎重。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "C",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "新闻学",
@@ -454,7 +579,12 @@
       "bias": "家境优渥、坚定做内容者可酌情；同等分数选硬核工科选择更广。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "C",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "金融学(无背景)",
@@ -468,7 +598,12 @@
       "bias": "名校+资源型家庭另说；普通家庭除非能进顶尖院校，否则慎碰。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "C",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "工商管理",
@@ -482,7 +617,12 @@
       "bias": "家里有企业可学管理；普通家庭优先选有技术壁垒的专业。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "C",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "市场营销",
@@ -496,7 +636,12 @@
       "bias": "若叠加数据分析/品牌能力可突围，但单靠专业难。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "C",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "哲学",
@@ -510,7 +655,12 @@
       "bias": "逻辑训练有价值，但需自学可迁移技能，不能当饭吃。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "C",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "历史学",
@@ -524,7 +674,12 @@
       "bias": "师范/文博方向尚可；纯历史研究需读博。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "C",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "心理学",
@@ -538,7 +693,12 @@
       "bias": "可走HR/用户体验方向，但纯咨询难变现。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "C",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "考古学",
@@ -552,7 +712,12 @@
       "bias": "文博热带动少量需求，但仍属极小众。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "C",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "土木工程",
@@ -566,7 +731,12 @@
       "bias": "基建/水利/交通方向仍有需求，但整体黄金期已过。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "C",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "建筑学",
@@ -580,7 +750,12 @@
       "bias": "转城市规划/景观需再定位；设计院竞争极烈。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "C",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "旅游管理",
@@ -594,7 +769,12 @@
       "bias": "可走会展/数字文旅，但单靠专业无壁垒。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "C",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "酒店管理",
@@ -608,7 +788,12 @@
       "bias": "国际品牌管培生路径尚可，但起薪与强度不友好。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "C",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     },
     {
       "name": "公共管理/社工",
@@ -622,7 +807,12 @@
       "bias": "考公定向岗可走，但普通方向缺乏技术壁垒。",
       "verify": "https://github.com/chenxuyaun/gaokao-advisor",
       "source_year": 2026,
-      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。"
+      "source_note": "「天坑」为观点性标签，指就业面与投入产出比的一般性观察，存在个体差异与例外方向。",
+      "view_source": "张雪峰公开观点（社区整理）",
+      "evidence_grade": "C",
+      "source_url": "https://github.com/chenxuyaun/gaokao-advisor",
+      "reviewed_at": "2026-10-20",
+      "expires_at": "2027-06-30"
     }
   ],
   "RESOURCES": [
@@ -780,9 +970,10 @@
   "CONTENT_SOURCE": {
     "compiled_year": 2026,
     "compiled_date": "2026-10-20",
-    "view_basis": "张雪峰公开讲座 / 直播观点（社区整理，非官方，属定性判断）",
+    "view_basis": "就业确定性优先：公开观点（社区整理，非官方，属定性判断）；张雪峰为观点来源之一，本产品不以其姓名作品牌背书。",
     "data_basis": "教育部学科评估、公开就业质量报告、各省教育考试院录取数据（逐省来源见 backend/data/SOURCES.md）",
     "caveat": "观点为定性判断、数据为定量口径，二者口径不同；交叉核验结果仅供学习参考，正式填报以各省教育考试院为准。",
-    "note": "每个专业的 source_year 为观点整理年份，source_note 为该大类的证据口径说明；后续可逐条细化到具体出处。"
+    "note": "每个专业的 source_year 为观点整理年份，source_note 为该大类的证据口径说明；现已补齐 view_source / evidence_grade / reviewed_at / expires_at 治理字段，每年高考季前需按 pending_views 清单复核。",
+    "framework": "就业确定性优先（普通家庭 + 就业导向的务实决策方法）"
   }
 }

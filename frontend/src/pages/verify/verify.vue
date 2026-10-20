@@ -81,7 +81,7 @@
           <text class="h3">批量核验（画布推荐方向）</text>
           <wd-tag type="primary" plain>一次算完</wd-tag>
         </view>
-        <text class="small">点按可增删待核验专业；结果按「冲突 → 需谨慎 → 一致」排序，先看风险项。</text>
+        <text class="small">点按可增删待核验专业；结果按「不可及 → 低位次 → 一本 → 高层次」排序（风险优先），先看最受限项。</text>
         <view class="tags">
           <wd-tag v-for="n in candidates" :key="n"
                   :type="selected.includes(n) ? 'success' : 'default'"
@@ -101,14 +101,15 @@
           <text class="bk-sub">{{ batch.province }} · {{ batch.subject }} · 位次 {{ batch.user_rank }}</text>
         </view>
         <view class="sum">
-          <text class="sum-i conflict">冲突 {{ batch.summary.conflict }}</text>
-          <text class="sum-i caution">需谨慎 {{ batch.summary.caution }}</text>
-          <text class="sum-i aligned">一致 {{ batch.summary.aligned }}</text>
+          <text class="sum-i out_of_reach">不可及 {{ batch.summary.out_of_reach }}</text>
+          <text class="sum-i low">低位次 {{ batch.summary.low }}</text>
+          <text class="sum-i mid">一本 {{ batch.summary.mid }}</text>
+          <text class="sum-i high">高层次 {{ batch.summary.high }}</text>
         </view>
         <view v-for="r in batch.results" :key="r.major" class="brow" @click="openOne(r.major)">
           <view class="brow-head">
             <text class="brow-name">{{ r.major }}</text>
-            <wd-tag :type="alignType(r.alignment)" plain>{{ r.alignment_label }}</wd-tag>
+            <wd-tag :type="reachType(r.reachability)" plain>{{ r.reachability_label }}</wd-tag>
           </view>
           <text class="brow-meta">
             {{ r.view_label }} · 最易触及 {{ r.best_reachable ? r.best_reachable.tier : "不可及" }}
@@ -125,8 +126,23 @@
           <wd-tag :type="viewTagType" plain>{{ res.view_label }}</wd-tag>
         </view>
 
-        <view class="align" :class="res.alignment">
+        <view class="align unverified">
           <text class="align-label">{{ res.alignment_label }}</text>
+          <text class="align-sub">{{ res.alignment_message }}</text>
+        </view>
+
+        <view class="reach" :class="res.reachability">
+          <text class="reach-label">{{ res.reachability_label }}</text>
+          <text class="reach-sub">{{ res.reachability_message }}</text>
+        </view>
+
+        <view class="block meta">
+          <text class="bk">证据等级（双向置信）</text>
+          <view class="chips">
+            <text class="chip">观点 {{ res.evidence_grade || "—" }}</text>
+            <text class="chip">数据 {{ dataGradeLabel(res.data_source) }}</text>
+          </view>
+          <text v-if="res.view_source" class="dsrc">观点来源：{{ res.view_source }}</text>
         </view>
 
         <view class="block">
@@ -335,8 +351,14 @@ function isBestTier(tier) {
   return !!(b && b.tier === tier);
 }
 
-function alignType(alignment) {
-  return { aligned: "success", caution: "warning", conflict: "danger" }[alignment] || "default";
+function reachType(reach) {
+  return { out_of_reach: "danger", low: "warning", mid: "primary", high: "success" }[reach] || "default";
+}
+
+function dataGradeLabel(ds) {
+  if (ds === "official_overlay" || ds === "real") return "官方/真实";
+  if (ds === "estimated") return "估算";
+  return "样例";
 }
 
 // 读取端侧画布结果（诊断页写入，仅存本机）
@@ -456,14 +478,21 @@ async function run() {
 .h3 { font-size: 30rpx; font-weight: 600; color: #e6e8ec; }
 .actions { margin-top: 18rpx; }
 
-.align { border-radius: 12rpx; padding: 16rpx; text-align: center; margin: 6rpx 0 18rpx; }
-.align-label { font-size: 28rpx; font-weight: 700; }
-.align.aligned { background: #16361f; }
-.align.aligned .align-label { color: #5fd87f; }
-.align.caution { background: #3a2f12; }
-.align.caution .align-label { color: #f0ad4e; }
-.align.conflict { background: #3a1a1a; }
-.align.conflict .align-label { color: #ff6b6b; }
+.align { border-radius: 12rpx; padding: 14rpx 16rpx; margin: 6rpx 0 14rpx; background: #1c1f26; border: 1px solid #2a2e37; }
+.align-label { display: block; font-size: 26rpx; font-weight: 700; color: #8a909c; }
+.align-sub { display: block; margin-top: 6rpx; font-size: 21rpx; color: #6b7280; line-height: 1.6; }
+
+.reach { border-radius: 12rpx; padding: 14rpx 16rpx; margin-bottom: 16rpx; border: 1px solid #2a2e37; }
+.reach-label { display: block; font-size: 26rpx; font-weight: 700; }
+.reach-sub { display: block; margin-top: 6rpx; font-size: 21rpx; color: #c7ccd4; line-height: 1.7; }
+.reach.out_of_reach { background: #2a1414; border-color: #4a2222; }
+.reach.out_of_reach .reach-label { color: #ff6b6b; }
+.reach.low { background: #2a2214; border-color: #4a3a18; }
+.reach.low .reach-label { color: #f0ad4e; }
+.reach.mid { background: #15233a; border-color: #243a55; }
+.reach.mid .reach-label { color: #6db3f2; }
+.reach.high { background: #142a1a; border-color: #224a2c; }
+.reach.high .reach-label { color: #5fd87f; }
 
 .block { margin-bottom: 20rpx; }
 .block.warn { background: #1c1f26; border-radius: 12rpx; padding: 14rpx 16rpx; }
@@ -480,11 +509,12 @@ async function run() {
 
 /* 批量核验 */
 .tags { display: flex; flex-wrap: wrap; gap: 12rpx; margin: 10rpx 0 14rpx; }
-.sum { display: flex; gap: 12rpx; margin-bottom: 14rpx; }
+.sum { display: flex; flex-wrap: wrap; gap: 12rpx; margin-bottom: 14rpx; }
 .sum-i { font-size: 22rpx; padding: 6rpx 16rpx; border-radius: 999rpx; border: 1px solid #2a2e37; }
-.sum-i.conflict { color: #ff6b6b; border-color: #4a2222; background: #2a1414; }
-.sum-i.caution { color: #f0ad4e; border-color: #4a3a18; background: #2a2214; }
-.sum-i.aligned { color: #5fd87f; border-color: #224a2c; background: #142a1a; }
+.sum-i.out_of_reach { color: #ff6b6b; border-color: #4a2222; background: #2a1414; }
+.sum-i.low { color: #f0ad4e; border-color: #4a3a18; background: #2a2214; }
+.sum-i.mid { color: #6db3f2; border-color: #243a55; background: #15233a; }
+.sum-i.high { color: #5fd87f; border-color: #224a2c; background: #142a1a; }
 .brow { background: #16191f; border: 1px solid #23262e; border-radius: 12rpx; padding: 14rpx 16rpx; margin-bottom: 10rpx; }
 .brow-head { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; }
 .brow-name { font-size: 26rpx; color: #e6e8ec; font-weight: 600; }
@@ -501,6 +531,9 @@ async function run() {
 .anchor-v { font-size: 22rpx; color: #c7ccd4; }
 
 .dsrc { font-size: 21rpx; color: #6db3f2; display: block; margin-top: 8rpx; line-height: 1.6; }
+.meta { background: #16191f; border: 1px solid #23262e; border-radius: 12rpx; padding: 14rpx 16rpx; }
+.chips { display: flex; flex-wrap: wrap; gap: 12rpx; margin: 8rpx 0 4rpx; }
+.chip { font-size: 21rpx; padding: 6rpx 16rpx; border-radius: 999rpx; border: 1px solid #2a2e37; color: #c7ccd4; background: #1c1f26; }
 .uni-wrap { display: flex; flex-wrap: wrap; gap: 10rpx; padding: 4rpx 0 10rpx; }
 .msg { background: #1c1f26; border-radius: 12rpx; padding: 16rpx; }
 .sg { font-size: 23rpx; color: #c7ccd4; line-height: 1.8; }
