@@ -12,6 +12,8 @@ import {
   buildPlan,
   breachStatus,
   breachStats,
+  appendSafeSchools,
+  selectBackstops,
 } from "../src/utils/plan.js";
 import { resolveBase } from "../src/utils/api.js";
 
@@ -153,6 +155,42 @@ const noLinePlan = { province: "西藏", subject: "理工", user_rank: 5000, at:
   tiers: [{ level: "保", tier: "普通本科", schools: [{ name: "丁大学" }] }] };
 eq(breachStats(noLinePlan, flattenPlan(noLinePlan)), { breach: 0, covered: 0, total: 1 }, "无投档线时不误判，covered=0");
 eq(breachStats(null, null), { breach: 0, covered: 0, total: 0 }, "空输入安全返回");
+
+console.log("\n▎S5-C 保底失守一键补位 selectBackstops + appendSafeSchools");
+// 一个已失守的志愿表（保底档有 2 所，其中丁大学失守）
+const patchPlan = {
+  province: "河南", subject: "物理类", user_rank: 58000, at: "x",
+  tiers: [
+    { level: "冲", tier: "985", schools: [{ name: "甲大学", min_rank: 1000 }] },
+    { level: "保", tier: "普通本科", schools: [
+      { name: "丙大学", province: "河南", nature: "公办", min_score: 500, min_rank: 29731, line_year: 2025, data_source: "school_line" },
+      { name: "丁大学", province: "河南", nature: "公办", min_score: 480, min_rank: 70000, line_year: 2025, data_source: "school_line" },
+    ] },
+  ],
+};
+// 候选兜底（模拟 recommend 返回的院校行）：戊/丙 可被用户位次稳够（min_rank < 58000），
+// 己/庚 太难（min_rank > 58000）应被 selectBackstops 排除；丙与表中同名用于去重验证
+const rec = {
+  tiers: [{ level: "保", tier: "普通二本", schools: [
+    { name: "戊大学", province: "河南", nature: "公办", min_score: 460, min_rank: 55000, line_year: 2025, data_source: "school_line" },
+    { name: "己大学", province: "河南", nature: "公办", min_score: 470, min_rank: 65000, line_year: 2025, data_source: "school_line" },
+    { name: "庚大学", province: "河南", nature: "公办", min_score: 600, min_rank: 90000, line_year: 2025, data_source: "school_line" },
+    { name: "丙大学", province: "河南", nature: "公办", min_score: 500, min_rank: 29731, line_year: 2025, data_source: "school_line" },
+  ] }],
+};
+const picks = selectBackstops(rec, 58000, 6);
+eq(picks.length, 2, "只挑 min_rank < 用户位次的院校（戊、丙），排除己、庚");
+eq(picks[0].name, "戊大学", "最易够到的（min_rank 最大）排第一");
+eq(picks.some((s) => s.name === "己大学"), false, "太难的己大学被排除");
+eq(picks.some((s) => s.name === "庚大学"), false, "太难的庚大学被排除");
+// appendSafeSchools 只按名字去重 + 并入保底档（不做 min_rank 过滤，那是 selectBackstops 的职责）
+const patched = appendSafeSchools(JSON.parse(JSON.stringify(patchPlan)), picks);
+const safeTier = patched.tiers.find((t) => t.level === "保");
+eq(safeTier.schools.length, 3, "补位后保底档 3 所（原 2 + 戊；丙与表中同名被去重）");
+eq(safeTier.schools.filter((s) => s.name === "丙大学").length, 1, "与表中同名的丙大学不重复并入");
+eq(safeTier.schools.some((s) => s.name === "戊大学"), true, "戊大学并入保底档");
+eq(appendSafeSchools(null, picks), null, "空 plan 安全返回");
+eq(appendSafeSchools(patchPlan, []), patchPlan, "无候选时不改动 plan");
 
 console.log("\n▎API 地址解析 api.js");
 const savedWindow = globalThis.window;

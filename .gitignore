@@ -16,3 +16,5 @@ __pycache__/
 # 数据库备份产物（scripts/backup_db.py）
 /backend/backups/
 /backups/
+# 测试用本地临时目录（沙箱无法写 pytest 默认临时根，改用项目内 .bk_tmp）
+/backend/tests/.bk_tmp/

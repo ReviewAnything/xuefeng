@@ -120,6 +120,12 @@ def health():
         school_lines = SL.coverage()
     except Exception:
         school_lines = {"total": 0, "years": []}
+    try:
+        sl_sources = SL.source_counts()
+    except Exception:
+        sl_sources = {"total": 0, "by_source": {}, "official": 0,
+                      "estimated_real": 0, "provinces": [], "province_count": 0,
+                      "has_official": False, "grade": "estimated_real"}
     return {
         "status": "ok",
         "version": APP_VERSION,
@@ -138,7 +144,12 @@ def health():
             "count_211": db_counts.get("count_211", 0),
         },
         "school_lines": {"total": school_lines.get("total", 0),
-                         "years": [y["year"] for y in school_lines.get("years", [])]},
+                         "years": [y["year"] for y in school_lines.get("years", [])],
+                         "official": sl_sources.get("official", 0),
+                         "estimated_real": sl_sources.get("estimated_real", 0),
+                         "provinces": sl_sources.get("province_count", 0),
+                         "grade": sl_sources.get("grade", "estimated_real"),
+                         "has_official": sl_sources.get("has_official", False)},
         "pending_views": C.pending_reviews(),
         "observability": OBS.snapshot(recent=5),
         "admin_console": None if DISABLE_ADMIN else "/admin",

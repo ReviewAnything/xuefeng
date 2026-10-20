@@ -2,6 +2,7 @@
 import importlib.util
 import os
 import sqlite3
+import tempfile
 
 import main
 from fastapi.testclient import TestClient
@@ -17,7 +18,8 @@ def test_health_exposes_runtime_and_data_state():
     assert j["status"] == "ok"
     assert j["database"]["size_kb"] >= 0
     assert "active_year" in j and j["active_year"]
-    assert set(j["school_lines"]) == {"total", "years"}
+    assert set(j["school_lines"]) >= {"total", "years", "official", "estimated_real", "grade"}
+    assert "provinces" in j["school_lines"] and "has_official" in j["school_lines"]
     obs = j["observability"]
     assert obs["requests"] >= 1 and obs["slow_threshold_ms"] > 0
     assert isinstance(obs["recent"], list) and len(obs["recent"]) <= 5
@@ -56,8 +58,16 @@ def _load_backup_module():
     return mod
 
 
-def test_backup_creates_consistent_copy(tmp_path, monkeypatch):
-    src = tmp_path / "src.db"
+def _mk_tmp_dir():
+    """在项目目录内建临时目录（绕过沙箱对 pytest 默认 /private/tmp 根目录的 mkdir 拦截）。"""
+    base = os.path.join(os.path.dirname(__file__), ".bk_tmp")
+    os.makedirs(base, exist_ok=True)
+    return tempfile.mkdtemp(prefix="bk_", dir=base)
+
+
+def test_backup_creates_consistent_copy(monkeypatch):
+    tmp = _mk_tmp_dir()
+    src = os.path.join(tmp, "src.db")
     con = sqlite3.connect(src)
     con.execute("CREATE TABLE t (x INTEGER)")
     con.executemany("INSERT INTO t (x) VALUES (?)", [(i,) for i in range(50)])
@@ -66,7 +76,7 @@ def test_backup_creates_consistent_copy(tmp_path, monkeypatch):
 
     monkeypatch.setenv("XUEFENG_DB_PATH", str(src))
     mod = _load_backup_module()
-    out = mod.backup(str(tmp_path / "bk"), keep=3, compress=False)
+    out = mod.backup(os.path.join(tmp, "bk"), keep=3, compress=False)
 
     assert out["ok"] and os.path.exists(out["backup"])
     copy = sqlite3.connect(out["backup"])
@@ -75,8 +85,9 @@ def test_backup_creates_consistent_copy(tmp_path, monkeypatch):
     copy.close()
 
 
-def test_backup_gzip_and_keep(tmp_path, monkeypatch):
-    src = tmp_path / "src.db"
+def test_backup_gzip_and_keep(monkeypatch):
+    tmp = _mk_tmp_dir()
+    src = os.path.join(tmp, "src.db")
     con = sqlite3.connect(src)
     con.execute("CREATE TABLE t (x INTEGER)")
     con.commit()
@@ -84,7 +95,7 @@ def test_backup_gzip_and_keep(tmp_path, monkeypatch):
 
     monkeypatch.setenv("XUEFENG_DB_PATH", str(src))
     mod = _load_backup_module()
-    out = mod.backup(str(tmp_path / "bk"), keep=1, compress=True)
+    out = mod.backup(os.path.join(tmp, "bk"), keep=1, compress=True)
     assert out["backup"].endswith(".db.gz")
     assert os.path.getsize(out["backup"]) > 0
     assert len(out["kept"]) <= 1

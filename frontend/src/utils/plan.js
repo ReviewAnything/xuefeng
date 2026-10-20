@@ -155,6 +155,70 @@ export function breachStats(plan, rows) {
   return { breach, covered, total: safeRows.length };
 }
 
+/**
+ * 保底失守补位（S5-C）：把更低层次、用户位次可稳够的兜底院校并入「保」档，形成闭环。
+ *
+ * 调用方先用 plan 的省份/科类/位次拉取 recommend 结果，再从中筛出「用户位次优于其最低
+ * 投档位次、且当前志愿表里没有」的院校传入本函数。被并入的院校 min_rank 必然 < user_rank，
+ * 因此是真正更安全的兜底（不会再次失守）。
+ *
+ * 直接在原 plan 上改并返回；若原本没有「保」档，则新建一个「专科兜底」保底组。
+ *
+ * @param {object} plan 现有志愿表（含 tiers）
+ * @param {Array} schools 候选兜底院校（来自 recommend，取 {name,province,nature,min_score,min_rank,line_year,data_source}）
+ * @returns {object} 并入新院校后的 plan
+ */
+export function appendSafeSchools(plan, schools) {
+  if (!plan || !Array.isArray(plan.tiers)) return plan;
+  const existing = new Set();
+  plan.tiers.forEach((t) => (t.schools || []).forEach((s) => s && s.name && existing.add(s.name)));
+  const add = (Array.isArray(schools) ? schools : []).filter((s) => s && s.name && !existing.has(s.name));
+  if (!add.length) return plan;
+  let safeTier = plan.tiers.find((t) => t.level === "保");
+  if (!safeTier) {
+    safeTier = {
+      tier: "专科兜底", level: "保", min_score: null, min_rank: null,
+      data_source: "school_line", source_year: null, carried: false,
+      pool_shared_with: null, schools: [],
+    };
+    plan.tiers.push(safeTier);
+  }
+  add.forEach((s) => safeTier.schools.push({
+    name: s.name,
+    province: s.province || "",
+    nature: s.nature || "",
+    min_score: s.min_score || null,
+    min_rank: s.min_rank || null,
+    line_year: s.line_year || null,
+    data_source: s.data_source || "",
+  }));
+  return plan;
+}
+
+/**
+ * 从 recommend 结果里筛选兜底候选（S5-C，纯函数便于单测，由一键补位调用）。
+ *
+ * 只挑「用户位次优于其最低投档位次」的院校（``min_rank`` 存在且 < ``userRank``），
+ * 因此并入后不会再失守；最易够到的（``min_rank`` 最大）排前面，最多 ``maxN`` 所。
+ * 注意：本函数不负责按名字去重（那是 ``appendSafeSchools`` 的职责）。
+ *
+ * @param {object} rec recommend 接口返回（含 tiers[].schools[]）
+ * @param {number} userRank 用户位次
+ * @param {number} maxN 上限
+ * @returns {Array} 候选院校（保留 min_rank 等字段）
+ */
+export function selectBackstops(rec, userRank, maxN = 6) {
+  const ur = Number(userRank);
+  if (!(ur > 0) || !rec || !Array.isArray(rec.tiers)) return [];
+  const out = [];
+  rec.tiers.forEach((t) => (t.schools || []).forEach((s) => {
+    const mr = Number(s.min_rank);
+    if (mr > 0 && mr < ur) out.push(s);
+  }));
+  out.sort((a, b) => (b.min_rank || 0) - (a.min_rank || 0)); // 最易够到的排前
+  return out.slice(0, maxN);
+}
+
 /** 导出的纯文本志愿表（复制/打印共用）。 */
 export function buildPlanText(plan, groups, timeLabel) {
   const p = plan || {};

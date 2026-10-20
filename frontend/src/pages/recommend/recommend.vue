@@ -37,6 +37,9 @@
           <text class="sum-i none">不可及 {{ result.summary.unreachable }}</text>
         </view>
         <text class="small">数据源：{{ sourceLabel }}</text>
+        <!-- S5-A：校线权威声明（真实抓取 ≠ 官方） -->
+        <text class="small auth-rcmd" v-if="result && result.school_line_hits">其中 {{ result.school_line_hits }} 所院校已匹配投档线（行内标「去年最低」）；当前全部为真实抓取（掌上高考 2025），非考试院官方发布。</text>
+        <text class="small auth-rcmd" v-else-if="result">该省尚未导入院校级投档线，院校行不含「去年最低」；可在管理端「校线导入」上传各省考试院官方投档原表后重新生成。</text>
       </view>
 
       <view class="section" v-if="hasResult">
@@ -72,6 +75,11 @@
         <view class="actions">
           <wd-button block plain @click="goPlan">生成志愿表（可打印 / 导出 PDF）</wd-button>
         </view>
+        <!-- S5-D 志愿表发现性：存在本机草稿时显式入口 + 红点提示 -->
+        <view class="draft-row" v-if="hasDraft" @click="openPlan">
+          <text class="draft-dot"></text>
+          <text class="draft-txt">你有一份志愿表草稿，点击查看 ›</text>
+        </view>
         <view class="notes">
           <text v-for="(n, i) in result.notes" :key="i" class="note">· {{ n }}</text>
         </view>
@@ -106,6 +114,9 @@ const hasResult = computed(() => {
   const r = result.value;
   return !!(r && r.tiers && r.tiers.length);
 });
+
+// S5-D：本机是否存在志愿表草稿（决定推荐页是否展示常驻入口 + 红点）
+const hasDraft = computed(() => !!uni.getStorageSync(PLAN_KEY));
 const sourceLabel = computed(() => {
   const ds = result.value ? result.value.data_source : "";
   if (ds === "official_overlay") return "官方省控线覆盖层（11 省）+ 估算基线";
@@ -187,6 +198,11 @@ function goPlan() {
   uni.navigateTo({ url: "/pages/plan/plan" });
 }
 
+// S5-D：直接打开已有志愿表草稿（不覆盖、不重新生成）
+function openPlan() {
+  uni.navigateTo({ url: "/pages/plan/plan" });
+}
+
 // 点击院校 → 查看该校「院校专业组」结构（按当前选科）
 function goGroups(s) {
   const subj = result.value ? result.value.subject : f.subject;
@@ -205,6 +221,7 @@ function goGroups(s) {
 .section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14rpx; }
 .h3 { font-size: 30rpx; font-weight: 600; color: #e6e8ec; }
 .bk-sub { font-size: 21rpx; color: #6b7280; }
+.auth-rcmd { color: #f0ad4e; }
 .actions { display: flex; flex-direction: column; gap: 16rpx; margin-top: 18rpx; }
 .small { font-size: 21rpx; color: #6b7280; display: block; margin-top: 10rpx; line-height: 1.6; }
 .err { font-size: 22rpx; color: #ff6b6b; display: block; margin-top: 12rpx; line-height: 1.5; }
@@ -234,4 +251,9 @@ function goGroups(s) {
 
 .notes { margin-top: 16rpx; }
 .note { display: block; font-size: 20rpx; color: #f0ad4e; line-height: 1.6; }
+
+/* S5-D 志愿表草稿常驻入口 */
+.draft-row { display: flex; align-items: center; margin-top: 16rpx; padding: 14rpx 18rpx; border: 1px dashed #3a3f48; border-radius: 12rpx; background: rgba(95, 216, 127, 0.05); }
+.draft-dot { width: 14rpx; height: 14rpx; border-radius: 50%; background: #e5484d; margin-right: 12rpx; box-shadow: 0 0 8rpx 1rpx rgba(229, 72, 77, 0.6); }
+.draft-txt { font-size: 22rpx; color: #c7ccd4; }
 </style>

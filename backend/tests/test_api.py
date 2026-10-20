@@ -87,6 +87,37 @@ def test_official_overlay_health():
     assert "河南" in j["official_provinces"]
 
 
+def test_school_line_authority_split_in_health():
+    """S5-A：健康上报院校投档线的权威分级（official / estimated_real / 覆盖省数）。"""
+    r = c.get("/api/health")
+    j = r.json()
+    sl = j["school_lines"]
+    assert sl["official"] == 0
+    assert sl["estimated_real"] == 14020
+    assert sl["provinces"] == 30
+    assert sl["grade"] == "estimated_real"
+    assert sl["has_official"] is False
+
+
+def test_verify_raw_records_carry_data_source_and_summary():
+    """S5-A：核验结果逐条校线带 data_source/source_label，并带整体权威摘要。"""
+    r = c.post("/api/verify", json={"province": "河南", "subject": "物理类", "user_rank": 40000,
+                                    "major_name": "计算机科学与技术"})
+    assert r.status_code == 200
+    j = r.json()
+    assert j["school_line_grade"] == "estimated_real"
+    assert j["school_line_summary"]["estimated_real"] > 0
+    assert j["school_line_summary"]["official"] == 0
+    recs = j["raw_records"]
+    assert recs, "应带出真实校线逐条记录"
+    for rec in recs:
+        assert rec["data_source"] == "estimated_real"
+        assert rec["source_label"] == "真实抓取"
+    # 数据来源侧摘要也应反映官方/抓取拆分
+    data_src = next((s for s in j["sources"] if s["kind"] == "data"), None)
+    assert data_src and "data_source_summary" in data_src
+
+
 def test_official_batch_line_used():
     # 河南物理 普通一本 应命中 2024 官方省控线 511→130195
     # 用「汉语言文学」（文科保底，难度系数 identity）做精确断言

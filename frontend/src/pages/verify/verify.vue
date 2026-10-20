@@ -139,6 +139,19 @@
           <text class="align-sub">{{ res.alignment_message }}</text>
         </view>
 
+        <!-- S5-A 数据权威性：官方 / 真实抓取 拆分声明，诚实区分「真实抓取 ≠ 官方」 -->
+        <view class="auth" v-if="res.real_data && res.real_data.has_data">
+          <view class="auth-head">
+            <text class="h3">数据权威性</text>
+            <wd-tag :type="gradeType" plain>{{ gradeLabel }}</wd-tag>
+          </view>
+          <text class="auth-line" v-if="dsSummary">
+            官方投档原表 {{ dsSummary.official }} 条 · 真实抓取（掌上高考 2025）{{ dsSummary.estimated_real }} 条
+            <text v-if="dsSummary.official && dsSummary.estimated_real">（混合来源）</text>
+          </text>
+          <text class="auth-note">{{ authNote }}</text>
+        </view>
+
         <!-- S2 对置版式：观点 × 真实校线，双来源 + 原始数据点击可达 -->
         <view class="oppo" v-if="res.sources && res.sources.length">
           <view class="section-head">
@@ -176,10 +189,11 @@
             <view class="raw-row" v-for="(rec, i) in res.raw_records" :key="i" @click="openRaw(rec.source_url)">
               <text class="raw-u">{{ rec.university }}</text>
               <text class="raw-t" v-if="rec.tier">{{ rec.tier }}</text>
+              <text class="raw-ds" :class="rec.data_source">{{ rec.source_label }}</text>
               <text class="raw-r">位次 {{ rec.min_rank }} · {{ rec.min_score }}分</text>
               <text class="raw-go">原始↗</text>
             </view>
-            <text class="dsrc">每条均为掌上高考 2025 真实录取记录（data_source=estimated_real）；点击任意行打开该院校原始 JSON 核验（GitHub 公开仓库，MIT）。</text>
+            <text class="dsrc">每条校线点击打开原始 JSON 核验（GitHub 公开仓库，MIT）。标「官方」的来自考试院投档原表，标「真实抓取」的来自掌上高考 2025 真实录取记录（非官方）。</text>
           </view>
           <view class="data-missing" v-else-if="res.real_data && !res.real_data.has_data">
             <text class="dm-label">⚠ 数据未覆盖（单侧降级）</text>
@@ -421,6 +435,27 @@ function dataGradeLabel(ds) {
   return "样例";
 }
 
+// S5-A：院校级投档线的权威等级与诚实声明
+const dsSummary = computed(() => (res.value && res.value.school_line_summary) || null);
+const gradeType = computed(() => {
+  const g = res.value && res.value.school_line_grade;
+  if (g === "official") return "success";
+  if (g === "mixed") return "primary";
+  return "warning";
+});
+const gradeLabel = computed(() => {
+  const g = res.value && res.value.school_line_grade;
+  if (g === "official") return "官方数据";
+  if (g === "mixed") return "官方+抓取";
+  return "真实抓取（非官方）";
+});
+const authNote = computed(() => {
+  const g = res.value && res.value.school_line_grade;
+  if (g === "official") return "院校级投档线来自各省考试院官方投档原表，以官方公布为准。";
+  if (g === "mixed") return "部分院校已接入考试院官方投档原表（标「官方」），其余为掌上高考 2025 真实抓取（标「真实抓取」）；两者均为数据侧，不能核验专业就业价值。";
+  return "院校级投档线全部来自掌上高考 2025 真实录取记录（经 gaokao-admission-crawler 整理，MIT），真实抓取但非考试院官方发布。官方性升级需在管理端「校线导入」上传各省考试院投档原表后自动标记为 official。";
+});
+
 // 读取端侧画布结果（诊断页写入，仅存本机）
 function loadCanvas() {
   const saved = uni.getStorageSync("zhiyuan_canvas_v2");
@@ -558,6 +593,12 @@ async function run() {
 .align-label { display: block; font-size: 26rpx; font-weight: 700; color: #8a909c; }
 .align-sub { display: block; margin-top: 6rpx; font-size: 21rpx; color: #6b7280; line-height: 1.6; }
 
+/* S5-A 数据权威性声明 */
+.auth { border-radius: 12rpx; padding: 14rpx 16rpx; margin-bottom: 16rpx; background: #16191f; border: 1px solid #243a55; }
+.auth-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8rpx; }
+.auth-line { display: block; font-size: 22rpx; color: #c7ccd4; line-height: 1.6; }
+.auth-note { display: block; margin-top: 6rpx; font-size: 20rpx; color: #8a909c; line-height: 1.6; }
+
 .reach { border-radius: 12rpx; padding: 14rpx 16rpx; margin-bottom: 16rpx; border: 1px solid #2a2e37; }
 .reach-label { display: block; font-size: 26rpx; font-weight: 700; }
 .reach-sub { display: block; margin-top: 6rpx; font-size: 21rpx; color: #c7ccd4; line-height: 1.7; }
@@ -590,6 +631,9 @@ async function run() {
 .raw-row:active { border-color: #6db3f2; }
 .raw-u { font-size: 23rpx; color: #e6e8ec; font-weight: 600; flex: 1; }
 .raw-t { font-size: 19rpx; color: #ffd24d; padding: 2rpx 8rpx; border-radius: 6rpx; background: #2a2410; }
+.raw-ds { font-size: 17rpx; padding: 2rpx 8rpx; border-radius: 6rpx; }
+.raw-ds.official { color: #5fd87f; background: #142a1a; }
+.raw-ds.estimated_real { color: #f0ad4e; background: #2a2214; }
 .raw-r { font-size: 20rpx; color: #8a909c; }
 .raw-go { font-size: 20rpx; color: #6db3f2; }
 .data-missing { margin-top: 6rpx; padding: 14rpx 16rpx; background: #1c1f26; border: 1px dashed #4a3a18; border-radius: 12rpx; }

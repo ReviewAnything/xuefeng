@@ -150,6 +150,18 @@ def _import_csv(text: str, filename: str, mode: str) -> dict:
         dry_run=False, operator="regression", mode=mode)
 
 
+def _cleanup_xz_official():
+    """清理本文件校线测试写入的「西藏官方」行，避免污染共享测试库（影响 health 断言）。"""
+    from db.models import DataChange, SchoolLine
+    from sqlalchemy import delete
+
+    with session_scope() as s:
+        s.execute(delete(SchoolLine).where(
+            SchoolLine.province == "西藏", SchoolLine.data_source == "official"))
+        s.execute(delete(DataChange).where(DataChange.dataset == "school_lines"))
+    SL.invalidate_cache()
+
+
 def test_cli_schema_helper_creates_tables():
     """CLI 在全新库上也要能跑（建表幂等），否则 --coverage/--commit 直接崩。"""
     from scripts.import_school_lines import _ensure_schema
@@ -183,3 +195,4 @@ def test_replace_mode_keeps_are_scoped_per_year():
 
     names_2023 = {r["university"] for r in SL.lines_for("西藏", "物理类", year=2023)["rows"]}
     assert "西藏大学" in names_2023, "2023 年（文件内同样存在的 scope）不应被误删"
+    _cleanup_xz_official()

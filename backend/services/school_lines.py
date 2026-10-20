@@ -479,6 +479,37 @@ def coverage() -> dict:
     }
 
 
+def source_counts() -> dict:
+    """按 ``data_source`` 统计院校投档线，用于健康上报与前端权威性声明。
+
+    返回各来源行数、覆盖省份（去重，无论来源）、是否有官方数据、整体权威等级。
+    当前全部为 ``estimated_real``（掌上高考 2025 真实抓取）；一旦通过管理端
+    「校线导入」上传考试院官方表（``data_source=official``），``official`` 计数即上升。
+    """
+    with session_scope() as s:
+        rows = s.execute(select(SchoolLine.data_source, SchoolLine.province)).all()
+    counts: dict[str, int] = {}
+    provinces: set[str] = set()
+    for ds, prov in rows:
+        key = ds or "unknown"
+        counts[key] = counts.get(key, 0) + 1
+        if prov:
+            provinces.add(prov)
+    official = counts.get("official", 0)
+    estimated = counts.get("estimated_real", 0)
+    grade = "official" if official else ("mixed" if (official and estimated) else "estimated_real")
+    return {
+        "total": sum(counts.values()),
+        "by_source": counts,
+        "official": official,
+        "estimated_real": estimated,
+        "provinces": sorted(provinces),
+        "province_count": len(provinces),
+        "has_official": bool(official),
+        "grade": grade,
+    }
+
+
 def map_for(province: str, subject: str, names: list[str], year: int = None) -> dict:
     """给推荐用：一次取出某省/科类的院校线，返回 {校名: 记录}。
 

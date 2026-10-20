@@ -82,6 +82,12 @@
           <wd-button plain block @click="goVerify">你能上哪档 · 哪些专业值得读 ›</wd-button>
         </view>
 
+        <!-- S5-D 志愿表发现性：存在本机草稿时显式入口 + 红点提示 -->
+        <view class="draft-row" v-if="hasDraft" @click="openPlan">
+          <text class="draft-dot"></text>
+          <text class="draft-txt">你有一份志愿表草稿，点击查看 / 继续编辑 ›</text>
+        </view>
+
         <text class="basis">{{ r.basis }}</text>
       </view>
     </view>
@@ -110,6 +116,9 @@ const r = ref(null);
 const err = ref("");
 const loading = ref(false);
 const making = ref(false);
+
+// S5-D：本机是否存在志愿表草稿（决定结论页是否展示常驻入口 + 红点）
+const hasDraft = computed(() => !!uni.getStorageSync(PLAN_KEY));
 
 // 尺子按「专科门槛」做满量程：左边是门槛更硬的档，右边是你的保底空间
 const RULER = ["985", "211", "普通二本", "专科"];
@@ -203,6 +212,11 @@ function goVerify() {
   uni.navigateTo({ url: `/pages/verify/verify?${q}` });
 }
 
+// S5-D：直接打开已有志愿表草稿（不覆盖、不重新生成）
+function openPlan() {
+  uni.navigateTo({ url: "/pages/plan/plan" });
+}
+
 function goDiagnose() {
   uni.navigateTo({ url: "/pages/diagnose/diagnose" });
 }
@@ -282,4 +296,9 @@ function goDiagnose() {
 
 .actions { display: flex; flex-direction: column; gap: 16rpx; margin-top: 44rpx; }
 .basis { display: block; margin-top: 28rpx; font-size: 19rpx; color: #4b515b; line-height: 1.6; }
+
+/* S5-D 志愿表草稿常驻入口 */
+.draft-row { display: flex; align-items: center; margin-top: 22rpx; padding: 16rpx 18rpx; border: 1px dashed #3a3f48; border-radius: 12rpx; background: rgba(95, 216, 127, 0.05); }
+.draft-dot { width: 14rpx; height: 14rpx; border-radius: 50%; background: #e5484d; margin-right: 12rpx; box-shadow: 0 0 8rpx 1rpx rgba(229, 72, 77, 0.6); }
+.draft-txt { font-size: 23rpx; color: #c7ccd4; }
 </style>

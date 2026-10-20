@@ -163,9 +163,15 @@ def _elite_sets() -> tuple[set, set]:
 
 
 def real_reachability(province: str, subject: str, user_rank: int) -> dict | None:
-    """查询真实校线（掌上高考 2025，data_source=estimated_real）下候选位次的可及性。
+    """查询真实校线（掌上高考 2025 真实抓取 + 考试院官方表，若已导入）下候选位次的可及性。
 
-    返回 None 表示该 (省/科类) 暂无真实校线数据（单侧降级）。
+    数据权威性（S5-A）：
+    - 同时消费 ``official`` 与 ``estimated_real`` 两种来源，优先用官方数据；
+    - 每条 ``raw_record`` 都带 ``data_source`` 与 ``source_label``（官方 / 真实抓取），
+      前端据此显式标注，做到「真实抓取 ≠ 官方」的诚实区分；
+    - 返回 ``data_source_summary``（各来源行数）与 ``grade``，供健康上报与权威性横幅。
+
+    返回 None 表示该 (省/科类) 暂无任何校线数据（单侧降级）。
     返回的 ``reachable`` 为该省/科类下「位次 <= 候选位次」的真实院校清单（按门槛位次升序，
     即最容易触及的排最前），每条带原始数据链接 ``source_url``，保证"原始数据点击可达"。
     """
@@ -173,13 +179,15 @@ def real_reachability(province: str, subject: str, user_rank: int) -> dict | Non
     with session_scope() as s:
         rows = s.scalars(
             select(SchoolLine).where(
-                SchoolLine.province == province, SchoolLine.subject == subject,
-                SchoolLine.data_source == "estimated_real")
+                SchoolLine.province == province, SchoolLine.subject == subject)
         ).all()
         if not rows:
             return None
+        src_counts = {"official": 0, "estimated_real": 0, "other": 0}
         reachable = []
         for r in rows:
+            ds = r.data_source or "estimated_real"
+            src_counts[ds if ds in src_counts else "other"] += 1
             if not r.min_rank or r.min_rank < user_rank:
                 continue
             tier = "985" if r.university in s985 else ("211" if r.university in s211 else "")
@@ -187,8 +195,10 @@ def real_reachability(province: str, subject: str, user_rank: int) -> dict | Non
                 "university": r.university, "min_rank": r.min_rank, "min_score": r.min_score,
                 "year": r.year, "batch": r.batch, "tier": tier,
                 "source_url": r.source_url,
+                "data_source": ds,
+                "source_label": "官方" if ds == "official" else "真实抓取",
             })
-    reachable.sort(key=lambda x: x["min_rank"])
+    reachable.sort(key=lambda x: (x["data_source"] != "official", x["min_rank"]))
     tiers = {"985": 0, "211": 0, "benke": 0, "zhuanke": 0}
     for r in reachable:
         if r["tier"] == "985":
@@ -199,13 +209,22 @@ def real_reachability(province: str, subject: str, user_rank: int) -> dict | Non
             tiers["zhuanke"] += 1
         else:
             tiers["benke"] += 1
+    # 优先用官方数据作为「最易触及」展示；没有官方则退到真实抓取
     best = reachable[0] if reachable else None
+    official = src_counts["official"]
+    estimated = src_counts["estimated_real"]
+    grade = "official" if official else ("mixed" if (official and estimated) else "estimated_real")
     return {
         "has_data": True, "province": province, "subject": subject,
         "total_lines": len(rows), "reachable": len(reachable),
         "tiers": tiers, "best": best, "reachable_sample": reachable[:10],
-        "data_source": "estimated_real",
-        "upstream": "掌上高考 gaokao.cn（2025 真实录取记录，经 gaokao-admission-crawler 整理，MIT）",
+        "data_source_summary": {
+            "official": official, "estimated_real": estimated,
+            "other": src_counts["other"], "total": len(rows),
+        },
+        "grade": grade,
+        "upstream": "掌上高考 gaokao.cn（2025 真实录取记录，经 gaokao-admission-crawler 整理，MIT）"
+                    + ("；含考试院官方投档表（official）" if official else ""),
     }
 
 
@@ -247,13 +266,27 @@ def _build_sources(major_name, view_source, evidence_grade, source_url, real) ->
         "note": "观点为「值不值」的价值主张，需结合就业判断；非数据可证伪。",
     }
     if real and real.get("has_data"):
+        summ = real.get("data_source_summary", {}) or {}
+        official = summ.get("official", 0)
+        estimated = summ.get("estimated_real", 0)
+        if official and estimated:
+            auth_note = (f"共 {real['total_lines']} 条，其中官方 {official} 条、真实抓取 {estimated} 条；"
+                        "官方数据来自考试院投档原表，其余为掌上高考 2025 真实抓取（estimated_real）。")
+        elif official:
+            auth_note = (f"共 {real['total_lines']} 条，全部为考试院官方投档原表（official）；"
+                        "以各省考试院公布为准。")
+        else:
+            auth_note = (f"真实录取记录 {real['total_lines']} 条，其中你的位次可触及 {real['reachable']} 条；"
+                        "全部来自掌上高考 2025 真实抓取（estimated_real），非考试院官方发布。"
+                        "官方性升级需在管理端「校线导入」上传各省考试院投档原表。")
         data = {
             "kind": "data", "label": "数据来源",
             "source": real["upstream"],
             "url": real["best"]["source_url"] if real.get("best") else "",
-            "note": (f"真实录取记录 {real['total_lines']} 条，其中你的位次可触及 {real['reachable']} 条；"
-                     "非考试院官方发布，属真实抓取（estimated_real）。"),
+            "note": auth_note,
             "reachable": real["reachable"], "tiers": real["tiers"],
+            "data_source_summary": summ,
+            "grade": real.get("grade", "estimated_real"),
         }
     else:
         data = {
@@ -348,4 +381,7 @@ def _pack(province, subject, user_rank, major_name, view, reason, bias, ana,
         "real_data": real,
         "sources": sources,
         "raw_records": raw_records,
+        # S5-A：院校级投档线的权威等级（official / mixed / estimated_real）
+        "school_line_grade": (real or {}).get("grade", ""),
+        "school_line_summary": (real or {}).get("data_source_summary", {}),
     }

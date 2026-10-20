@@ -29,6 +29,10 @@
             <text class="safe-count" :class="breach.cls">{{ breach.text }}</text>
           </view>
           <text class="safe-desc">{{ breach.desc }}</text>
+          <wd-button v-if="breach.cls === 'danger'" type="error" block size="small"
+                     class="safe-patch no-print" :loading="patching" @click="patchSafe">
+            一键补位：拉取更低层次兜底院校
+          </wd-button>
         </view>
       </view>
 
@@ -75,11 +79,13 @@ import { computed, ref, watch } from "vue";
 import { onLoad } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
 import { themeVars } from "@/utils/theme.js";
-import { PLAN_KEY, applyMajors, breachStats, breachStatus, buildPlanText, collectMajors, fillStats, flattenPlan, formatTime, groupRows } from "@/utils/plan.js";
+import { api } from "@/utils/api.js";
+import { PLAN_KEY, applyMajors, appendSafeSchools, breachStats, breachStatus, buildPlanText, collectMajors, fillStats, flattenPlan, formatTime, groupRows, selectBackstops } from "@/utils/plan.js";
 
 const toast = useToast();
 const plan = ref(null);
 const rows = ref([]);
+const patching = ref(false);
 
 const hasPlan = computed(() => !!plan.value);
 const isEmpty = computed(() => !plan.value);
@@ -163,6 +169,34 @@ function goRecommend() {
   uni.navigateTo({ url: q ? "/pages/recommend/recommend?" + q : "/pages/recommend/recommend" });
 }
 
+// S5-C 保底失守一键补位：拉取更低层次、用户位次可稳够的兜底院校并入「保」档。
+// 候选筛选交给纯函数 selectBackstops（只挑 min_rank < 用户位次、不会再次失守的院校），
+// 去重+并入交给 appendSafeSchools。
+async function patchSafe() {
+  if (patching.value || !plan.value) return;
+  patching.value = true;
+  try {
+    const rec = await api.recommendSchools({
+      province: plan.value.province, subject: plan.value.subject,
+      user_rank: plan.value.user_rank, limit: 50,
+    });
+    const picks = selectBackstops(rec, plan.value.user_rank, 6);
+    if (!picks.length) {
+      toast.show("暂无可补位的更低层次兜底院校（可能该省缺院校投档线）");
+      return;
+    }
+    const next = appendSafeSchools(JSON.parse(JSON.stringify(plan.value)), picks);
+    plan.value = next;
+    rows.value = applyMajors(flattenPlan(next), next.majors || collectMajors(rows.value));
+    uni.setStorageSync(PLAN_KEY, next);
+    toast.show(`已补位 ${picks.length} 所兜底院校到「保」档`);
+  } catch (e) {
+    toast.show("没连上服务，重试一次");
+  } finally {
+    patching.value = false;
+  }
+}
+
 function print() {
   // #ifdef H5
   window.print();
@@ -201,6 +235,7 @@ function print() {
 .safe-count.ok { color: #5fd87f; }
 .safe-count.muted { color: #8a909c; }
 .safe-desc { display: block; margin-top: 10rpx; font-size: 21rpx; color: #9aa0aa; line-height: 1.6; }
+.safe-patch { margin-top: 16rpx; }
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 
 .row-breach { font-size: 18rpx; color: #fff; background: #e5484d; border-radius: 6rpx; padding: 1rpx 8rpx; margin-left: 10rpx; vertical-align: middle; }
