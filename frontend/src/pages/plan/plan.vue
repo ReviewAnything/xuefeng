@@ -85,7 +85,27 @@
           <wd-button type="primary" block @click="print">打印 / 另存为 PDF</wd-button>
           <!-- #endif -->
           <wd-button block plain @click="copy">复制为文本</wd-button>
+          <wd-button block plain @click="toggleFillOrder">
+            {{ showFillOrder ? "收起填报顺序" : "查看填报顺序" }}
+          </wd-button>
+          <wd-button block plain @click="copyFillOrder">复制填报顺序</wd-button>
           <wd-button block plain @click="goRecommend">重新生成</wd-button>
+        </view>
+        <!-- S8-D：按可及性排序的填报顺序（可解释，不承诺录取） -->
+        <view v-if="showFillOrder && hasPlan" class="fill-order">
+          <text class="fo-title">填报顺序建议（{{ fillOrder.total }} 所）</text>
+          <text class="fo-basis">排序依据：{{ fillOrder.basis }}</text>
+          <view v-for="it in fillOrder.items" :key="it.seq" class="fo-row">
+            <text class="fo-seq">{{ it.seq }}.</text>
+            <view class="fo-main">
+              <text class="fo-name">[{{ it.level }}] {{ it.name }}</text>
+              <text class="fo-meta">{{ it.margin_label }}</text>
+            </view>
+          </view>
+          <text v-if="fillOrder.unknown_count" class="fo-note">
+            其中 {{ fillOrder.unknown_count }} 所缺往年投档位次，附在同档末尾，顺序不代表可及性判断。
+          </text>
+          <text class="fo-note">顺序仅反映往年投档位次的相对关系，不构成录取承诺。</text>
         </view>
         <text class="small">打印时会自动隐藏按钮并切换为浅色排版；浏览器「另存为 PDF」即可得到文件。</text>
         <text class="small">本表仅为学习参考：院校池不等于录取承诺，正式填报请以各省考试院与院校招生网为准。</text>
@@ -101,19 +121,23 @@ import { onLoad } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
 import { themeVars } from "@/utils/theme.js";
 import { api } from "@/utils/api.js";
-import { PLAN_KEY, applyMajors, breachStats, breachStatus, buildPlanText, collectMajors, diffSafePatch, fillStats, flattenPlan, formatTime, groupRows, selectBackstops } from "@/utils/plan.js";
+import { PLAN_KEY, applyMajors, breachStats, breachStatus, buildFillOrderText, buildPlanText, collectMajors, diffSafePatch, fillOrder as buildFillOrder, fillStats, flattenPlan, formatTime, groupRows, selectBackstops } from "@/utils/plan.js";
 
 const toast = useToast();
 const plan = ref(null);
 const rows = ref([]);
 const patching = ref(false);
 const patchDiff = ref(null);   // S7-E 补位前后对比
+const showFillOrder = ref(false);   // S8-D 填报顺序展开开关
 
 const hasPlan = computed(() => !!plan.value);
 const isEmpty = computed(() => !plan.value);
 const groups = computed(() => groupRows(rows.value));
 const stats = computed(() => fillStats(rows.value));
 const timeLabel = computed(() => formatTime(plan.value && plan.value.at));
+
+// S8-D：按可及性排序的填报顺序（纯函数，随 rows 变动实时重算）
+const fillOrder = computed(() => buildFillOrder(plan.value, rows.value));
 
 // S4 验收点：保底安全网红灯数可见。
 // cls —— danger(有失守) / ok(全部核验且安全) / muted(无数据未核验)
@@ -182,6 +206,21 @@ function copy() {
   uni.setClipboardData({
     data: text,
     success: () => toast.show("已复制志愿表文本"),
+  });
+}
+
+function toggleFillOrder() {
+  showFillOrder.value = !showFillOrder.value;
+}
+
+function copyFillOrder() {
+  if (!fillOrder.value.total) {
+    toast.show("志愿表为空，暂无顺序建议");
+    return;
+  }
+  uni.setClipboardData({
+    data: buildFillOrderText(plan.value, fillOrder.value, timeLabel.value),
+    success: () => toast.show("已复制填报顺序清单"),
   });
 }
 
@@ -273,6 +312,16 @@ function print() {
 .patch-line.warn { color: #ff8787; }
 .patch-line.muted { color: #8a909c; }
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+/* S8-D 填报顺序 */
+.fill-order { margin-top: 16rpx; padding: 14rpx 16rpx; border-radius: 12rpx; background: rgba(255, 255, 255, 0.04); border: 1px solid #3a4048; }
+.fo-title { display: block; font-size: 23rpx; font-weight: 600; color: #c7ccd4; }
+.fo-basis { display: block; font-size: 20rpx; color: #8a909c; line-height: 1.6; margin: 6rpx 0 10rpx; }
+.fo-row { display: flex; align-items: flex-start; padding: 6rpx 0; }
+.fo-seq { width: 44rpx; font-size: 21rpx; color: #9aa0aa; }
+.fo-main { flex: 1; }
+.fo-name { display: block; font-size: 22rpx; color: #e5e7eb; }
+.fo-meta { display: block; font-size: 19rpx; color: #8a909c; margin-top: 2rpx; }
+.fo-note { display: block; font-size: 19rpx; color: #8a909c; line-height: 1.6; margin-top: 8rpx; }
 
 .row-breach { font-size: 18rpx; color: #fff; background: #e5484d; border-radius: 6rpx; padding: 1rpx 8rpx; margin-left: 10rpx; vertical-align: middle; }
 .row-breach-tip { display: block; font-size: 19rpx; color: #ff8787; margin-top: 3rpx; line-height: 1.5; }

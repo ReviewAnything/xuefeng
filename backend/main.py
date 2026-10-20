@@ -136,6 +136,17 @@ def health():
         seed_state = SL.verify_seed()
     except Exception:
         seed_state = {"exists": False, "ok": False, "rows": 0, "sha256": "", "size_bytes": 0}
+    # S8-A：官方文件溯源台账（几个文件 / 多少行 / 覆盖哪些省）
+    try:
+        official_sources = SL.official_registry()
+    except Exception:
+        official_sources = {"count": 0, "rows": 0, "provinces": [], "files": []}
+    # S8-B：证据门槛校准台账（各 (省/科类) 落哪一档）
+    try:
+        from services.verify import gate_profile
+        gate = gate_profile()
+    except Exception:
+        gate = {"combos": 0, "bands": {"full": 0, "thin": 0, "none": 0}, "thresholds": {}}
     return {
         "status": "ok",
         "version": APP_VERSION,
@@ -169,7 +180,15 @@ def health():
                                   "rows": seed_state.get("rows", 0),
                                   "sha256_ok": bool(seed_state.get("ok")),
                                   "compressed": str(seed_state.get("path", "")).endswith(".gz"),
-                                  "size_kb": round(seed_state.get("size_bytes", 0) / 1024, 1)}},
+                                  "size_kb": round(seed_state.get("size_bytes", 0) / 1024, 1)},
+                         # S8-A：官方文件溯源台账
+                         "official_sources": {"files": official_sources.get("count", 0),
+                                              "rows": official_sources.get("rows", 0),
+                                              "provinces": official_sources.get("provinces", [])},
+                         # S8-B：证据门槛校准（各组合落在 full / thin / none 哪档）
+                         "evidence_gate": {"combos": gate.get("combos", 0),
+                                           "bands": gate.get("bands", {}),
+                                           "thresholds": gate.get("thresholds", {})}},
         "pending_views": C.pending_reviews(),
         "observability": OBS.snapshot(recent=5),
         "admin_console": None if DISABLE_ADMIN else "/admin",

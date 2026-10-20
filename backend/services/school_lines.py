@@ -41,9 +41,14 @@ PROVINCES = [
 # 表头别名：越多越省事，匹配时统一小写去空格
 HEADER_ALIASES = {
     "university": ["院校", "院校名称", "学校", "学校名称", "高校", "招生院校", "大学", "院校名"],
-    "min_score": ["最低分", "投档分", "最低投档分", "院校最低分", "最低录取分", "投档线", "最低分数线", "分数"],
-    "min_rank": ["最低位次", "位次", "最低排名", "排名", "最低位次(名次)", "最低分位次", "位次号"],
-    "group_code": ["专业组", "院校专业组", "专业组代码", "专业组号", "组别", "科类代码"],
+    "min_score": ["最低分", "投档分", "最低投档分", "院校最低分", "最低录取分", "投档线", "最低分数线", "分数",
+                  # S8-A：省考试院原表常见写法（投档情况表多为「投档最低分 / 投档最低排位」）
+                  "投档最低分", "最低投档成绩", "出档分", "提档分", "院校投档分", "投档最低成绩"],
+    "min_rank": ["最低位次", "位次", "最低排名", "排名", "最低位次(名次)", "最低分位次", "位次号",
+                  "投档最低排位", "最低排位", "投档位次", "投档最低位次", "最低投档位次", "排位",
+                  "投档最低分排位", "末位投档考生排位"],
+    "group_code": ["专业组", "院校专业组", "专业组代码", "专业组号", "组别", "科类代码",
+                   "院校专业组代码", "院校专业组名称", "专业组名称", "专业代号", "志愿号"],
     "subject": ["科类", "选科", "文理", "科类名称", "选考科目"],
     "province": ["省份", "生源地", "招生省份", "省"],
     "year": ["年份", "年度", "招生年份"],
@@ -598,6 +603,12 @@ def sha256_of(path: str) -> str:
     return h.hexdigest()
 
 
+def sha256_bytes(raw: bytes) -> str:
+    """内存字节流的 sha256（S8-A：给上传的官方原表留校验和）。"""
+    import hashlib
+    return hashlib.sha256(raw or b"").hexdigest()
+
+
 def read_seed(path: str | None = None) -> dict:
     """读取种子（自动识别 gzip），损坏时抛错由调用方处理。"""
     path = path or _resolve_seed()
@@ -905,6 +916,126 @@ def official_landing_rows(directory: str | None = None) -> dict:
             "accepted": accepted, "rejected": rejected,
             "accepted_count": len(accepted), "rejected_count": len(rejected),
             "provenance_warnings": len([r for r in accepted if not r["trusted_host"]])}
+
+
+# ---------------------------------------------------------------- 官方溯源登记（S8-A）
+# 每个落过库的官方文件留一条台账：文件名 / 校验和 / 省 / 年 / 科类 / 来源链接 / 行数。
+# 目的：official 是最高可信度标签，任何一行官方数据都必须能追到「哪个文件、哪条链接」。
+OFFICIAL_REGISTRY = os.path.join(OFFICIAL_DIR, "sources.json")
+
+
+def official_registry() -> dict:
+    """官方文件溯源台账（只读）。"""
+    items: list[dict] = []
+    if os.path.exists(OFFICIAL_REGISTRY):
+        try:
+            with open(OFFICIAL_REGISTRY, encoding="utf-8") as f:
+                doc = json.load(f)
+            items = list(doc.get("files") or [])
+        except (OSError, ValueError):
+            items = []
+    return {"path": OFFICIAL_REGISTRY, "files": items, "count": len(items),
+            "rows": sum(int(it.get("rows") or 0) for it in items),
+            "provinces": sorted({it.get("province") for it in items if it.get("province")}),
+            "sources": sorted({it.get("source_url") for it in items if it.get("source_url")})}
+
+
+def record_official_source(filename: str, province: str = "", year: int | None = None,
+                           subject: str = "", source_url: str = "", source_org: str = "",
+                           rows: int = 0, rejected: int = 0, sha256: str = "",
+                           operator: str = "system") -> dict:
+    """登记一条官方文件溯源（按文件名去重，重复登记只更新）。"""
+    reg = official_registry()
+    entry = {
+        "file": filename, "province": province, "year": year, "subject": subject,
+        "source_url": source_url, "source_org": source_org, "rows": int(rows or 0),
+        "rejected": int(rejected or 0), "sha256": sha256, "operator": operator,
+        "imported_at": datetime.now(timezone.utc).isoformat(),
+    }
+    items = [it for it in reg["files"] if it.get("file") != filename]
+    items.append(entry)
+    items.sort(key=lambda it: str(it.get("file") or ""))
+    try:
+        os.makedirs(os.path.dirname(OFFICIAL_REGISTRY), exist_ok=True)
+        with open(OFFICIAL_REGISTRY, "w", encoding="utf-8") as f:
+            json.dump({"updated_at": entry["imported_at"], "files": items},
+                      f, ensure_ascii=False, indent=2)
+    except OSError:  # 台账写失败不阻断落库，但要在返回值里说实话
+        return {"ok": False, "error": "溯源台账写入失败", "entry": entry}
+    return {"ok": True, "entry": entry, "count": len(items)}
+
+
+def parse_official_table(raw: bytes, filename: str = "",
+                         defaults: dict | None = None) -> dict:
+    """把省考试院原表（CSV / XLSX / JSON）解析成可校验的官方行（S8-A）。
+
+    与 ``parse_table`` 的区别：这里直接用 ``normalize_row`` 产结构化记录（含校名匹配），
+    并把文件级默认值（年 / 省 / 科类 / 批次 / 来源链接）灌进去，供 ``validate_official_rows``
+    做强校验。
+    """
+    defaults = dict(defaults or {})
+    lower = (filename or "").lower()
+    if lower.endswith(".json"):
+        try:
+            doc = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, ValueError):
+            doc = json.loads(raw.decode("utf-8-sig", errors="replace"))
+        rows = list(doc.get("rows") if isinstance(doc, dict) else doc) or []
+        for k in ("year", "province", "subject", "batch", "source_url", "source_org"):
+            if isinstance(doc, dict) and doc.get(k) and not defaults.get(k):
+                defaults[k] = doc[k]
+        if isinstance(doc, dict) and isinstance(doc.get("meta"), dict):
+            for k in ("year", "province", "subject", "batch", "source_url", "source_org"):
+                if doc["meta"].get(k) and not defaults.get(k):
+                    defaults[k] = doc["meta"][k]
+        return {"ok": True, "rows": rows, "defaults": defaults,
+                "parsed": len(rows), "format": "json"}
+    try:
+        parsed = parse_table(raw, filename)
+    except RuntimeError as exc:  # 旧版 .xls 等
+        return {"ok": False, "error": str(exc), "rows": [], "defaults": defaults}
+    if not parsed.get("ok"):
+        return {"ok": False, "error": parsed.get("error", "表头无法识别"),
+                "detected_headers": parsed.get("detected_headers", []),
+                "rows": [], "defaults": defaults}
+    mapping = parsed["mapping"]
+    records = []
+    for r in parsed["rows"]:
+        rec = normalize_row(r, mapping, defaults)
+        rec["source_url"] = rec.get("source_url") or str(defaults.get("source_url") or "")
+        records.append(rec)
+    return {"ok": True, "rows": records, "defaults": defaults,
+            "parsed": len(records), "header": parsed.get("header", []),
+            "format": "xlsx" if lower.endswith((".xlsx", ".xlsm")) else "csv"}
+
+
+def import_official_table(raw: bytes, filename: str = "", defaults: dict | None = None,
+                          dry_run: bool = True, operator: str = "admin",
+                          register: bool = True) -> dict:
+    """官方原表一键落库（S8-A）：解析 → 强校验 → 幂等写 official → 写溯源台账。
+
+    ``dry_run=True`` 只报「可落库 / 拒收」明细，不写库也不登记。
+    """
+    parsed = parse_official_table(raw, filename, defaults)
+    if not parsed.get("ok"):
+        return {"ok": False, "error": parsed.get("error", "解析失败"),
+                "detected_headers": parsed.get("detected_headers", []),
+                "file": filename, "parsed": 0}
+    report = import_official(rows=parsed["rows"], defaults=parsed["defaults"],
+                             dry_run=dry_run, operator=operator)
+    report["file"] = filename
+    report["parsed"] = parsed["parsed"]
+    report["format"] = parsed.get("format", "")
+    if register and not dry_run and report.get("ok") and report.get("inserted", 0) + report.get("updated", 0) > 0:
+        rec = record_official_source(
+            filename=filename or "upload", province=parsed["defaults"].get("province", ""),
+            year=parsed["defaults"].get("year"), subject=parsed["defaults"].get("subject", ""),
+            source_url=parsed["defaults"].get("source_url", ""),
+            source_org=parsed["defaults"].get("source_org", ""),
+            rows=report.get("accepted", 0), rejected=report.get("rejected", 0),
+            sha256=sha256_bytes(raw), operator=operator)
+        report["registry"] = rec
+    return report
 
 
 def import_official(rows: list[dict], defaults: dict | None = None, dry_run: bool = True,

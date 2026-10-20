@@ -242,15 +242,39 @@ def real_reachability(province: str, subject: str, user_rank: int) -> dict | Non
 
 # S7-C 证据门槛：低于该样本量时不给「支持 / 反驳」的强判断，单侧降级为 unverified。
 # 一条校线就敢说「数据支持观点」，是把对置版式变成了无信息放大——那句判断其实什么都没证明。
-MIN_EVIDENCE_LINES = 10      # 该 (省/科类) 至少要有这么多条真实校线
-MIN_EVIDENCE_SCHOOLS = 5     # 且至少覆盖这么多所不同院校
+# S8-B：门槛按真实分布分层校准（见 scripts/calibrate_evidence_gate.py 的实测分布）。
+# 三档：
+#   none —— 近乎没样本，完全不下判断；
+#   thin —— 有样本但不够厚，只给方向性事实，不判「支持 / 反驳」；
+#   full —— 够厚，允许判断。
+MIN_EVIDENCE_LINES = 10      # 一般强判断：至少这么多条真实校线（S7-C 原始值，实测最低 46 条）
+MIN_EVIDENCE_SCHOOLS = 5     # 且至少覆盖这么多所不同院校（实测最低 46 所）
+MIN_THIN_LINES = 3           # 低于此视为「近乎无样本」
+MIN_THIN_SCHOOLS = 2
+# 「够不到任何院校」是**全称否定**断言，比「够得到某一所」（存在性断言）需要更多证据：
+# 少几条校线就能证明「有一所够得到」，但要说「所有都够不到」必须覆盖足够多。
+MIN_REFUTE_LINES = 20
+MIN_REFUTE_SCHOOLS = 10
 GRADE_LABEL = {"official": "考试院官方", "mixed": "官方 + 真实抓取", "estimated_real": "真实抓取（非官方）"}
+BAND_LABEL = {"full": "样本充足（可判断）", "thin": "样本偏薄（仅方向性提示）",
+              "none": "样本近乎为零（不下判断）"}
 
 
-def _evidence_gate(real: dict) -> tuple[bool, dict]:
-    """证据是否足以支撑「支持 / 反驳」的强判断（S7-C）。"""
+def _evidence_band(real: dict) -> tuple[str, dict]:
+    """证据分层（S8-B）：返回 ``(band, basis)``，band ∈ {none, thin, full}。
+
+    与 S7-C 的布尔门槛相比，这里多做两件事：
+      1. 把「不足」再切成 none / thin —— 偏薄时给出方向性事实，而不是一句「不下判断」了事；
+      2. 对「够不到任何」这类全称否定额外设更高门槛（``refute_gate_passed``）。
+    """
     lines = int(real.get("total_lines") or 0)
     schools = int(real.get("total_schools") or 0)
+    if lines < MIN_THIN_LINES or schools < MIN_THIN_SCHOOLS:
+        band = "none"
+    elif lines >= MIN_EVIDENCE_LINES and schools >= MIN_EVIDENCE_SCHOOLS:
+        band = "full"
+    else:
+        band = "thin"
     basis = {
         "total_lines": lines, "min_lines": MIN_EVIDENCE_LINES,
         "total_schools": schools, "min_schools": MIN_EVIDENCE_SCHOOLS,
@@ -258,9 +282,58 @@ def _evidence_gate(real: dict) -> tuple[bool, dict]:
         "reachable_schools": int(real.get("reachable_schools") or 0),
         "grade": real.get("grade", ""),
         "grade_label": GRADE_LABEL.get(real.get("grade", ""), real.get("grade", "")),
-        "gate_passed": lines >= MIN_EVIDENCE_LINES and schools >= MIN_EVIDENCE_SCHOOLS,
+        "gate_passed": band == "full",           # 保持向后兼容（S7-C 语义）
+        "band": band, "band_label": BAND_LABEL[band],
+        "refute_gate_passed": lines >= MIN_REFUTE_LINES and schools >= MIN_REFUTE_SCHOOLS,
+        "min_refute_lines": MIN_REFUTE_LINES, "min_refute_schools": MIN_REFUTE_SCHOOLS,
+        "thresholds": {"thin": [MIN_THIN_LINES, MIN_THIN_SCHOOLS],
+                       "full": [MIN_EVIDENCE_LINES, MIN_EVIDENCE_SCHOOLS],
+                       "refute": [MIN_REFUTE_LINES, MIN_REFUTE_SCHOOLS]},
     }
-    return basis["gate_passed"], basis
+    return band, basis
+
+
+def _evidence_gate(real: dict) -> tuple[bool, dict]:
+    """证据是否足以支撑「支持 / 反驳」的强判断（S7-C 语义，兼容保留）。"""
+    band, basis = _evidence_band(real)
+    return band == "full", basis
+
+
+def gate_profile() -> dict:
+    """门槛校准台账（S8-B）：当前阈值 + 全库各 (省/科类) 落在哪一档的统计。
+
+    用来回答「10/5 到底合不合理」：把真实分布摆出来，而不是拍脑袋。
+    """
+    with session_scope() as s:
+        rows = s.execute(select(SchoolLine.province, SchoolLine.subject,
+                                SchoolLine.university)).all()
+    agg: dict[tuple, dict] = {}
+    for p, subj, uni in rows:
+        key = (p, subj)
+        item = agg.setdefault(key, {"lines": 0, "schools": set()})
+        item["lines"] += 1
+        item["schools"].add(uni)
+    bands = {"full": 0, "thin": 0, "none": 0}
+    detail = []
+    for (p, subj), item in sorted(agg.items()):
+        lines, schools = item["lines"], len(item["schools"])
+        if lines < MIN_THIN_LINES or schools < MIN_THIN_SCHOOLS:
+            band = "none"
+        elif lines >= MIN_EVIDENCE_LINES and schools >= MIN_EVIDENCE_SCHOOLS:
+            band = "full"
+        else:
+            band = "thin"
+        bands[band] += 1
+        detail.append({"province": p, "subject": subj, "lines": lines,
+                       "schools": schools, "band": band,
+                       "refute_ok": lines >= MIN_REFUTE_LINES and schools >= MIN_REFUTE_SCHOOLS})
+    return {"thresholds": {"thin": [MIN_THIN_LINES, MIN_THIN_SCHOOLS],
+                           "full": [MIN_EVIDENCE_LINES, MIN_EVIDENCE_SCHOOLS],
+                           "refute": [MIN_REFUTE_LINES, MIN_REFUTE_SCHOOLS]},
+            "combos": len(agg), "bands": bands,
+            "min_lines_observed": min((d["lines"] for d in detail), default=0),
+            "min_schools_observed": min((d["schools"] for d in detail), default=0),
+            "detail": detail}
 
 
 def _alignment_of(view: str, real: dict | None):
@@ -274,22 +347,45 @@ def _alignment_of(view: str, real: dict | None):
     """
     empty_basis = {"total_lines": 0, "min_lines": MIN_EVIDENCE_LINES, "total_schools": 0,
                    "min_schools": MIN_EVIDENCE_SCHOOLS, "reachable": 0, "reachable_schools": 0,
-                   "grade": "", "grade_label": "", "gate_passed": False}
+                   "grade": "", "grade_label": "", "gate_passed": False,
+                   "band": "none", "band_label": BAND_LABEL["none"], "refute_gate_passed": False}
     if real is None or not real.get("has_data"):
         return (ALIGNMENT_UNVERIFIED, ALIGNMENT_LABEL[ALIGNMENT_UNVERIFIED],
                 "该 (省/科类) 暂无真实校线佐证，无法核验可及性；以上为批次门槛估算的可及性提示，"
                 "不等于数据支持或反驳该观点。", [], empty_basis)
 
-    passed, basis = _evidence_gate(real)
+    band, basis = _evidence_band(real)
     grade_note = f"；数据等级：{basis['grade_label']}" if basis["grade_label"] else ""
-    if not passed:
-        # 单侧降级：证据不足只往 unverified 退，绝不反向推出「观点成立」
+
+    if band == "none":
+        # 样本近乎为零：连方向性事实都谈不上，只说明为什么不判。
         return (ALIGNMENT_UNVERIFIED, ALIGNMENT_LABEL[ALIGNMENT_UNVERIFIED],
                 f"该 (省/科类) 只有 {basis['total_lines']} 条真实校线、覆盖 {basis['total_schools']} 所院校，"
-                f"低于判定门槛（≥{MIN_EVIDENCE_LINES} 条 / ≥{MIN_EVIDENCE_SCHOOLS} 所）。样本太薄时"
-                "「支持 / 反驳」没有信息量，因此这里**不下判断**，仅提示可及性参考。", [], basis)
+                f"低于最低观察量（≥{MIN_THIN_LINES} 条 / ≥{MIN_THIN_SCHOOLS} 所）。样本近乎为零时"
+                "任何判断都没有信息量，因此这里**不下判断**，仅提示可及性参考。", [], basis)
+
+    if band == "thin":
+        # S8-B：偏薄档——不下强判断，但把「看到的事实」摆出来，而不是一句「不知道」了事。
+        seen = ""
+        if real.get("reachable"):
+            b = real["best"]
+            seen = (f"已收录的校线里，最容易触及的是 {b['university']}（门槛位次 {b['min_rank']}），"
+                    f"共 {basis['reachable']} 条记录可及——这是事实陈述，不作为「支持该观点」的判断。")
+        else:
+            seen = ("已收录的校线里没有一所的门槛位次在你之后，但这**不等于**你够不到所有院校。")
+        return (ALIGNMENT_UNVERIFIED, ALIGNMENT_LABEL[ALIGNMENT_UNVERIFIED],
+                f"该 (省/科类) 只有 {basis['total_lines']} 条真实校线、覆盖 {basis['total_schools']} 所院校，"
+                f"未达判定门槛（≥{MIN_EVIDENCE_LINES} 条 / ≥{MIN_EVIDENCE_SCHOOLS} 所），属「样本偏薄」。"
+                f"{seen}数据侧**不下判断**，仅作方向性参考{grade_note}。", [], basis)
 
     if not real.get("reachable"):
+        # 「够不到任何」是全称否定，需要比「够得到某一所」更厚的样本才敢说。
+        if not basis["refute_gate_passed"]:
+            return (ALIGNMENT_UNVERIFIED, ALIGNMENT_LABEL[ALIGNMENT_UNVERIFIED],
+                    f"已收录的 {basis['total_lines']} 条真实校线里，没有一所的门槛位次在你之后。"
+                    f"但「所有院校都够不到」是全称否定，本项目要求 ≥{MIN_REFUTE_LINES} 条 / "
+                    f"≥{MIN_REFUTE_SCHOOLS} 所才敢这么断言（当前 {basis['total_schools']} 所），"
+                    f"因此这里**不下「够不到」的判断**{grade_note}。", [], basis)
         msg = ("真实校线显示：你的位次够不到该 (省/科类) 下任何真实院校开设的项目层次。"
                "这是**可及性**层面的事实，不代表该专业「没有价值」——只是以你当前位次，"
                f"数据侧看不到你能踏入开设它的院校{grade_note}。")

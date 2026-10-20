@@ -265,6 +265,98 @@ export function diffSafePatch(plan, schools) {
   return { next, added, skipped, before, after, still_breach, safe_before, safe_after, text };
 }
 
+/**
+ * 填报顺序建议（S8-D，纯函数便于单测）。
+ *
+ * 排序规则（可解释、且刻意不承诺录取）：
+ *   1. 先按档位：冲 → 稳 → 保（LEVELS 顺序）；
+ *   2. 同档内按**位次余量**从大到小：余量 = 该校最低投档位次 − 用户位次。
+ *      `min_rank` 是录取末位位次，数字越大门槛越低，所以余量为正 = 稳够、越大越安全；
+ *      冲档余量为负，取「最接近自己位次」的排前面（冲刺性价比更高）；
+ *   3. 没有投档位次的行不参与余量排序，原序附在同档末尾，并明确标注「无数据」。
+ *
+ * @param {object} plan 志愿表（取 user_rank）
+ * @param {Array} rows 拍平后的行（含 level / name / tier / line_rank / major）
+ * @returns {{items:Array, basis:string, unknown_count:number}}
+ */
+export function fillOrder(plan, rows) {
+  const ur = Number(plan && plan.user_rank) || 0;
+  const list = (Array.isArray(rows) ? rows : []).filter((r) => r && r.name);
+  const keys = LEVELS.map((l) => l.key);   // LEVELS 是 {key,title} 数组
+  const rankOf = (level) => {
+    const i = keys.indexOf(level);
+    return i < 0 ? keys.length : i;   // 未知档位（如「不可及」）排在最后
+  };
+  const decorated = list.map((r, idx) => {
+    const lr = Number(r.line_rank);
+    const known = ur > 0 && lr > 0;
+    return {
+      row: r, idx,
+      level_rank: rankOf(r.level),
+      known,
+      margin: known ? lr - ur : null,
+    };
+  });
+  decorated.sort((a, b) => {
+    if (a.level_rank !== b.level_rank) return a.level_rank - b.level_rank;
+    if (a.known !== b.known) return a.known ? -1 : 1;   // 有数据的排前，无数据的附后
+    if (a.known && b.known && a.margin !== b.margin) return b.margin - a.margin;
+    return a.idx - b.idx;                               // 其余保持原表顺序，避免随机跳动
+  });
+  let seq = 0;
+  const items = decorated.map((d) => {
+    seq += 1;
+    const r = d.row;
+    const margin_label = !d.known
+      ? "无投档线数据，不参与余量排序"
+      : d.margin >= 0
+        ? `位次余量 +${d.margin}（可稳够）`
+        : `位次差 ${d.margin}（冲刺，门槛比你的位次靠前 ${Math.abs(d.margin)} 名）`;
+    return {
+      seq, name: r.name, tier: r.tier || "", level: r.level || "",
+      line_rank: d.known ? Number(r.line_rank) : null,
+      margin: d.margin, margin_label, major: r.major || "",
+      has_line_data: d.known,
+    };
+  });
+  const unknown_count = items.filter((it) => !it.has_line_data).length;
+  const basis = "先按档位（冲 → 稳 → 保）；同档内按位次余量从大到小" +
+    "（余量 = 该校最低投档位次 − 你的位次，越大越安全）；" +
+    "无投档线数据的行附在同档末尾，不参与余量排序。";
+  return { items, basis, unknown_count, total: items.length };
+}
+
+/** 填报顺序的纯文本清单（可直接照抄，含序号与档位）。 */
+export function buildFillOrderText(plan, order, timeLabel) {
+  const p = plan || {};
+  const o = order || { items: [], basis: "" };
+  const lines = [];
+  lines.push("志愿表填报顺序建议（学习参考，不承诺录取）");
+  lines.push("省份：" + (p.province || "-") + " | 科类：" + (p.subject || "-") +
+    " | 位次：" + (p.user_rank || "-"));
+  lines.push("生成时间：" + (timeLabel || "-"));
+  lines.push("排序依据：" + (o.basis || "-"));
+  lines.push("");
+  if (!o.items || !o.items.length) {
+    lines.push("（志愿表为空，暂无顺序建议）");
+  } else {
+    o.items.forEach((it) => {
+      lines.push(it.seq + ". [" + (it.level || "-") + "] " + it.name +
+        (it.tier ? "（" + it.tier + "）" : "") +
+        "  " + it.margin_label +
+        (it.major ? "  拟报专业：" + it.major : "  拟报专业：（待填）"));
+    });
+  }
+  lines.push("");
+  if (o.unknown_count) {
+    lines.push("注：其中 " + o.unknown_count + " 所缺往年投档位次，已附在同档末尾，" +
+      "顺序不代表可及性判断。");
+  }
+  lines.push("说明：顺序仅反映往年投档位次的相对关系，不构成录取承诺；" +
+    "正式填报请以省考试院与院校招生网公布的当年计划为准。");
+  return lines.join("\n");
+}
+
 /** 导出的纯文本志愿表（复制/打印共用）。 */
 export function buildPlanText(plan, groups, timeLabel) {
   const p = plan || {};

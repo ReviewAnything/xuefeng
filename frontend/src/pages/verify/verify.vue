@@ -142,8 +142,15 @@
             判定依据：该省/科类 {{ res.alignment_basis.total_lines }} 条校线 ·
             {{ res.alignment_basis.total_schools }} 所院校
             （门槛 ≥{{ res.alignment_basis.min_lines }} 条 / ≥{{ res.alignment_basis.min_schools }} 所）
+            <!-- S8-B：三档分层——不足时说清是「偏薄」还是「近乎为零」 -->
+            <text v-if="res.alignment_basis.band_label"> · {{ res.alignment_basis.band_label }}</text>
             <text v-if="!res.alignment_basis.gate_passed"> · 样本不足，已单侧降级为「不下判断」</text>
             <text v-else-if="res.alignment_basis.grade_label"> · 数据等级：{{ res.alignment_basis.grade_label }}</text>
+            <!-- 「够不到任何」是全称否定，门槛更高，未达时明确说明 -->
+            <text v-if="res.alignment === 'unverified' && !res.alignment_basis.refute_gate_passed && res.alignment_basis.band === 'full'">
+              · 「够不到任何院校」需 ≥{{ res.alignment_basis.min_refute_lines }} 条 /
+              ≥{{ res.alignment_basis.min_refute_schools }} 所才敢断言，当前未达
+            </text>
           </text>
         </view>
 

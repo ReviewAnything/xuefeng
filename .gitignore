@@ -21,3 +21,6 @@ __pycache__/
 
 # 种子明文副本（体积 7.2MB）；仓库只提交 gzip 副本 school_lines_estimated_real.json.gz
 /backend/data/school_lines_estimated_real.json
+
+# 官方文件溯源台账（运行时生成，记录实际落过库的原表）
+/backend/data/official/sources.json

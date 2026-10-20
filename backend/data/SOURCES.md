@@ -113,6 +113,40 @@ S6 由此把数据收归仓库自带：
   最终判断权留给运营，但疑点留在数据里。
 - `/api/health` 的 `school_lines.official_landing` 上报通道是否就绪、待落库与拒收行数。
 
+### S8-A 官方原表解析落库 + 溯源台账
+
+S7-A 只解决了「校验与落库」，S8-A 补齐**投喂闭环**：省考试院公布的投档情况表列名各省不同
+（如广东「投档最低分 / 投档最低排位」），人工整理成专用 JSON 既慢又易错。
+
+- `school_lines.parse_official_table()` 直接吃 **CSV / XLSX / JSON**，按 `HEADER_ALIASES`
+  识别表头（已扩充「投档最低分」「投档最低排位」「院校专业组代码」等考试院常见写法），
+  年份 / 省份 / 科类 / 批次 / 来源链接可由命令行或表单统一指定，无需逐行填。
+- CLI：`scripts/import_official_table.py <表> --province 广东 --year 2024 --subject 物理类
+  --source-url <考试院原表地址> [--dry-run | --commit] [--copy-to-landing]`。
+  管理端「官方逐校投档线落库」上传走同一条链路。
+- **溯源台账**：落库成功即往 `backend/data/official/sources.json` 写一条记录
+  （文件名 / sha256 / 省 / 年 / 科类 / 来源链接 / 落库行数 / 拒收行数 / 操作人 / 时间），
+  按文件名去重。管理端「官方溯源台账」表格可点开原表链接；`/api/health` 的
+  `school_lines.official_sources` 上报文件数与覆盖省份。
+  目的只有一个：**每行 `official` 数据都能追到「哪个文件、哪条链接」**。
+
+### S8-B 证据门槛校准（按真实分布分层）
+
+S7-C 的「≥10 条校线 / ≥5 所院校」是经验值。S8-B 用
+`scripts/calibrate_evidence_gate.py` 把真实分布摆出来再定档：
+
+| 档 | 条件 | 行为 |
+| --- | --- | --- |
+| `none` | < 3 条 或 < 2 所 | 样本近乎为零，**不下判断** |
+| `thin` | 未达 full | 单侧降级为 `unverified`，但给出**方向性事实**（最易触及的院校 / 「没有可及 ≠ 都够不到」） |
+| `full` | ≥ 10 条 且 ≥ 5 所 | 允许 `supported` / `refuted` |
+| `refuted` 附加门槛 | ≥ 20 条 且 ≥ 10 所 | 「够不到任何院校」是**全称否定**，比「够得到某一所」需要更厚的样本 |
+
+实测（14020 行 / 54 个省×科类组合）：校线条数 46–547、覆盖院校 46–96，**全部落在 `full`**
+——说明门槛在当前数据下不触发，它只在稀疏导入（如官方试点只落几行）时起作用。
+这正是保留它的理由：未来某个省只落了 3 行官方数据，也不能据此断言「你够不到任何院校」。
+`/api/health` 的 `school_lines.evidence_gate` 上报各档命中数与阈值。
+
 ## 运行时落库说明
 
 服务启动时由 `backend/db/seed.py` 将上述 JSON **幂等播种**到 SQLite（默认 `backend/data/xuefeng.db`，已 gitignore）：

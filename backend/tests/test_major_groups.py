@@ -59,11 +59,11 @@ def test_groups_physics():
     assert r["ok"] and r["estimated"] is True
     assert r["university"]["name"] == "北京大学"
     assert r["university"]["category_source"] == "official"
-    assert r["total_groups"] == 4 and r["eligible_groups"] == 3
+    # S8-C：新增「地理 / 政治」两组后，综合类院校共 6 组；物理类不可报纯历史组
+    assert r["total_groups"] == 6 and r["eligible_groups"] == 5
     codes = [g["group_code"] for g in r["groups"]]
-    assert codes == ["01", "02", "03", "04"]
+    assert codes == ["01", "02", "03", "04", "05", "06"]
     reqs = {g["subject_req"]: g for g in r["groups"]}
-    # 物理类不可报纯历史组
     assert reqs["历史"]["eligible"] is False
     assert reqs["物理+化学"]["eligible"] is True
     assert all(g["major_count"] > 0 for g in r["groups"])
@@ -72,9 +72,24 @@ def test_groups_physics():
 def test_groups_history():
     r = G.groups_for("北京大学", "历史类")
     eligible = [g["subject_req"] for g in r["groups"] if g["eligible"]]
-    assert set(eligible) == {"不限", "历史"}
-    # 历史类不能报物理+化学组
+    # S8-C：政治 / 地理属「再选科目」，历史类同样可报
+    assert set(eligible) == {"不限", "历史", "政治", "地理"}
     assert all(not g["eligible"] for g in r["groups"] if g["subject_req"] == "物理+化学")
+    assert all(not g["eligible"] for g in r["groups"] if g["subject_req"] == "物理")
+
+
+def test_subject_req_has_politics_and_geography():
+    """S8-C：政治 / 地理两类选科口径必须真实存在（S7-D 时被并进「不限」/「历史」）。"""
+    assert G.SUBJECT_REQ["思想政治教育"] == "政治"
+    assert G.SUBJECT_REQ["政治学与行政学"] == "政治"
+    assert G.SUBJECT_REQ["警校/公安类"] == "政治"
+    assert G.SUBJECT_REQ["地理信息科学"] == "地理"
+    # 新增口径必须进了 REQ_ORDER 与 ELIGIBLE，否则永远不会出现在分组里
+    assert {"政治", "地理"} <= set(G.REQ_ORDER)
+    assert "政治" in G.ELIGIBLE["物理类"] and "政治" in G.ELIGIBLE["历史类"]
+    assert "地理" in G.ELIGIBLE["物理类"] and "地理" in G.ELIGIBLE["历史类"]
+    # 每个 SUBJECT_REQ 取值都要能被排序（否则该组会被静默丢掉）
+    assert set(G.SUBJECT_REQ.values()) <= set(G.REQ_ORDER)
 
 
 def test_groups_comprehensive_subject_has_no_restriction():
@@ -106,7 +121,8 @@ def test_api_major_groups():
     r = c.get("/api/major-groups", params={"university": "北京大学", "subject": "物理类"})
     assert r.status_code == 200
     j = r.json()
-    assert j["ok"] and j["total_groups"] == 4
+    # S8-C 后综合类院校为 6 组（物理+化学 / 物理 / 地理 / 政治 / 不限 / 历史）
+    assert j["ok"] and j["total_groups"] == 6
     assert j["data_source"] == "estimated"
 
 

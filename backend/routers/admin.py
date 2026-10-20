@@ -607,20 +607,26 @@ async def import_school_line_official_file(
     if not str(source_url or "").startswith(("http://", "https://")):
         raise HTTPException(status_code=400,
                             detail="官方数据必须填写来源链接 source_url（省考试院原表地址）")
-    # 直接用上传字节解析，不落临时盘
-    parsed_rows, parsed_meta = _parse_official_upload(raw, file.filename or "")
-    if parsed_meta.get("error"):
-        raise HTTPException(status_code=400, detail=f"解析失败：{parsed_meta['error']}")
-    for key in ("year", "province", "subject", "batch", "source_url", "source_org"):
-        defaults.setdefault(key, parsed_meta.get(key))
+    # S8-A：解析 → 强校验 → 落库 → 写溯源台账，全在一处（上传字节不落临时盘）
     try:
-        report = SL.import_official(rows=parsed_rows, defaults=defaults,
-                                    dry_run=dry_run, operator=admin["username"])
+        report = SL.import_official_table(raw, file.filename or "", defaults,
+                                          dry_run=dry_run, operator=admin["username"],
+                                          register=True)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"官方落库失败：{exc}")
-    report["file"] = file.filename
-    report["parsed_rows"] = len(parsed_rows)
+    if not report.get("ok"):
+        detail = report.get("error") or "解析失败"
+        if report.get("detected_headers"):
+            detail += f"；识别到的表头：{report['detected_headers'][:12]}"
+        raise HTTPException(status_code=400, detail=detail)
+    report["parsed_rows"] = report.get("parsed", 0)
     return report
+
+
+@router.get("/school-lines/official-sources")
+def admin_school_line_official_sources(admin: dict = Depends(auth.require_admin)):
+    """官方文件溯源台账（S8-A）：每个落过库的文件对应哪条官方链接、多少行。"""
+    return {"ok": True, **SL.official_registry()}
 
 
 def _parse_official_upload(raw: bytes, filename: str) -> tuple[list[dict], dict]:

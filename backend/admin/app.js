@@ -688,6 +688,7 @@ const app = createApp({
 
     /* ---------- 官方逐校投档线落库（S7-A） ---------- */
     const officialStatus = ref(null);
+    const officialSources = ref(null);
     const officialReport = ref(null);
     const officialLoading = ref(false);
     const officialFile = ref(null);
@@ -723,6 +724,13 @@ const app = createApp({
       } catch (_) { /* 未登录/无权限时静默 */ }
     }
 
+    // S8-A：官方文件溯源台账（哪个文件 → 哪条链接 → 多少行）
+    async function loadOfficialSources() {
+      try {
+        officialSources.value = await api("/api/admin/school-lines/official-sources");
+      } catch (_) { /* 未登录/无权限时静默 */ }
+    }
+
     async function submitOfficial() {
       if (!officialFile.value) { ElMessage.warning("请先选择 CSV / JSON 原表"); return; }
       if (!/^https?:\/\//.test(officialForm.source_url || "")) {
@@ -752,7 +760,7 @@ const app = createApp({
         ElMessage.success(data.dry_run
           ? "预览完成；确认无误后关闭「仅预览」再提交"
           : `官方落库完成：新增 ${data.inserted} / 更新 ${data.updated}`);
-        await Promise.all([loadLineCoverage(), loadSeedStatus(), loadOfficialStatus()]);
+        await Promise.all([loadLineCoverage(), loadSeedStatus(), loadOfficialStatus(), loadOfficialSources()]);
       } catch (e) {
         ElMessage.error(e.message);
       } finally {
@@ -806,7 +814,7 @@ const app = createApp({
         if (p === "baselines" && !baseRows.value.length) await loadBaselines();
         if (p === "versions") await loadVersions();
         if (p === "sync") await Promise.all([loadSources(), loadJobs(), loadSyncTargets()]);
-        if (p === "lines") await Promise.all([loadLineCoverage(), loadSeedStatus(), loadOfficialStatus()]);
+        if (p === "lines") await Promise.all([loadLineCoverage(), loadSeedStatus(), loadOfficialStatus(), loadOfficialSources()]);
         if (p === "events") await loadEvents();
         if (p === "settings") await loadProfile();
       } catch (e) {
@@ -837,6 +845,7 @@ const app = createApp({
       seedStatus, seedReport, seedLoading, seedText, loadSeedStatus, runSeedImport,
       officialStatus, officialReport, officialLoading, officialForm, officialFileName,
       officialText, onOfficialFileChange, clearOfficialFile, submitOfficial, loadOfficialStatus,
+      officialSources, loadOfficialSources,
       pwdForm, pwdLoading, changePassword,
       exportCsv, fmtTime, jobTag, jobLabel, alignLabel,
     };

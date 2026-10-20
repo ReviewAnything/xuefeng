@@ -99,6 +99,96 @@ def test_alignment_never_invents_conflict():
     _cleanup_thin()
 
 
+def _seed_distinct(n: int, rank_base: int = 10000):
+    """放 n 条**互不重名**的校线（覆盖 n 所院校），用于验证「院校数」维度的门槛。"""
+    _cleanup_thin()
+    with session_scope() as s:
+        for i in range(n):
+            s.add(SchoolLine(year=THIN_YEAR, province=THIN_PROVINCE, subject=THIN_SUBJECT,
+                             batch="本科一批", university=f"薄样本大学{i:02d}",
+                             university_input=f"薄样本大学{i:02d}", group_code=f"{i:02d}",
+                             min_score=500 + (i % 100), min_rank=rank_base + i * 1000,
+                             data_source="estimated_real", match_method="exact",
+                             source_url="https://example.edu.cn/band", note="分层门槛测试"))
+    SL.invalidate_cache()
+
+
+def test_evidence_band_none_thin_full():
+    """S8-B：三档分层——近乎无样本 / 偏薄 / 充足，各自的处理不同。"""
+    # none：2 条 → 连方向性事实都不给
+    _seed_thin(2)
+    try:
+        real = V.real_reachability(THIN_PROVINCE, THIN_SUBJECT, 20000)
+        band, basis = V._evidence_band(real)
+        assert band == "none" and basis["band_label"]
+        alignment, _l, msg, _r, _b = V._alignment_of("recommend", real)
+        assert alignment == "unverified" and "不下判断" in msg
+    finally:
+        _cleanup_thin()
+
+    # thin：5 条 → 不下强判断，但把看到的事实摆出来（不是一句「不知道」了事）
+    _seed_thin(5)
+    try:
+        real = V.real_reachability(THIN_PROVINCE, THIN_SUBJECT, 20000)
+        band, basis = V._evidence_band(real)
+        assert band == "thin"
+        assert basis["gate_passed"] is False, "偏薄 ≠ 可判断，红线不变"
+        alignment, _l, msg, _r, _b = V._alignment_of("recommend", real)
+        assert alignment == "unverified"
+        assert "样本偏薄" in msg
+        assert "最容易触及" in msg or "不等于" in msg, "偏薄时要给方向性事实，而不是空白"
+    finally:
+        _cleanup_thin()
+
+    # full：12 条 / 5 所 → 允许判断
+    _seed_thin(12)
+    try:
+        real = V.real_reachability(THIN_PROVINCE, THIN_SUBJECT, 20000)
+        assert V._evidence_band(real)[0] == "full"
+    finally:
+        _cleanup_thin()
+
+
+def test_refute_needs_more_evidence_than_support():
+    """S8-B：「够不到任何院校」是全称否定，门槛必须高于「够得到某一所」。"""
+    # 12 条 / 12 所：过一般门槛，但没过 refute 门槛 → 不许断言「够不到」
+    _seed_distinct(12, rank_base=1000)
+    try:
+        real = V.real_reachability(THIN_PROVINCE, THIN_SUBJECT, 999999)
+        assert real["reachable"] == 0
+        band, basis = V._evidence_band(real)
+        assert band == "full" and basis["refute_gate_passed"] is False
+        alignment, _l, msg, _r, _b = V._alignment_of("recommend", real)
+        assert alignment == "unverified", "样本不够厚时不能给出全称否定判断"
+        assert "全称否定" in msg
+    finally:
+        _cleanup_thin()
+
+    # 22 条 / 22 所：过 refute 门槛 → 才允许 refuted
+    _seed_distinct(22, rank_base=1000)
+    try:
+        real = V.real_reachability(THIN_PROVINCE, THIN_SUBJECT, 999999)
+        band, basis = V._evidence_band(real)
+        assert band == "full" and basis["refute_gate_passed"] is True
+        alignment, _l, _msg, _r, _b = V._alignment_of("recommend", real)
+        assert alignment == "refuted"
+    finally:
+        _cleanup_thin()
+
+
+def test_gate_profile_reports_real_distribution():
+    """S8-B：门槛校准台账要能回答「10/5 合不合理」——把真实分布摆出来。"""
+    prof = V.gate_profile()
+    assert set(prof["bands"]) == {"full", "thin", "none"}
+    assert set(prof["thresholds"]) == {"thin", "full", "refute"}
+    assert prof["combos"] > 0
+    assert sum(prof["bands"].values()) == prof["combos"]
+    # 每条明细都带校线数/院校数/所在档，供人工核对阈值
+    for d in prof["detail"]:
+        assert d["lines"] > 0 and d["schools"] > 0
+        assert d["band"] in ("full", "thin", "none")
+
+
 def test_verify_api_exposes_alignment_basis():
     """接口把判断依据一并给前端，让「为什么是这个结论」可查。"""
     _seed_thin(2)

@@ -15,6 +15,8 @@ import {
   appendSafeSchools,
   selectBackstops,
   diffSafePatch,
+  fillOrder,
+  buildFillOrderText,
 } from "../src/utils/plan.js";
 import { resolveBase } from "../src/utils/api.js";
 
@@ -214,6 +216,50 @@ eq(diffSafePatch(patchPlan, []).added.length, 0, "无候选时无新增");
 eq(diffSafePatch(null, picks).added.length, 0, "空 plan 安全返回");
 eq(diffSafePatch({ tiers: [] }, picks).text.indexOf("补位") >= 0, true,
    "空表也能给出可读文案");
+
+console.log("\n▎S8-D 填报顺序 fillOrder / buildFillOrderText");
+// 位次 58000：西北农林(冲, 29731 需冲刺) / 郑州大学(稳, 66000 可稳够) / 河南大学(保, 90000 最稳) / 无数据行
+const orderPlan = {
+  province: "河南", subject: "物理类", user_rank: 58000, major: "计算机科学与技术",
+  at: "2026-10-20T02:30:00.000Z",
+  tiers: [
+    { level: "保", tier: "普通本科", schools: [{ name: "河南大学", min_rank: 90000 }] },
+    { level: "冲", tier: "985", schools: [{ name: "西北农林科技大学", min_rank: 29731 }] },
+    { level: "稳", tier: "211", schools: [{ name: "郑州大学", min_rank: 66000 }] },
+    { level: "保", tier: "专科", schools: [{ name: "某职业学院" }] },
+  ],
+};
+const orderRows = flattenPlan(orderPlan);
+const ord = fillOrder(orderPlan, orderRows);
+eq(ord.total, 4, "4 所院校全部进入顺序（含 1 所无位次数据）");
+eq(ord.items.map((i) => i.level), ["冲", "稳", "保", "保"], "先按档位 冲 → 稳 → 保");
+eq(ord.items.map((i) => i.name),
+   ["西北农林科技大学", "郑州大学", "河南大学", "某职业学院"],
+   "同档内按位次余量从大到小；无数据行附在同档末尾");
+eq(ord.items[0].margin, 29731 - 58000, "冲档余量为负（门槛比自己靠前）");
+eq(ord.items[1].margin, 8000, "稳档余量 +8000");
+eq(ord.items[2].margin, 32000, "保档余量最大 → 排在同档最前");
+eq(ord.items[0].margin_label.indexOf("冲刺") >= 0, true, "冲档文案说明是冲刺");
+eq(ord.items[2].margin_label.indexOf("可稳够") >= 0, true, "正余量文案说明可稳够");
+eq(ord.items[3].has_line_data, false, "无位次数据的行被明确标记");
+eq(ord.items[3].margin_label.indexOf("无投档线数据") >= 0, true, "无数据文案说明不参与余量排序");
+eq(ord.unknown_count, 1, "统计无数据行数");
+eq(ord.items.map((i) => i.seq), [1, 2, 3, 4], "序号连续，可直接照抄");
+// 同档内余量相同时保持原表顺序，避免每次渲染跳动
+const tiePlan = { user_rank: 10000, tiers: [{ level: "保", tier: "t", schools: [
+  { name: "甲大学", min_rank: 50000 }, { name: "乙大学", min_rank: 50000 }] }] };
+eq(fillOrder(tiePlan, flattenPlan(tiePlan)).items.map((i) => i.name),
+   ["甲大学", "乙大学"], "余量相同时保持原表顺序（避免随机跳动）");
+// 边界
+eq(fillOrder(null, []).total, 0, "空表安全返回");
+eq(fillOrder({ user_rank: 0 }, [{ name: "甲" }]).items[0].has_line_data, false,
+   "用户位次缺失时不臆造余量");
+const orderText = buildFillOrderText(orderPlan, ord, "2026-10-20 10:30");
+eq(/排序依据/.test(orderText), true, "导出文本说明排序依据");
+eq(/不承诺录取/.test(orderText), true, "导出文本含「不承诺录取」红线");
+eq(/1\. \[冲\]/.test(orderText), true, "导出文本含序号与档位");
+eq(/其中 1 所缺往年投档位次/.test(orderText), true, "导出文本说明无数据行的处理");
+eq(/不构成录取承诺/.test(orderText), true, "结尾再次声明不构成承诺");
 
 console.log("\n▎API 地址解析 api.js");
 const savedWindow = globalThis.window;

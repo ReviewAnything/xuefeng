@@ -838,6 +838,36 @@
                   <template #default="s">{{ s.row.reasons.join('；') }}</template>
                 </el-table-column>
               </el-table>
+
+              <!-- S8-A：官方文件溯源台账 -->
+              <el-divider content-position="left">官方溯源台账</el-divider>
+              <el-table v-if="officialSources && officialSources.files.length"
+                        :data="officialSources.files" size="small" max-height="240">
+                <el-table-column prop="file" label="文件" min-width="180"></el-table-column>
+                <el-table-column label="省 / 年 / 科类" min-width="140">
+                  <template #default="s">
+                    {{ s.row.province }} {{ s.row.year }} {{ s.row.subject }}
+                  </template>
+                </el-table-column>
+                <el-table-column prop="rows" label="落库行" width="90" align="right"></el-table-column>
+                <el-table-column prop="rejected" label="拒收" width="80" align="right"></el-table-column>
+                <el-table-column label="来源链接" min-width="200">
+                  <template #default="s">
+                    <el-link v-if="s.row.source_url" :href="s.row.source_url" target="_blank"
+                             type="primary">省考试院原表</el-link>
+                    <span v-else class="muted">—</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="校验和" width="130">
+                  <template #default="s">
+                    {{ s.row.sha256 ? s.row.sha256.slice(0, 12) + '…' : '—' }}
+                  </template>
+                </el-table-column>
+              </el-table>
+              <p class="hint" v-else>
+                还没有落过任何官方文件。上传原表（或用 scripts/import_official_table.py）后，
+                这里会记下文件名、来源链接与校验和，做到每行 official 数据都可回溯。
+              </p>
             </div>
           </div>
 
