@@ -649,6 +649,43 @@ const app = createApp({
       }
     }
 
+    /* ---------- 自托管种子一键落库（S6） ---------- */
+    const seedStatus = ref(null);
+    const seedReport = ref(null);
+    const seedLoading = ref(false);
+
+    const seedText = computed(() => {
+      const r = seedReport.value;
+      if (!r) return "";
+      if (r.dry_run) {
+        return `可落库 ${r.estimated.available} 行（真实抓取）+ ${r.official.available} 行（官方）`;
+      }
+      return `新增 ${r.inserted} / 更新 ${r.updated} / 未变 ${r.unchanged}`;
+    });
+
+    async function loadSeedStatus() {
+      try {
+        seedStatus.value = await api("/api/admin/school-lines/seed-status");
+      } catch (_) { /* 未登录/无权限时静默 */ }
+    }
+
+    async function runSeedImport() {
+      seedLoading.value = true;
+      try {
+        const data = await api("/api/admin/school-lines/import-seed", {
+          method: "POST",
+          body: JSON.stringify({ dry_run: false, include: ["estimated", "official"] }),
+        });
+        seedReport.value = data;
+        ElMessage.success(`落库完成：新增 ${data.inserted} / 更新 ${data.updated} / 未变 ${data.unchanged}`);
+        await Promise.all([loadLineCoverage(), loadSeedStatus()]);
+      } catch (e) {
+        ElMessage.error(e.message || "落库失败");
+      } finally {
+        seedLoading.value = false;
+      }
+    }
+
     /* ---------- 通用 ---------- */
     async function refreshAll() {
       if (!token.value) return;
@@ -695,7 +732,7 @@ const app = createApp({
         if (p === "baselines" && !baseRows.value.length) await loadBaselines();
         if (p === "versions") await loadVersions();
         if (p === "sync") await Promise.all([loadSources(), loadJobs(), loadSyncTargets()]);
-        if (p === "lines") await loadLineCoverage();
+        if (p === "lines") await Promise.all([loadLineCoverage(), loadSeedStatus()]);
         if (p === "events") await loadEvents();
         if (p === "settings") await loadProfile();
       } catch (e) {
@@ -723,6 +760,7 @@ const app = createApp({
       events, eventStats, eventKind, loadEvents,
       lineForm, lineFile, lineFileName, lineReport, lineLoading, lineCoverage,
       onLineFileChange, clearLineFile, submitLines, loadLineCoverage,
+      seedStatus, seedReport, seedLoading, seedText, loadSeedStatus, runSeedImport,
       pwdForm, pwdLoading, changePassword,
       exportCsv, fmtTime, jobTag, jobLabel, alignLabel,
     };

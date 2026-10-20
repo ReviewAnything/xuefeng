@@ -507,6 +507,43 @@ def admin_school_line_coverage(admin: dict = Depends(auth.require_admin)):
     return SL.coverage()
 
 
+# ---------------------------------------------------------------- 自托管种子一键落库（S6）
+
+class SeedImportRequest(BaseModel):
+    dry_run: bool = True
+    include: list[str] = Field(default_factory=lambda: ["estimated", "official"])
+
+
+@router.get("/school-lines/seed-status")
+def admin_school_line_seed_status(admin: dict = Depends(auth.require_admin)):
+    """自托管种子可用性：仓库自带快照行数 + 官方可落库行数（只读）。"""
+    return {"ok": True, **SL.seed_status()}
+
+
+@router.post("/school-lines/import-seed")
+def import_school_line_seed(req: SeedImportRequest | None = None,
+                            admin: dict = Depends(auth.require_admin_ready)):
+    """一键落库：把仓库自带的种子写进 school_lines（幂等，无需联网）。
+
+    - ``estimated``：真实抓取快照 ``school_lines_estimated_real.json``（标 estimated_real）
+    - ``official``：官方文件里的 985/211 入门投档（省考试院官方口径，标 official）
+
+    ``dry_run=true``（默认）只返回可落库行数，不写库。
+    """
+    req = req or SeedImportRequest()
+    include = [x for x in (req.include or []) if x in ("estimated", "official")]
+    if not include:
+        raise HTTPException(status_code=400, detail="include 只能是 estimated / official")
+    try:
+        report = SL.import_seed(commit=not req.dry_run, operator=admin["username"],
+                                include=include)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"落库失败：{exc}")
+    if not report.get("ok"):
+        raise HTTPException(status_code=400, detail=report.get("error") or "落库失败")
+    return report
+
+
 # ---------------------------------------------------------------- 导出
 
 @router.get("/export/universities.csv")

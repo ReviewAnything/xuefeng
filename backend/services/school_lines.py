@@ -18,6 +18,7 @@ from __future__ import annotations
 import csv
 import difflib
 import io
+import json
 import os
 import re
 import unicodedata
@@ -534,3 +535,202 @@ def map_for(province: str, subject: str, names: list[str], year: int = None) -> 
         if cur is None or (cand["year"], -cand["min_rank"]) > (cur["year"], -cur["min_rank"]):
             out[r.university] = cand
     return out
+
+
+# ---------------------------------------------------------------- 自托管种子（S6）
+
+# 背景：院校投档线原先只能靠 ``import_crawler_school_lines.py`` 现拉上游公开爬虫仓库
+# （1837620622/gaokao-admission-crawler）。那个仓库是第三方开源项目，随时可能下架、
+# 改名或被清空——一旦如此，新机器 clone 本仓库后将**无法重建任何校线数据**。
+# 解决办法：把已入库的真实数据导出成仓库自带的种子文件并提交入库，
+# 新环境无需联网即可经管理端「一键落库」重建；官方数据同样从仓库内的官方文件直接落库。
+
+_BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(_BACKEND_DIR, "data")
+SEED_ESTIMATED = os.path.join(DATA_DIR, "school_lines_estimated_real.json")
+OFFICIAL_ADMISSION = os.path.join(DATA_DIR, "admission_official_2024.json")
+
+_URL_RE = re.compile(r"https?://[^\s；;，,）)]+")
+
+
+def export_seed(path: str = SEED_ESTIMATED, data_source: str = "estimated_real") -> dict:
+    """把库里的院校投档线导出成仓库自带的种子文件（默认只导真实抓取的 estimated_real）。
+
+    导出的种子让仓库自持一份可复现的数据副本，摆脱对上游爬虫仓库的运行时依赖。
+    """
+    with session_scope() as s:
+        stmt = select(SchoolLine)
+        if data_source:
+            stmt = stmt.where(SchoolLine.data_source == data_source)
+        rows = s.scalars(stmt).all()
+        meta = {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "data_source": data_source or "all",
+            "rows": len(rows),
+            "note": "由 export_seed 从已入库数据导出；用于摆脱对上游爬虫仓库的运行时依赖。",
+        }
+        payload = {
+            "meta": meta,
+            "rows": [{
+                "year": r.year, "province": r.province, "subject": r.subject,
+                "batch": r.batch, "university": r.university,
+                "university_input": r.university_input, "group_code": r.group_code,
+                "min_score": r.min_score, "min_rank": r.min_rank,
+                "data_source": r.data_source, "match_method": r.match_method,
+                "source_url": r.source_url, "note": r.note,
+            } for r in rows],
+        }
+    if path:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
+    return meta
+
+
+def official_seed_rows() -> list[dict]:
+    """从官方录取文件取出各省考试院发布的「985/211 入门投档」作为 ``official`` 校线。
+
+    ``admission_official_2024.json`` 的 ``school_tier_lines`` 是各省考试院公布的该省
+    该科类普通类本科批 985/211 最低投档线（含入门院校），属真实官方口径，可直接落库。
+
+    ``group_code`` 用层次（985/211）占位：既避免与逐专业组的 ``estimated_real`` 行
+    撞唯一键，也保留了「这是层次入门线而非某个专业组」的语义。
+    """
+    if not os.path.exists(OFFICIAL_ADMISSION):
+        return []
+    with open(OFFICIAL_ADMISSION, encoding="utf-8") as f:
+        doc = json.load(f)
+    meta = doc.get("meta") or {}
+    year = int(meta.get("year") or 2024)
+    sources = meta.get("sources") or {}
+    out: list[dict] = []
+    for province, by_subject in (doc.get("school_tier_lines") or {}).items():
+        match_url = _URL_RE.search(sources.get(province, "") or "")
+        source_url = match_url.group(0) if match_url else ""
+        for subject, tiers in (by_subject or {}).items():
+            for tier, item in (tiers or {}).items():
+                item = item or {}
+                school = item.get("school") or ""
+                if not school:
+                    continue
+                canonical, method, sim = match_university(school)
+                if not canonical:
+                    continue
+                out.append({
+                    "year": year, "province": province, "subject": subject,
+                    "batch": "普通类本科批",
+                    "university": canonical, "university_input": school[:128],
+                    "group_code": tier,
+                    "min_score": int(item.get("score") or 0),
+                    "min_rank": int(item.get("rank") or 0),
+                    "data_source": "official", "match_method": method, "match_score": sim,
+                    "source_url": source_url,
+                    "note": f"省考试院官方{tier}入门投档（普通类本科批）：{item.get('line', '')}；"
+                            f"入门院校={school}",
+                })
+    return out
+
+
+def _upsert(records: list[dict], operator: str, report: dict) -> None:
+    """按 (年, 省, 科类, 院校, 专业组/层次) 幂等写库，统计写进 ``report``。"""
+    now = datetime.now(timezone.utc)
+    with session_scope() as s:
+        for rec in records:
+            row = s.scalar(select(SchoolLine).where(
+                SchoolLine.year == rec["year"], SchoolLine.province == rec["province"],
+                SchoolLine.subject == rec["subject"], SchoolLine.university == rec["university"],
+                SchoolLine.group_code == rec["group_code"]))
+            if row is None:
+                s.add(SchoolLine(
+                    year=rec["year"], province=rec["province"], subject=rec["subject"],
+                    batch=rec.get("batch", ""), university=rec["university"],
+                    university_input=rec.get("university_input", ""),
+                    group_code=rec.get("group_code", ""),
+                    min_score=rec["min_score"], min_rank=rec["min_rank"],
+                    data_source=rec["data_source"], match_method=rec.get("match_method", "exact"),
+                    source_url=rec.get("source_url", ""), note=rec.get("note", ""),
+                    operator=operator, updated_at=now))
+                report["inserted"] += 1
+                continue
+            changed = (row.min_score != rec["min_score"] or row.min_rank != rec["min_rank"]
+                       or row.batch != rec.get("batch", ""))
+            if not changed:
+                report["unchanged"] += 1
+                continue
+            s.add(DataChange(dataset="school_lines", year=rec["year"], action="import",
+                             entity=f"{rec['province']}/{rec['subject']}/{rec['university']}",
+                             field="min_score/min_rank",
+                             old_value=f"{row.min_score}/{row.min_rank}",
+                             new_value=f"{rec['min_score']}/{rec['min_rank']}",
+                             reason="一键落库（自托管种子）", operator=operator))
+            row.min_score = rec["min_score"]
+            row.min_rank = rec["min_rank"]
+            row.batch = rec.get("batch", "") or row.batch
+            row.university_input = rec.get("university_input", "")
+            row.match_method = rec.get("match_method", row.match_method)
+            row.data_source = rec["data_source"]
+            row.source_url = rec.get("source_url", "") or row.source_url
+            row.note = rec.get("note", "") or row.note
+            row.operator = operator
+            report["updated"] += 1
+
+
+def seed_status() -> dict:
+    """自托管种子的可用性（供管理端「一键落库」展示，只读不写库）。"""
+    exists = os.path.exists(SEED_ESTIMATED)
+    rows = 0
+    if exists:
+        try:
+            with open(SEED_ESTIMATED, encoding="utf-8") as f:
+                rows = len(json.load(f).get("rows") or [])
+        except Exception:  # 种子损坏时不阻塞页面
+            rows = 0
+    official = official_seed_rows()
+    return {
+        "estimated": {"path": SEED_ESTIMATED, "exists": exists, "rows": rows,
+                      "data_source": "estimated_real"},
+        "official": {"path": OFFICIAL_ADMISSION, "exists": os.path.exists(OFFICIAL_ADMISSION),
+                     "rows": len(official), "data_source": "official"},
+        "total_seed_rows": rows + len(official),
+    }
+
+
+def import_seed(commit: bool = True, operator: str = "system",
+                include: list[str] | None = None) -> dict:
+    """一键落库：把仓库自带的种子数据写进 ``school_lines``（幂等，无需联网）。
+
+    - ``estimated``：``school_lines_estimated_real.json``（真实抓取快照，标 estimated_real）
+    - ``official``：官方文件的 985/211 入门投档（省考试院官方口径，标 official）
+
+    两者都按 (年, 省, 科类, 院校, 专业组/层次) 幂等 upsert：重复执行只改变化的行，
+    不会重复插入。``commit=False`` 时只返回「可落库行数」，不写库。
+    """
+    include = include or ["estimated", "official"]
+    report = {
+        "ok": True, "dry_run": not commit, "operator": operator,
+        "estimated": {"inserted": 0, "updated": 0, "unchanged": 0, "available": 0, "skipped": False},
+        "official": {"inserted": 0, "updated": 0, "unchanged": 0, "available": 0, "skipped": False},
+        "inserted": 0, "updated": 0, "unchanged": 0,
+    }
+
+    est_records: list[dict] = []
+    if "estimated" in include:
+        if os.path.exists(SEED_ESTIMATED):
+            with open(SEED_ESTIMATED, encoding="utf-8") as f:
+                est_records = json.load(f).get("rows") or []
+        else:
+            report["estimated"]["skipped"] = True
+    report["estimated"]["available"] = len(est_records)
+
+    off_records = official_seed_rows() if "official" in include else []
+    report["official"]["available"] = len(off_records)
+
+    if not commit:
+        return report
+
+    _upsert(est_records, operator, report["estimated"])
+    _upsert(off_records, operator, report["official"])
+    for part in ("estimated", "official"):
+        for key in ("inserted", "updated", "unchanged"):
+            report[key] += report[part][key]
+    invalidate_cache()
+    return report

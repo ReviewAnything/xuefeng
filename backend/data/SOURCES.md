@@ -70,6 +70,29 @@
 > 军校（国防科技大学、海军/空军军医大学等）不列入教育部「普通高等学校」名单，故 `universities_national.json` 中 985 计 38；
 > `universities.json`（985/211 权威清单）计 39 所 985、112 所 211，用于核验页按层次展示。清单不含逐年录取分数。
 
+## 院校投档线：自托管种子与一键落库（S6）
+
+`school_lines`（逐校投档线）原先只能靠 `scripts/import_crawler_school_lines.py` **现拉**上游
+公开爬虫仓库 `1837620622/gaokao-admission-crawler`。那是第三方开源项目，**随时可能下架、
+改名或被清空**——一旦如此，新机器 clone 本仓库后将无法重建任何校线数据。
+
+S6 由此把数据收归仓库自带：
+
+| 种子 | 来源 | `data_source` | 说明 |
+| --- | --- | --- | --- |
+| `school_lines_estimated_real.json` | 由 `scripts/export_school_line_seed.py` 从已入库数据导出的**快照**（掌上高考 2025 真实抓取，14020 行 / 30 省） | `estimated_real` | 仓库自持副本，随仓库提交；上游下架也能重建 |
+| `admission_official_2024.json` 的 `school_tier_lines` | 各省考试院公布的 985/211 入门投档（普通类本科批），6 省 / 2 科类 | `official` | 真实官方口径，落库时 `group_code` 用层次（985/211）占位 |
+
+**一键落库**：管理端「院校投档线 → 一键落库」点一次即可，底层是
+`POST /api/admin/school-lines/import-seed`（`dry_run=true` 先看可落库行数）。
+两者都按 (年, 省, 科类, 院校, 专业组/层次) **幂等 upsert**：重复执行只改变化的行，不会重复插入。
+
+- 新环境（无 `*.db`、无网络）：`python scripts/export_school_line_seed.py` 不需要跑，直接一键落库即可重建。
+- 刷新流程：重新采集（爬虫导入）→ `export_school_line_seed.py` 导出 → 提交新的种子文件。
+- 种子约 7 MB（14020 行 JSON），随仓库提交是刻意的——换取「不依赖任何外部站点可重建」。
+- 官方行标 `official` 后，`/api/health` 的 `school_lines.has_official` 由 false 转 true，
+  前端「数据权威性」横幅会显示官方覆盖。
+
 ## 运行时落库说明
 
 服务启动时由 `backend/db/seed.py` 将上述 JSON **幂等播种**到 SQLite（默认 `backend/data/xuefeng.db`，已 gitignore）：
