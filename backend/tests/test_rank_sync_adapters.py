@@ -207,16 +207,57 @@ def test_new_adapters_raise_on_gap_year():
 
 
 def test_overview_counts_after_unblock():
-    """看板：9 省从 blocked 转到 ready，硬阻碍只剩西藏/新疆。"""
+    """看板：9 个 eol 转录省 + 新疆全部从 blocked 转到 ready，硬阻碍只剩西藏。"""
     from rank_sync import BLOCKED, overview
     ov = overview()
-    for prov in NEW_PROVS:
+    for prov in list(NEW_PROVS) + ["新疆"]:
         assert prov not in BLOCKED, prov
         row = next(r for r in ov["provinces"] if r["province"] == prov)
         assert row["status"] == "ready", (prov, row["status"])
-    assert ov["counts"]["ready"] == 29, ov["counts"]
-    assert ov["counts"]["blocked"] == 2, ov["counts"]
-    assert set(BLOCKED) == {"西藏", "新疆"}
+    assert ov["counts"]["ready"] == 30, ov["counts"]
+    assert ov["counts"]["blocked"] == 1, ov["counts"]
+    assert set(BLOCKED) == {"西藏"}
+
+
+# ---------------------------------------------------------------------------
+# 新疆（gk100.com 6 列宽表：分数|本段|累计|科类|省份|年份，文理同表）
+# ---------------------------------------------------------------------------
+_XJ_HTML = """
+<table>
+<tr><td>分数</td><td>本段人数</td><td>累计人数</td><td>科类</td><td>省份</td><td>年份</td></tr>
+<tr><td>670及以上</td><td>9</td><td>9</td><td>理科</td><td>新疆</td><td>2025</td></tr>
+<tr><td>669</td><td>3</td><td>12</td><td>理科</td><td>新疆</td><td>2025</td></tr>
+<tr><td>641及以上</td><td>1</td><td>1</td><td>文科</td><td>新疆</td><td>2025</td></tr>
+<tr><td>640</td><td>2</td><td>3</td><td>文科</td><td>新疆</td><td>2025</td></tr>
+<tr><td>640</td><td>2</td><td>3</td><td>文科</td><td>新疆</td><td>2024</td></tr>
+</table>
+"""
+
+
+def test_xinjiang_splits_subjects_and_filters_year():
+    """同表混装文理，必须按科类列分组；且要用年份列过滤，不能串年。"""
+    import rank_sync.provinces as P
+    xj = P.REGISTRY["新疆"]
+    assert xj.DATA_SOURCE == "third_party_text"
+    grouped = xj._parse_gk100_table(_XJ_HTML, 2025)
+    assert set(grouped) == {"文科", "理科"}
+    # 2024 那行被年份过滤掉，不能算进 2025
+    assert grouped["文科"] == [[641, 1, 1], [640, 2, 3]], grouped["文科"]
+    assert grouped["理科"] == [[670, 9, 9], [669, 3, 12]], grouped["理科"]
+    for rows in grouped.values():
+        validate_rows(rows)
+
+
+def test_xinjiang_parse_offline():
+    import rank_sync.provinces as P
+    xj = P.REGISTRY["新疆"]
+    with mock.patch("rank_sync.common.http_get_html", return_value=_XJ_HTML):
+        doc = xj.parse(2025)
+    assert doc["meta"]["data_source"] == "third_party_text"
+    assert set(doc["subjects"]) == {"文科", "理科"}
+    for blk in doc["subjects"].values():
+        assert blk["source_url"].startswith("https://")
+        assert blk["source_sha256"]
 
 
 if __name__ == "__main__":

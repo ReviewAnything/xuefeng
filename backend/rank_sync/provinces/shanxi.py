@@ -12,7 +12,7 @@ from __future__ import annotations
 import hashlib
 import re
 
-from ..common import http_get_html, validate_rows, now_iso
+from ..common import http_get_html, sha256, validate_rows, now_iso
 
 PROVINCE = "山西"
 SITE = "http://www.sxkszx.cn"
@@ -74,11 +74,15 @@ def parse(year: int) -> dict:
     if not pages:
         raise ValueError(KNOWN_GAPS.get(year, "该年未登记通知页"))
     subjects: dict = {}
+    blobs: list[bytes] = []
     for subj, url in pages.items():
         html = http_get_html(url, timeout=60)
+        blob = html.encode("utf-8")
+        blobs.append(blob)
         rows = _parse_double_table(html)
         validate_rows(rows)
-        subjects[subj] = {"rows": rows, "source_url": url}
+        subjects[subj] = {"rows": rows, "source_url": url,
+                          "source_sha256": sha256(blob)}
     return {
         "meta": {
             "year": year,
@@ -86,6 +90,7 @@ def parse(year: int) -> dict:
             "data_source": "official",
             "source_url": next(iter(pages.values())),
             "subject_scheme": SCHEME,
+            "source_sha256": sha256(b"".join(blobs)),
             "fetched_at": now_iso(),
         },
         "subjects": subjects,

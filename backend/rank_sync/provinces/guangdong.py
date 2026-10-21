@@ -3,7 +3,8 @@
 版式三年三变（都已踩过）：
 - 2024/2025：ZIP 打包两份 PDF；
 - 2022/2026：逐类 PDF，锚文本带类名；
-- 2023：单个「下载附件」合并 PDF——**85 页扫描件，无文本层**，按纪律缺省不 OCR。
+- 2023：单个「下载附件」合并 PDF——**85 页扫描件，无文本层**，按纪律缺省不 OCR
+  （已移出 NOTICES，见下方 KNOWN_GAPS；第三方仅单轨，与双档位口径不合，不混入）。
 双档位：本科累计与专科累计是两套位次（本科/专科层次加分不同），不能混用。
 """
 from __future__ import annotations
@@ -25,11 +26,17 @@ NOTICES = {
     2026: "https://eea.gd.gov.cn/zwgk_tjxx/content/post_4916195.html",
     2025: "https://eea.gd.gov.cn/zwgk_tjxx/content/post_4734449.html",
     2024: "https://eea.gd.gov.cn/zwgk_tjxx/content/post_4445715.html",
-    2023: "https://eea.gd.gov.cn/zwgk_tjxx/content/post_4207233.html",
     2022: "https://eea.gd.gov.cn/zwgk_tjxx/content/post_3986282.html",
 }
-# 2023 的附件是扫描件：解析会得到 0 行，主动登记原因，不假装是脚本 bug
-KNOWN_GAPS = {2023: "附件为 85 页扫描件（无文本层），按纪律不 OCR"}
+# 2023 官方附件是 85 页扫描件（无文本层），按纪律不 OCR。
+# 第三方（eol.cn）2023 有文本表，但只有**单轨 3 列**；广东是双档位省
+# （本科/专科加分位次不同），把单轨镜像成两档等于伪造专科位次，故不混入——
+# 宁缺勿假。曾一度把 2023 留在 NOTICES 里，导致全量 sync 每年稳定 FAIL 一条，
+# 现移出 NOTICES：不再作为期望年份去尝试，原因登记在此。
+KNOWN_GAPS = {
+    2023: ("附件为 85 页扫描件（无文本层），按纪律不 OCR；第三方仅单轨 3 列，"
+           "与广东双档位（本科/专科）口径不一致，镜像会伪造专科位次，故不取"),
+}
 
 
 def subject_of(label: str) -> str | None:

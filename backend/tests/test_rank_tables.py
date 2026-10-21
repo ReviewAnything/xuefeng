@@ -61,23 +61,41 @@ def _landed_docs():
     return out
 
 
+# 允许的来源标签：official=省考试院原文；third_party_text=经核实的第三方文本转录
+# （部分省官方只发图片/扫描件，不 OCR，改用 eol.cn 等文本表补齐，见 rank_sync/）
+_LANDED_SOURCES = ("official", "third_party_text")
+
+# 科类标签白名单。新高考省用 物理类/历史类；老文理省沿用源站标签
+# （文科/理科、文史类/理工类）；山西 2025 起用「历史/物理科目组合」；3+3 省用综合。
+_LANDED_SUBJECTS = (
+    "物理类", "历史类", "综合",
+    "文科", "理科", "文史类", "理工类",
+    "历史科目组合", "物理科目组合",
+    "选考物理", "选考化学", "选考生物",
+    "选考思想政治", "选考历史", "选考地理",
+)
+
+
 def test_landed_json_structure_and_invariants():
     docs = _landed_docs()
-    assert docs, "data/rank_tables 下应有已落盘的官方数据（广东 2022-2026 至少一年）"
+    assert docs, "data/rank_tables 下应有已落盘的数据（广东 2022-2026 至少一年）"
     for f, doc in docs:
         meta = doc["meta"]
-        assert meta["data_source"] == "official", f
-        assert meta["source_url"].startswith("https://"), f
+        assert meta["data_source"] in _LANDED_SOURCES, f
+        # 少数官方站（如山西 sxkszx.cn）没有 HTTPS，只能 http——可点开即可溯源
+        assert meta["source_url"].startswith(("http://", "https://")), f
         # 附件型（PDF/XLS）记 attachment_sha256；HTML 直出型记 source_sha256
         assert meta.get("attachment_sha256") or meta.get("source_sha256"), f
+        # 第三方转录必须写明来源与「非官方」性质，不能静默混入官方口径
+        if meta["data_source"] == "third_party_text":
+            assert meta.get("note"), f
         assert meta["year"] == int(f.parent.name), f
         for subj, blk in doc["subjects"].items():
-            # 双档位省用 物理类/历史类；3+3 省用 综合/选考X；其余（如 3+1+2）同前
-            assert subj in (
-                "物理类", "历史类", "综合",
-                "选考物理", "选考化学", "选考生物",
-                "选考思想政治", "选考历史", "选考地理",
-            ), f
+            assert subj in _LANDED_SUBJECTS, f
+            # 老适配器只在 meta 级带 source_url（科类级为空），落库时按
+            # blk.get("source_url") or meta["source_url"] 取——校验「实际生效的那个」
+            assert (blk.get("source_url") or meta["source_url"]).startswith(
+                ("http://", "https://")), f
             rows = blk["rows"]
             assert len(rows) > 100, f  # 一分一段表至少几百行
             width = len(rows[0])
@@ -348,9 +366,14 @@ def test_province_registry_covers_31_and_marks_blocked():
     status = {p["province"]: p["status"] for p in ov["provinces"]}
     for prov in ("广东", "山东", "浙江", "湖北", "湖南"):
         assert status[prov] == "ready", prov
-    for prov in ("四川", "河北", "河南"):
+    # 四川/河北/河南等已用第三方文本转录解封，真正受阻的只剩西藏
+    # （官方历年不公布一分一段表）。断言用「BLOCKED 里的省」而不是写死省名，
+    # 后续再有省解封时不必改测试。
+    assert BLOCKED, "至少要有受阻原因登记"
+    for prov in BLOCKED:
         assert status[prov] == "blocked", prov
         assert BLOCKED[prov], "受阻必须写明原因，不能只标状态"
+    assert status["四川"] == "ready" and status["新疆"] == "ready"
 
 
 def test_overview_reports_disk_coverage_and_gaps():
@@ -366,10 +389,12 @@ def test_overview_reports_disk_coverage_and_gaps():
 
 
 def test_sync_blocked_or_unknown_province_returns_reason():
-    from rank_sync import sync
+    from rank_sync import BLOCKED, sync
 
-    rep = sync("四川")
-    assert rep["ok"] is False and "图片" in rep["error"]
+    # 取当前真正受阻的省（四川/河北/河南等已解封，不能写死省名）
+    blocked_prov = next(iter(BLOCKED))
+    rep = sync(blocked_prov)
+    assert rep["ok"] is False and rep["error"] == BLOCKED[blocked_prov]
     rep2 = sync("火星省")
     assert rep2["ok"] is False and rep2["error"]
 
@@ -432,12 +457,15 @@ def test_admin_rank_sync_endpoint_requires_auth_and_delegates(monkeypatch):
 
 
 def test_admin_rank_sync_blocked_province_is_400():
+    from rank_sync import BLOCKED
     from tests.helpers import ready_headers
 
     client = _client()
     headers = ready_headers(client)
+    # 四川已解封（第三方文本转录），改用当前真正受阻的省
+    blocked_prov = next(iter(BLOCKED))
     r = client.post("/api/admin/rank-tables/sync", headers=headers,
-                    json={"province": "四川", "dry_run": True, "write_db": False})
+                    json={"province": blocked_prov, "dry_run": True, "write_db": False})
     assert r.status_code == 400, r.text
 
 

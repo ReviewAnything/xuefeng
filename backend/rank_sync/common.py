@@ -379,13 +379,15 @@ def parse_html_table(html: str, tracks: bool = False):
             for c in re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", tr, re.S | re.I)
         ]
         m = re.fullmatch(r"(\d{3})", cells[0]) if cells else None
-        if not m and cells:
+        mb = re.fullmatch(r"(\d{3})分?以下", cells[0]) if cells else None
+        if not m and not mb and cells:
             # 官方常把关键批次线所在行标注成「520（特招线）」「441（本科线）」，
             # 严格 fullmatch 会整行丢掉 -> 累计链断裂（福建 2025 就断在 520）。
-            # 取前导三位整数即可；纯区间行（如「689-750」）仍按顶部截断桶处理。
+            # 取前导三位整数即可。两个例外必须让位，否则会污染口径：
+            # -「100以下」是表尾合计桶（交给下面的 mb 分支），不是某个具体分数；
+            # -「689-750」是顶部截断区间行，仍按 top_note 处理。
             if not re.search(r"\d\s*[-—~－]\s*\d", cells[0]):
                 m = re.fullmatch(r"(\d{3})\D.*", cells[0])
-        mb = re.fullmatch(r"(\d{3})分?以下", cells[0]) if cells else None
         if m:
             nums = cells[1:]
             if len(nums) == 2 and all(n.isdigit() for n in nums):
@@ -554,11 +556,15 @@ def doc_from_html_pages(province: str, year: int, pages: dict[str, str], *,
     任一科类校验不过就整份拒收，绝不落半份。
     """
     subjects: dict = {}
+    blobs: list[bytes] = []
     for subj, url in pages.items():
         html_src = http_get_html(url, timeout=60)
+        blob = html_src.encode("utf-8")
+        blobs.append(blob)
         rows, top, below = parse_html_table(html_src)
         validate_rows(rows)
-        blk: dict = {"rows": rows, "source_url": url}
+        blk: dict = {"rows": rows, "source_url": url,
+                     "source_sha256": sha256(blob)}
         if top:
             blk["top_note"] = top
         if below:
@@ -572,6 +578,8 @@ def doc_from_html_pages(province: str, year: int, pages: dict[str, str], *,
             "source_url": source_url or next(iter(pages.values())),
             "subject_scheme": scheme,
             "note": note,
+            # 溯源指纹：整份=各页指纹按科类顺序拼接后再哈希
+            "source_sha256": sha256(b"".join(blobs)),
             "fetched_at": now_iso(),
         },
         "subjects": subjects,
