@@ -66,9 +66,16 @@ SD_NOTICES = {
     2023: "https://www.sdzk.cn/NewsInfo.aspx?NewsID=6212",
     2022: "https://www.sdzk.cn/NewsInfo.aspx?NewsID=5794",
 }
+ZJ_NOTICES = {
+    # 「浙江省 20XX 年普通高校招生成绩分数段表（总分）」正表。
+    # 坑：另有「二段线上考生成绩分数段表」，表内明示「不含录取考生」，
+    # 顶部高分者已被录取剔除，不能当位次用——务必认准「成绩分数段表（总分）」。
+    2025: "https://www.zjzs.net/art/2025/6/25/art_45_11373.html",
+}
 PROVINCE_ADAPTERS = {
     "广东": {"notices": GD_NOTICES, "parse": "_parse_guangdong"},
     "山东": {"notices": SD_NOTICES, "parse": "_parse_shandong"},
+    "浙江": {"notices": ZJ_NOTICES, "parse": "_parse_zhejiang"},
 }
 
 FOOTER_PAT = re.compile(r"^第\s*\d+\s*页|^广东省教育考试院$|^附件\d*$")
@@ -238,6 +245,93 @@ def parse_gd_pdf(pdf_bytes: bytes) -> tuple[list[list[int]], str]:
 def parse_single_pdf(pdf_bytes: bytes) -> tuple[list[list[int]], str]:
     """单档位省份（分数|本段|累计 三列）PDF。返回 [[score, seg, cum], ...]。"""
     return _finalize(_pdf_rows(pdf_bytes, N_COLS_SINGLE))
+
+
+# ---------------------------------------------------------------------------
+# 分块并排版式（浙江：每页并排 2–3 组「总分|人数|累计人数」）
+# ---------------------------------------------------------------------------
+SCORE_UP_PAT = re.compile(r"^(\d{3})\s*(?:↑|（含以上）|\+)?$")
+
+
+def _page_block_rows(page) -> list[list[int]]:
+    """把一页重建为 [[score, seg, cum], ...]。
+
+    版式：整页横向并排 N 组三列，**同 y 的行分属不同分数段**（第 1 组跑完才轮到
+    第 2 组），因此不能按 y 拼行；要先用表头「总分」的 x 坐标切出各组，再组内
+    自上而下读、组间顺序即分数降序。列的归属规则是「归左侧最近的那个表头」——
+    用中点会切错（组内累计列的 x 会越过中点）。
+    """
+    import collections
+
+    lines = []
+    for el in page:
+        if isinstance(el, LTTextContainer):
+            for ln in el:
+                if isinstance(ln, LTTextLineHorizontal):
+                    t = ln.get_text().strip()
+                    if t:
+                        lines.append((ln.x0, ln.y0, t))
+    byy: dict[float, list[float]] = collections.defaultdict(list)
+    for x, y, t in lines:
+        if t == "总分":
+            byy[round(y, 1)].append(x)
+    if not byy:
+        return []
+    hy, hxs = max(byy.items(), key=lambda kv: len(kv[1]))
+    if len(hxs) < 2:
+        return []
+    hxs = sorted(hxs)
+
+    def block_of(x: float) -> int:
+        return max(i for i, hx in enumerate(hxs) if x >= hx - 6)
+
+    data = [
+        (x, y, t) for x, y, t in lines
+        if y < hy - 4 and not any(k in t for k in ("人数", "累计", "总分", "浙江省"))
+    ]
+    data.sort(key=lambda r: (-r[1], r[0]))
+    rows, cur, cy = [], [], None
+    for x, y, t in data:
+        if cy is None or abs(y - cy) <= ROW_TOL:
+            cur.append((x, t))
+            cy = y if cy is None else cy
+        else:
+            rows.append(cur)
+            cur, cy = [(x, t)], y
+    if cur:
+        rows.append(cur)
+
+    out: list[list[int]] = []
+    for bi in range(len(hxs)):
+        for cells in rows:
+            cbi = [(x, t) for x, t in sorted(cells) if block_of(x) == bi]
+            if not cbi:
+                continue
+            m = SCORE_UP_PAT.match(cbi[0][1])
+            if not m:
+                continue
+            nums = [int(t) for _, t in cbi[1:] if re.fullmatch(r"\d+", t)]
+            if len(nums) == 2:
+                out.append([int(m.group(1))] + nums)
+            elif len(nums) == 1:
+                # 顶部截断桶（如「693↑」）只印一个数：人数=累计
+                out.append([int(m.group(1)), nums[0], nums[0]])
+    return out
+
+
+def parse_blocked_pdf(pdf_bytes: bytes) -> tuple[list[list[int]], str]:
+    rows: list[list[int]] = []
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
+        f.write(pdf_bytes)
+        path = f.name
+    try:
+        for page in extract_pages(path):
+            rows.extend(_page_block_rows(page))
+    finally:
+        Path(path).unlink(missing_ok=True)
+    if not rows:
+        raise ValueError("PDF 未解析出任何数据行（分块版式）")
+    return rows, (f"{rows[0][0]}↑" if rows[0][1] == rows[0][2] else "")
 
 
 
@@ -458,6 +552,41 @@ def _parse_shandong(year: int) -> dict:
             "fetched_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         },
         "subjects": subjects,
+    }
+
+
+# ---------------------------------------------------------------------------
+# 浙江适配（3+3 综合改革；单张「成绩分数段表（总分）」，全科类一张表）
+# ---------------------------------------------------------------------------
+def _parse_zhejiang(year: int) -> dict:
+    from urllib.parse import unquote, urljoin
+
+    notice_url = ZJ_NOTICES[year]
+    atts = find_attachments(notice_url)
+    picked = [
+        a for a in atts
+        if "分数段表" in unquote(a["url"]) and "总分" in unquote(a["url"])
+    ] or [a for a in atts if "分数段" in a["label"]]
+    if not picked:
+        raise ValueError(f"未找到「成绩分数段表（总分）」附件: {[a['label'] for a in atts]}")
+    att = picked[0]
+    url = urljoin(notice_url, att["url"])
+    blob = http_get(url, timeout=180)
+    rows, top_note = parse_blocked_pdf(blob)
+    validate_rows(rows)
+    return {
+        "meta": {
+            "year": year,
+            "province": "浙江",
+            "data_source": "official",
+            "source_url": notice_url,
+            "attachment_url": url,
+            "attachment_sha256": hashlib.sha256(blob).hexdigest(),
+            "subject_scheme": "3+3",
+            "note": "综合=全体考生（浙江不区分物理/历史类）；表内分数区间为该年二段线及以上",
+            "fetched_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        },
+        "subjects": {"综合": {"rows": rows, "top_note": top_note}},
     }
 
 
