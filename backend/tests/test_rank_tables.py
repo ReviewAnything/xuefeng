@@ -2198,3 +2198,120 @@ def test_ningxia_landed_rank_matches_control_lines():
     assert doc26l["meta"]["score_floor_note"]["物理类"].startswith("官方表止于 154")
     assert doc26l["subjects"]["物理类"]["omitted_scores"] == [
         183, 181, 179, 178, 177, 176, 167, 166, 163, 162, 159, 157, 156, 155]
+
+
+# ---------------------------------------------------------------------------
+# 21. 青海：五列逐行（科类|投档分类型|总分|人数|累计数）/ 一份 PDF 两个科类
+# ---------------------------------------------------------------------------
+def _qh_page(rows: list[tuple[str, str, str, str, str]], *, y0: float = 659.9,
+             dy: float = 13.6) -> list[tuple[float, float, str]]:
+    """按官方五列位置拼一页（科类 85.6 / 类型 153.3 / 总分 283.8 / 人数 384.5 / 累计 477.0）。"""
+    xs = (85.6, 153.3, 283.8, 384.5, 477.0)
+    out = [(71.2, 752.4, "2026年青海省普通高校招生考试排序成绩一分一段统计表")]
+    out.append((214.8, 698.3, "注：表中总分已含政策性加分分值"))
+    out.append((73.9, 675.5, "科类名称 投档分类型"))
+    for i, cells in enumerate(rows):
+        for x, t in zip(xs, cells):
+            out.append((x, y0 - i * dy, t))
+    return out
+
+
+def test_qinghai_reads_five_columns_and_splits_groups():
+    """五列逐行：本段与累计都是源表原值，不再反算；科类按行内首列归组。"""
+    from rank_sync.provinces import qinghai as QH
+
+    lines = _qh_page([
+        ("历史组", "普通类投档成绩", "≥625", "11", "11"),
+        ("历史组", "普通类投档成绩", "624", "1", "12"),
+        ("历史组", "普通类投档成绩", "623", "1", "13"),
+        ("物理组", "普通类投档成绩", "≥676", "11", "11"),
+        ("物理组", "普通类投档成绩", "675", "1", "12"),
+    ])
+    got = QH.parse_rows(lines)
+    assert [r["score"] for r in got["历史组"]] == [625, 624, 623]
+    assert got["历史组"][0] == {"score": 625, "seg": 11, "cum": 11, "top": True}
+    assert got["历史组"][1]["top"] is False
+    assert [r["score"] for r in got["物理组"]] == [676, 675]
+    # 表头/注/标题都不满 5 列，不能被当成数据行
+    assert sum(len(v) for v in got.values()) == 5
+
+
+def test_qinghai_rejects_broken_rows():
+    """列数不对、总分不是数字（低分段是 1–3 位，不是固定三位）都要显式拒收。"""
+    from rank_sync.provinces import qinghai as QH
+
+    with pytest.raises(ValueError, match="列数不是 5"):
+        QH.parse_rows(_qh_page([("历史组", "普通类投档成绩", "623", "1")]))
+    with pytest.raises(ValueError, match="总分列无法识别"):
+        QH.parse_rows(_qh_page([("历史组", "普通类投档成绩", "六百", "1", "13")]))
+    # 两位/一位分数要能吃下（表底会印到 5 分）
+    got = QH.parse_rows(_qh_page([("物理组", "普通类投档成绩", "10", "3", "31515"),
+                                  ("物理组", "普通类投档成绩", "5", "45", "31560")]))
+    assert got["物理组"][-1] == {"score": 5, "seg": 45, "cum": 31560, "top": False}
+
+
+def test_qinghai_pick_files_skips_aux_tables():
+    """一年挂 8 份，只有「（普通类）」那份是主表；艺考/体育/专项/民族语言/预科要挡掉。"""
+    from rank_sync.provinces import qinghai as QH
+
+    pairs = [
+        ("./docs/a1.pdf", "2.2026年青海省普通高校招生考试排序成绩一分一段统计表（艺考类）"),
+        ("./docs/a2.pdf", "3.2026年青海省普通高校招生考试排序成绩一分一段统计表（体育类）"),
+        ("./docs/a3.pdf", "4.2026年青海省普通高校招生考试排序成绩一分一段统计表（国家专项、地方专项、高校专项）"),
+        ("./docs/a4.pdf", "7.2026年青海省普通高校招生考试排序成绩一分一段统计表（高校民族语言授课-藏文）"),
+        ("./docs/a5.pdf", "1.2026年青海省普通高校招生考试排序成绩一分一段统计表（普通类）"),
+    ]
+    assert QH.pick_files(pairs, 2026) == {"普通类": "./docs/a5.pdf"}
+    with pytest.raises(ValueError, match="缺（普通类）附件"):
+        QH.pick_files(pairs[:4], 2026)
+
+
+def test_qinghai_title_guard_and_known_gaps():
+    """表名守卫 + 2022–2025 缺口必须写清原因（站点改版，不拿第三方转录充 official）。"""
+    from rank_sync.provinces import qinghai as QH
+
+    assert QH.title_ok("2026年青海省普通高校招生考试排序成绩一分一段统计表", 2026)
+    for bad in ("2026年青海省普通高校招生考试排序成绩一分一段统计表（艺考类）",
+                "2025年青海省普通高校招生考试排序成绩一分一段统计表"):
+        assert not QH.title_ok(bad, 2026), bad
+    assert set(QH.SOURCES) == {2026}
+    assert set(QH.KNOWN_GAPS) == {2022, 2023, 2024, 2025}
+    for year, why in QH.KNOWN_GAPS.items():
+        assert why and ("改版" in why or "清理" in why or "镜像" in why), year
+    with pytest.raises(ValueError, match="412 反爬"):
+        QH.source(2025)
+
+
+def test_qinghai_landed_2026_and_control_lines():
+    """2026 落盘：一个 PDF 拆两个科类，本段/累计为源值，行链自证。"""
+    import rank_sync
+    from rank_sync.provinces import qinghai as QH
+
+    assert rank_sync._known_years(QH) == {2026}
+    doc = json.loads((_BACKEND / "data" / "rank_tables" / "2026" / "青海.json")
+                     .read_text(encoding="utf-8"))
+    meta = doc["meta"]
+    assert meta["data_source"] == "official" and meta["source_url"].startswith("https://")
+    assert meta["columns"] == 3 and meta["source_columns"] == 5
+    assert meta["subject_scheme"] == "3+1+2"
+    assert "derived_seg" not in meta          # 本段是源值，不是反算
+    assert meta["attachment_sha256_map"]["物理类"] == meta["attachment_sha256_map"]["历史类"]
+    assert set(doc["subjects"]) == {"物理类", "历史类"}
+    for subj, n in (("物理类", 489), ("历史类", 468)):
+        blk = doc["subjects"][subj]
+        rows = blk["rows"]
+        validate_rows(rows)
+        assert len(rows) == n, subj
+        assert rows[-1][0] == 5 and blk["score_floor"] == 5     # 表底印到 5 分
+        assert blk["total"] == rows[-1][2]
+        assert blk["top_note"].endswith("分以上")
+    b = {r[0]: r for r in doc["subjects"]["历史类"]["rows"]}
+    assert b[625] == [625, 11, 11]           # 顶部截断桶「≥625」
+    assert b[427][2] == 3139                 # 历史类特控线 427
+    assert b[376] == [376, 71, 6185]         # 历史类本科批 376
+    p = {r[0]: r for r in doc["subjects"]["物理类"]["rows"]}
+    assert p[676] == [676, 11, 11]
+    assert p[417][2] == 10682                # 物理类特控线 417
+    assert p[344][2] == 20662                # 物理类本科批 344
+    # 官方只印有人的分数段：150（专科线）在历史类里没人，所以查不到
+    assert 150 not in b
