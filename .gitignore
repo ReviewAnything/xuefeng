@@ -18,6 +18,7 @@ __pycache__/
 /backups/
 # 测试用本地临时目录（沙箱无法写 pytest 默认临时根，改用项目内 .bk_tmp）
 /backend/tests/.bk_tmp/
+/backend/.bk_tmp/
 
 # 种子明文副本（体积 7.2MB）；仓库只提交 gzip 副本 school_lines_estimated_real.json.gz
 /backend/data/school_lines_estimated_real.json

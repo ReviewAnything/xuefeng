@@ -76,20 +76,28 @@ def main() -> int:
             continue
 
         with session_scope() as s:
-            existing_keys = {(r.year, r.province, r.subject, r.tier)
-                             for r in s.scalars(select(AdmissionBaseline)).all()}
-            inserted = 0
+            existing = {(r.year, r.province, r.subject, r.tier): r
+                        for r in s.scalars(select(AdmissionBaseline)).all()}
+            inserted = upgraded = 0
             for row in rows:
                 key = (row["year"], row["province"], row["subject"], row["tier"])
-                if key in existing_keys:
+                ex = existing.get(key)
+                if ex is None:
+                    s.add(AdmissionBaseline(**row))
+                    inserted += 1
+                    total_inserted += 1
+                elif ex.data_source != "official" and row["data_source"] == "official":
+                    # 官方覆盖层允许覆盖同主键的 estimated 行（历史年份 min_rank=0 不影响实时排名）
+                    for k, v in row.items():
+                        setattr(ex, k, v)
+                    upgraded += 1
+                    total_inserted += 1
+                else:
                     total_skipped += 1
-                    continue
-                s.add(AdmissionBaseline(**row))
-                inserted += 1
-                total_inserted += 1
             # 刷新阈值缓存
             repo.invalidate()
-        print(f"  {year}: 插入 {inserted} 行，跳过已存在 {len(rows) - inserted} 行")
+        print(f"  {year}: 插入 {inserted} 行，升级估算→官方 {upgraded} 行，"
+              f"跳过已存在 {len(rows) - inserted - upgraded} 行")
 
     print("\n导入计划：")
     for y, a in plan:

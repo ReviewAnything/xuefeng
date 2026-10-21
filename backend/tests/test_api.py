@@ -124,16 +124,17 @@ def test_verify_raw_records_carry_data_source_and_summary():
 
 
 def test_official_batch_line_used():
-    # 河南物理 普通一本 应命中 2024 官方省控线 511→130195
-    # 用「汉语言文学」（文科保底，难度系数 identity）做精确断言
+    # 河南物理 普通一本 应命中官方省控线（阳光高考 2026 转录，分数权威）；
+    # 省控线主表不含位次，min_rank 保留 estimated 基线值（>0，不置 0）
+    # 用「汉语言文学」（难度系数 identity）做精确断言
     r = c.post("/api/verify", json={"province": "河南", "subject": "物理类", "user_rank": 30000, "major_name": "汉语言文学"})
     assert r.status_code == 200
     j = r.json()
     yiben = next((t for t in j["tiers"] if t["tier"] == "普通一本"), None)
     assert yiben is not None
     assert yiben["data_source"] == "official"
-    assert yiben["min_rank"] == 130195
-    # 985 为学校层级，6 省已接入官方入门投档位次 → official
+    assert yiben["min_rank"] > 0
+    # 985 为学校层级，6 省已接入官方入门投档位次（旧文件，带真实位次）→ official
     top = next((t for t in j["tiers"] if t["tier"] == "985"), None)
     assert top["data_source"] == "official"
     assert top["min_rank"] == 44463   # 河南物理 985 入门：中国农业大学(中外合作)
@@ -146,15 +147,20 @@ def test_official_batch_line_used():
     r2 = c.post("/api/verify", json={"province": "河南", "subject": "物理类", "user_rank": 30000, "major_name": "计算机科学与技术"})
     y2 = next((t for t in r2.json()["tiers"] if t["tier"] == "普通一本"), None)
     assert y2["data_source"] == "official"
-    assert 0 < y2["min_rank"] < 130195
+    assert 0 < y2["min_rank"] < yiben["min_rank"]
 
 
 def test_official_unsupported_province_falls_back():
-    # 北京不在官方覆盖层，全部 tier 应为 estimated（沿用估算基线）
+    # 北京属合并批次省（科目=综合），已在 31 省官方省控线覆盖内 → 普通一本/二本为 official；
+    # 但 985/211 校线仅 6 省接入官方（北京不在其中）→ 校线回落 estimated。
+    # 验证「省控线官方 + 校线回落」的分层兜底逻辑。
     r = c.post("/api/verify", json={"province": "北京", "subject": "综合", "user_rank": 30000, "major_name": "计算机科学与技术"})
     assert r.status_code == 200
     j = r.json()
-    assert all(t["data_source"] == "estimated" for t in j["tiers"])
+    yiben = next((t for t in j["tiers"] if t["tier"] == "普通一本"), None)
+    top = next((t for t in j["tiers"] if t["tier"] == "985"), None)
+    assert yiben["data_source"] == "official"      # 省控线已官方覆盖
+    assert top["data_source"] == "estimated"       # 校线未官方覆盖，回落估算
 
 
 def test_universities_full_list():
@@ -199,22 +205,29 @@ def test_verify_includes_reachable_schools():
     assert "清华大学" in j["reachable_tier_schools"]
 
 
-def test_official_coverage_expanded_to_11_provinces():
-    """官方省控线覆盖由 6 省扩到 11 省，且合并批次省口径一致（一本=特招线 > 二本=本科批）。"""
+def test_official_coverage_expanded_to_31_provinces():
+    """官方省控线覆盖由 11 省扩到 31 省（阳光高考逐年主表全量转录）。
+
+    省控线主表不含位次，官方行的 min_rank 保留 estimated 基线值（来自一分一段表），
+    避免把生效年份的官方行 min_rank 置 0 拉垮冲稳保实时排名。
+    """
     rows = repo.baseline_rows()
     official = {r["province"] for r in rows if r["data_source"] == "official"}
+    # 旧 11 省仍是官方子集；整体应达 31 省
     assert {"河南", "广东", "四川", "山东", "河北", "江苏",
             "安徽", "湖南", "湖北", "福建", "重庆"} <= official, official
+    assert len(official) == 31, f"官方省控线应覆盖 31 省，实际 {len(official)}"
 
     t = repo.thresholds("安徽", "物理类")
-    assert t["普通一本"]["min_score"] == 514 and t["普通一本"]["min_rank"] == 107457
-    assert t["普通二本"]["min_score"] == 465 and t["普通二本"]["min_rank"] == 176157
-    assert t["专科"]["min_score"] == 200 and t["专科"]["min_rank"] == 313412
+    # 分数为 2026 阳光高考官方值；位次为 estimated 基线（>0，非 0）
+    assert t["普通一本"]["min_score"] == 514 and t["普通一本"]["min_rank"] > 0
+    assert t["普通二本"]["min_score"] == 451 and t["普通二本"]["min_rank"] > 0
+    assert t["专科"]["min_score"] == 200 and t["专科"]["min_rank"] > 0
     assert t["普通一本"]["data_source"] == "official"
 
     for prov, sub in [("湖南", "历史类"), ("湖北", "物理类"), ("福建", "历史类"),
                       ("重庆", "物理类"), ("江苏", "物理类"), ("广东", "历史类"),
-                      ("河北", "物理类")]:
+                      ("河北", "物理类"), ("上海", "综合"), ("西藏", "物理类")]:
         t = repo.thresholds(prov, sub)
         assert t["普通一本"]["min_rank"] < t["普通二本"]["min_rank"] < t["专科"]["min_rank"], (prov, sub)
         assert t["普通一本"]["min_score"] > t["普通二本"]["min_score"] > t["专科"]["min_score"], (prov, sub)

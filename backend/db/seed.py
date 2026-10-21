@@ -161,23 +161,53 @@ def sync_elite(session) -> dict:
     return stat
 
 
-def sync_admission(session, year: int | None = None) -> dict:
-    """31 省估算基线 + 11 省官方覆盖层 → admission_baselines 表（按年份分版本）。
+def _official_ctrl_line(batch_lines: dict, province: str, subject: str, tier: str) -> dict | None:
+    """从官方省控线取 (省, 科类, 档位) 的值，兼容合并批次省的科目别名。
 
-    year：目标数据版本年份，缺省取 baseline meta.year。
-    官方行的 source_year 保留其真实出处年份，并据此标记 carried（沿用往年官方值，待更新）。
+    合并批次省（上海/北京/天津/浙江/海南/山东等）在基线里科目叫 ``综合``（不分物理/历史），
+    而官方转录按 ``物理类``/``历史类`` 双写；此处先直查，再回退到别名科目。
+    """
+    p = batch_lines.get(province, {})
+    if tier in p.get(subject, {}):
+        return p[subject][tier]
+    alts = ("物理类", "历史类") if subject == "综合" else ("综合",)
+    for alt in alts:
+        if tier in p.get(alt, {}):
+            return p[alt][tier]
+    return None
+
+
+def sync_admission(session, year: int | None = None) -> dict:
+    """31 省估算基线 + 31 省官方省控线覆盖层 → admission_baselines 表（按年份分版本）。
+
+    官方省控线来自 ``admission_control_lines_2022_2026.json``（阳光高考逐年主表转录，31 省全量）；
+    985/211 官方入门投档来自旧文件 ``admission_official_2024.json``（6 省，带真实位次）。
+    省控线主表不含位次，官方行的 min_rank 保留 estimated 基线值（来自一分一段表），
+    避免把生效年份的官方行 min_rank 置 0 拉垮冲稳保实时排名。
     """
     baseline = _read_json(os.path.join(DATA_DIR, "admission_real_baseline.json"))
-    official_path = os.path.join(DATA_DIR, "admission_official_2024.json")
-    official = _read_json(official_path) if os.path.exists(official_path) else {}
+    # 官方省控线：31 省全量（阳光高考逐年主表转录，2022-2026），替代旧 11 省覆盖层
+    control_path = os.path.join(DATA_DIR, "admission_control_lines_2022_2026.json")
+    control = _read_json(control_path) if os.path.exists(control_path) else {}
+    # 985/211 官方入门投档：仅旧文件独有（6 省，带真实位次），新全量 JSON 不含此项
+    legacy_path = os.path.join(DATA_DIR, "admission_official_2024.json")
+    legacy = _read_json(legacy_path) if os.path.exists(legacy_path) else {}
 
     tier_order = baseline.get("tier_order", [])
     base_year = int(baseline.get("meta", {}).get("year") or 0)
-    off_year = int(official.get("meta", {}).get("year") or 0)
     version_year = int(year or base_year or datetime.now(timezone.utc).year)
-    sources = official.get("meta", {}).get("sources", {})
-    batch_lines = official.get("batch_lines", {})
-    school_lines = official.get("school_tier_lines", {})
+    # 选官方省控线年份：优先 version_year，否则取 JSON 中最大可用年并标 carried
+    by_year = control.get("by_year", {})
+    _avail = sorted(int(y) for y in by_year)
+    _pick = str(version_year) if str(version_year) in by_year else (str(_avail[-1]) if _avail else None)
+    off_year = int(_pick) if _pick else 0
+    carried_year = bool(off_year and off_year < version_year)
+    batch_lines = (by_year.get(_pick, {}).get("batch_lines", {}) if _pick else {})
+    ctrl_sources = control.get("meta", {}).get("sources", {})
+    ctrl_url = ctrl_sources.get(str(off_year), "")            # 当年阳光高考总表 URL，31 省共用
+    school_lines = legacy.get("school_tier_lines", {})         # 985/211 校线（旧文件，带位次）
+    legacy_year = int(legacy.get("meta", {}).get("year") or 0)
+    legacy_sources = legacy.get("meta", {}).get("sources", {})  # 旧文件：省→URL
 
     existing = {(r.year, r.province, r.subject, r.tier): r
                 for r in session.scalars(select(AdmissionBaseline)).all()}
@@ -200,17 +230,18 @@ def sync_admission(session, year: int | None = None) -> dict:
                     "carried": False,
                     "source_url": "",
                 }
-                ov = batch_lines.get(province, {}).get(subject, {}).get(tier)
+                ov = _official_ctrl_line(batch_lines, province, subject, tier)
                 sv = school_lines.get(province, {}).get(subject, {}).get(tier) if tier in ("985", "211") else None
                 if ov:
                     payload.update({
                         "min_score": int(ov.get("score") or 0),
-                        "min_rank": int(ov.get("rank") or 0),
+                        # 省控线主表不含位次：保留 estimated 基线算出的 min_rank（来自一分一段表），
+                        # 避免把生效年份的官方行 min_rank 置 0 拉垮冲稳保实时排名。
                         "data_source": "official",
                         "line": ov.get("line") or "",
                         "source_year": off_year or base_year or version_year,
-                        "carried": bool(off_year and off_year < version_year),
-                        "source_url": sources.get(province, ""),
+                        "carried": carried_year,
+                        "source_url": ctrl_url,
                     })
                 elif sv:
                     payload.update({
@@ -219,9 +250,9 @@ def sync_admission(session, year: int | None = None) -> dict:
                         "data_source": "official",
                         "line": sv.get("line") or "",
                         "school": sv.get("school") or "",
-                        "source_year": off_year or base_year or version_year,
-                        "carried": bool(off_year and off_year < version_year),
-                        "source_url": sources.get(province, ""),
+                        "source_year": legacy_year or base_year or version_year,
+                        "carried": bool(legacy_year and legacy_year < version_year),
+                        "source_url": legacy_sources.get(province, ""),
                     })
                 row = existing.get(key)
                 if row is None:
@@ -244,8 +275,8 @@ def sync_admission(session, year: int | None = None) -> dict:
 
     _set_setting(session, "tier_order", json.dumps(tier_order, ensure_ascii=False))
     _set_setting(session, "admission_meta", json.dumps(baseline.get("meta", {}), ensure_ascii=False))
-    _set_setting(session, "official_meta", json.dumps(official.get("meta", {}), ensure_ascii=False))
-    _set_setting(session, "official_coverage", json.dumps(official.get("meta", {}).get("coverage", []), ensure_ascii=False))
+    _set_setting(session, "official_meta", json.dumps(control.get("meta", {}), ensure_ascii=False))
+    _set_setting(session, "official_coverage", json.dumps(control.get("meta", {}).get("coverage", []), ensure_ascii=False))
     session.flush()
 
     stat["year"] = version_year

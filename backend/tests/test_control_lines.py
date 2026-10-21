@@ -205,3 +205,38 @@ def test_import_idempotent(tmp_db_dir):
                         env=env, cwd=_BACKEND, capture_output=True, text=True, check=True)
     # 第二次跑应为 0 新增（幂等）
     assert "新增 0 行" in r2.stdout, r2.stdout
+
+
+def test_sync_admission_upgrades_to_31_province_official():
+    """seed 现在把 31 省官方省控线接入 admission_baselines（含合并批次省的 综合 科目别名），
+    且官方行保留 estimated 的 min_rank（不置 0，避免拉垮冲稳保实时排名）。"""
+    import os as _os
+    _bk = os.path.join(_BACKEND, ".bk_tmp")
+    db = os.path.join(_bk, f"prov_{os.getpid()}.db")
+    env = dict(_os.environ, XUEFENG_DB_PATH=db)
+    py = sys.executable
+    r = subprocess.run([py, "-c", "from db.database import init_db; init_db(seed=True)"],
+                       env=env, cwd=_BACKEND, capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    checker = os.path.join(_bk, f"chk_{os.getpid()}.py")
+    with open(checker, "w", encoding="utf-8") as f:
+        f.write(
+            "import sys\n"
+            f"sys.path.insert(0, {_BACKEND!r})\n"
+            "from db.database import session_scope\n"
+            "from db.models import AdmissionBaseline\n"
+            "from sqlalchemy import select\n"
+            "from db import repository as repo\n"
+            "cov = repo.official_coverage()\n"
+            "with session_scope() as s:\n"
+            "    rows = s.scalars(select(AdmissionBaseline)).all()\n"
+            "    ctrl_off = {r.province for r in rows if r.data_source=='official' and r.tier in ('普通一本','普通二本','专科')}\n"
+            "    sh = [r for r in rows if r.province=='上海' and r.subject=='综合' and r.tier=='普通一本']\n"
+            "    print(len(cov), len(ctrl_off), (sh[0].min_rank if sh else -1))\n"
+        )
+    out = subprocess.run([py, checker], env=env, cwd=_BACKEND, capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
+    n_cov, n_ctrl, sh_rank = (int(x) for x in out.stdout.strip().split())
+    assert n_cov == 31, cov  # 覆盖率 31 省
+    assert n_ctrl == 31
+    assert sh_rank > 0, "官方省控线行的 min_rank 不应为 0"
