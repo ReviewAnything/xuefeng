@@ -977,3 +977,144 @@ def test_beijing_landed_anchors_match_official_release():
     b26 = block(2026)
     assert b26[692][2] == 111 and b26[600][2] == 12682
     assert b26[429][2] == 59457 and b26[521][2] == 35691
+
+
+# ---------------------------------------------------------------------------
+# 13. 上海：3+3 单表 / 表尾注与页脚混排 / 覆盖范围逐年变（全分数段 → 本科线上）
+# ---------------------------------------------------------------------------
+def test_shanghai_row_of_handles_top_bucket_and_plain_scores():
+    """顶部 `616分及以上` 与普通 `403` 都要落成三列；非数据文本返回 None。"""
+    from rank_sync.provinces import shanghai as SH
+
+    assert SH._row_of(["616分及以上", "58", "58"]) == [616, 58, 58]
+    assert SH._row_of(["619分及以上", "46", "46"]) == [619, 46, 46]
+    assert SH._row_of(["403", "217", "51853"]) == [403, 217, 51853]
+    assert SH._row_of(["缺考", "3", "9"]) is None
+    assert SH._row_of(["分数", "人数", "累计人数"]) is None
+
+
+def test_shanghai_noise_skips_footer_header_and_tail_notes():
+    """表尾注是「注：」+ 编号说明，页脚是「第 N 页，共 M 页」——都不算丢行。"""
+    from rank_sync.provinces import shanghai as SH
+
+    for cells in (
+        ["第 4 页，共 4 页", "", ""],
+        ["分数", "人数", "累计人数"],
+        ["注：", "", ""],
+        ["注：体育类本科控制线下考生成绩分布待专科志愿填报时另行公布。", "", ""],
+        ["1.达到艺术类本科控制分数线的考生可参考艺术专业统考合格考生投档成绩分布表", "", ""],
+        ["3.本科降分征求线上考生成绩分布待本科第二次征求志愿填报时另行公布", "", ""],
+    ):
+        assert SH._is_noise(cells), cells
+    # 真数据行不能被当噪声
+    assert not SH._is_noise(["403", "217", "51853"])
+
+
+def test_shanghai_parse_falls_back_when_first_pdf_is_art_table(monkeypatch):
+    """正文页第一张不一定是普通类：艺术类/体育类表标题不符要跳过、换下一个候选。"""
+    from rank_sync.provinces import shanghai as SH
+
+    seen: list[str] = []
+
+    def fake_parse_one(year, src, url):
+        seen.append(url)
+        if url.endswith("2/1.pdf"):
+            raise ValueError("不是「考生高考成绩分布表」")
+        return {"meta": {"year": year}, "subjects": {}}
+
+    monkeypatch.setattr(SH, "_parse_one", fake_parse_one)
+    monkeypatch.setattr(SH, "source", lambda y: {"notice": "n", "data": ""})
+    monkeypatch.setattr(SH, "candidates", lambda src: ["a/2/1.pdf", "a/2/0.pdf"])
+    doc = SH.parse(2026)
+    assert seen == ["a/2/1.pdf", "a/2/0.pdf"]
+    assert doc["meta"]["year"] == 2026
+
+
+def test_shanghai_discover_stops_after_passing_target_june(monkeypatch):
+    """列表页翻到该年 6 月之前就停；命中条目要返回公告页 URL。"""
+    from rank_sync.provinces import shanghai as SH
+
+    def fake_get(url, timeout=60):
+        if url.endswith("index.html"):
+            return ('<a href="/page/02200/20260623/20375.html">'
+                    "上海市2026年普通高校招生本科阶段考生各类别成绩分布表</a>").encode()
+        if url.endswith("index_2.html"):
+            return ('<a href="/page/02200/20251001/1.html">2025年专科成绩分布表</a>'
+                    "<span class='listTime'>2025-10-01</span>"
+                    "<span class='listTime'>2025-09-30</span>").encode()
+        return b"<html></html>"
+
+    monkeypatch.setattr(SH, "http_get", fake_get)
+    src = SH.discover(2026)
+    assert src["notice"] == SH.SITE + "/page/02200/20260623/20375.html"
+
+    # 2024 只发在「消息速递」(08000)，02200 翻到 2024 年 6 月前就停，转去 08000
+    calls: list[str] = []
+
+    def fake_get2(url, timeout=60):
+        calls.append(url)
+        if "/page/08000/index.html" in url:
+            return ('<a href="/page/08000/20240623/18612.html">'
+                    "2024年考生高考各类别成绩分布表</a>").encode()
+        return b"<span class='listTime'>2024-05-01</span>"
+
+    monkeypatch.setattr(SH, "http_get", fake_get2)
+    src = SH.discover(2024)
+    assert src["notice"] == SH.SITE + "/page/08000/20240623/18612.html"
+    assert any("/page/08000/" in u for u in calls)
+
+
+def test_shanghai_landed_years_and_2025_gap():
+    """2022/2023/2024/2026 落盘；2025 是扫描件，只在 KNOWN_GAPS 里留原因。"""
+    import rank_sync
+    from rank_sync.provinces import shanghai as SH
+
+    assert set(SH.SOURCES) == {2022, 2023, 2024, 2026}
+    assert set(SH.KNOWN_GAPS) == {2025}
+    assert "不 OCR" in SH.KNOWN_GAPS[2025]
+    assert rank_sync._known_years(SH) == {2022, 2023, 2024, 2026}
+
+    floors = {2022: 280, 2023: 284, 2024: 403, 2026: 403}
+    for year in (2022, 2023, 2024, 2026):
+        doc = json.loads((_BACKEND / "data" / "rank_tables" / str(year) / "上海.json")
+                         .read_text(encoding="utf-8"))
+        meta = doc["meta"]
+        assert meta["subject_scheme"] == "3+3"
+        assert meta["data_source"] == "official"
+        assert meta["source_url"] == SH.SOURCES[year]["notice"]
+        assert meta["data_url"] == SH.SOURCES[year]["data"]
+        assert list(doc["subjects"]) == ["综合"], year
+        blk = doc["subjects"]["综合"]
+        rows = blk["rows"]
+        validate_rows(rows)
+        assert rows[-1][0] == floors[year] == meta["score_floor"], year
+        assert meta["total"] == rows[-1][2]
+        assert "attachment_sha256" in meta
+        # 2024 起官方只印本科线上考生；2022/2023 是全分数段
+        expect = "全分数段" if year <= 2023 else "本科录取控制分数线上考生"
+        assert meta["coverage"] == expect, year
+
+
+def test_shanghai_landed_anchors_match_official_release():
+    """四年锚点：2022/2023 用当年通稿，2024/2026 用本科线上人数与 600 分累计。"""
+    def block(year):
+        doc = json.loads((_BACKEND / "data" / "rank_tables" / str(year) / "上海.json")
+                         .read_text(encoding="utf-8"))
+        return {r[0]: r for r in doc["subjects"]["综合"]["rows"]}
+
+    b22 = block(2022)          # 通稿：400 分以上 36413 人、619↑ 46、600↑ 628、580↑ 2335
+    assert b22[619][2] == 46 and b22[600][2] == 628
+    assert b22[580][2] == 2335 and b22[550][2] == 6996
+    assert b22[500][2] == 17571 and b22[400][2] == 36413 and b22[280][2] == 44839
+
+    b23 = block(2023)          # 通稿：本科线 405 → 40830 人、619↑ 48、600↑ 591
+    assert b23[619][2] == 48 and b23[600][2] == 591
+    assert b23[405][2] == 40830 and b23[284][2] == 51560
+
+    b24 = block(2024)          # 通稿：619↑ 52、600↑ 714、403（本科线）41594
+    assert b24[619][2] == 52 and b24[600][2] == 714 and b24[403][2] == 41594
+
+    b26 = block(2026)          # 通稿：616↑ 58、600 分 626 人、550 分 9637 人
+    assert b26[616][2] == 58 and b26[600][2] == 626
+    assert b26[590][2] == 1554 and b26[580][2] == 2980
+    assert b26[570][2] == 4886 and b26[560][2] == 7131 and b26[550][2] == 9637
