@@ -1845,3 +1845,166 @@ def test_guangxi_landed_values_match_pages():
     assert block(2024, "历史类")[670] == [670, 1, 21]   # 顶上还有 20 人被并进合计
     assert block(2026, "物理类")[698] == [698, 1, 12]
     assert block(2026, "历史类")[500] == [500, 238, 15637]
+
+
+# ---------------------------------------------------------------------------
+# 19. 内蒙古：两列表（只有累计人数）/ 一年一个专题页 / 本段靠累计差反算
+# ---------------------------------------------------------------------------
+def _nm_page(pairs: list[tuple[str, int]], *, year: int = 2026,
+             subj: str = "物理类") -> str:
+    """拼一张与官方同构的页面：两列 ``分数 | 累计人数`` + 表头注 + 尾注。"""
+    body = "".join(
+        f'<tr height="18"><td height="18" x:num="{s}">{s}</td>'
+        f'<td x:num="{c}">{c}</td></tr>'
+        for s, c in pairs
+    )
+    return (
+        f'<div class="gailan xiLan"><div class="gailan-xlTit">'
+        f'{year}年内蒙古普通高校招生考试各分数段人数统计表-{subj}</div>'
+        '<table style="BORDER-COLLAPSE:collapse" border="1">'
+        '<tr height="19"><td colspan="2" x:str="">注：分数含照顾分</td></tr>'
+        '<tr height="19"><td x:str="">分数</td><td x:str="">累计人数</td></tr>'
+        f'{body}'
+        '<tr height="18"><td colspan="2" x:str="">仅统计本类考生，即普通类首选科目为'
+        '物理的考生，不包括原民族语言授课考生和艺术类、体育类考生。</td></tr>'
+        '</table></div>'
+    )
+
+
+def test_neimenggu_derives_seg_from_cumulative_only():
+    """官方只印「分数|累计人数」：本段=相邻累计差，缺行（0 人分）不影响反算。"""
+    from rank_sync.provinces import neimenggu as NM
+
+    got = NM.parse_table(_nm_page([("675", 12), ("674", 15), ("673", 16), ("671", 20)]))
+    # 672 无人不印：671 的本段 = 20-16 = 4（不是 20-16 之外的任何数）
+    assert got["rows"] == [[675, 12, 12], [674, 3, 15], [673, 1, 16], [671, 4, 20]]
+    assert got["cum"] == [12, 15, 16, 20]
+    assert got["top_note"] == "675↑"
+    assert got["caption"] == "注：分数含照顾分"
+    assert got["note"].startswith("仅统计本类考生")
+    assert NM.omitted_scores(got["rows"]) == [672]
+
+
+def test_neimenggu_rejects_non_increasing_cumulative():
+    """累计必须严格递增；差为 0 或负数说明列读错了，整份拒收。"""
+    from rank_sync.provinces import neimenggu as NM
+
+    with pytest.raises(ValueError, match="累计人数未递增"):
+        NM.parse_table(_nm_page([("675", 12), ("674", 12)]))
+    with pytest.raises(ValueError, match="累计人数未递增"):
+        NM.parse_table(_nm_page([("675", 12), ("674", 11)]))
+    with pytest.raises(ValueError, match="未解析出任何数据行"):
+        NM.parse_table('<div class="gailan-xlTit">空页</div>')
+
+
+def test_neimenggu_accepts_yiji_shang_row_labels():
+    """2023 的行标签全部写成「638及以上」（2024 起才改回纯数字），两种都要吃。"""
+    from rank_sync.provinces import neimenggu as NM
+
+    got = NM.parse_table(_nm_page([("638及以上", 11), ("637及以上", 12), ("634及以上", 16)],
+                                  year=2023, subj="文科"))
+    assert got["rows"] == [[638, 11, 11], [637, 1, 12], [634, 4, 16]]
+    assert got["title"].endswith("-文科")
+    assert 636 in NM.omitted_scores(got["rows"]) and 635 in NM.omitted_scores(got["rows"])
+
+
+def test_neimenggu_pick_files_skips_special_art_and_vocational():
+    """专题页几十篇文章里只有两份是普通类：标题后缀必须正好落在科类上。"""
+    from rank_sync.provinces import neimenggu as NM
+
+    pairs = [
+        ("./202607/t20260701_46573.html", "2026年内蒙古普通高校招生考试各分数段人数统计表-兴边固边专项计划-历史类"),
+        ("./202606/t20260626_46484.html", "2026年内蒙古普通高校招生考试各分数段人数统计表-国家专项计划-历史类"),
+        ("./202606/t20260624_46464.html", "2026年内蒙古普通高校招生考试各分数段人数统计表-历史类"),
+        ("./202606/t20260624_46462.html", "2026年内蒙古普通高校招生考试各分数段人数统计表-物理类"),
+        ("./202606/t20260624_46461.html", "2026年内蒙古普通高校招生考试各分数段人数统计表-物理类（专项类）"),
+        ("./202606/t20260624_46460.html", "2026年内蒙古普通高校招生考试各分数段人数统计表-体育类"),
+        ("./202606/t20260627_46509.html", "2026年内蒙古普通高校招生考试各分数段人数统计表-幼师类"),
+        ("./202606/t20260624_46456.html", "2026年内蒙古普通高校招生考试各分数段人数统计表-艺术-美术与设计类"),
+    ]
+    assert NM.pick_files(pairs, 2026) == {
+        "历史类": "./202606/t20260624_46464.html",
+        "物理类": "./202606/t20260624_46462.html",
+    }
+    with pytest.raises(ValueError, match="缺普通类文章"):
+        NM.pick_files(pairs[:3], 2026)
+
+
+def test_neimenggu_title_guard_and_subject_mapping():
+    from rank_sync.provinces import neimenggu as NM
+
+    ok = ("2026年内蒙古普通高校招生考试各分数段人数统计表-物理类", 2026, "物理类")
+    assert NM.title_ok(*ok)
+    assert NM.title_ok("2023年内蒙古普通高校招生考试各分数段人数统计表-文科", 2023, "历史类")
+    assert NM.subject_of_title("2024年内蒙古普通高校招生考试各分数段人数统计表-理科") == "物理类"
+    for bad, year, subj in (
+        ("2026年内蒙古普通高校招生考试各分数段人数统计表-物理类（专项类）", 2026, "物理类"),
+        ("2026年内蒙古普通高校招生考试各分数段人数统计表-艺术-美术与设计类", 2026, "物理类"),
+        ("2026年内蒙古普通高校招生考试各分数段人数统计表-幼师类", 2026, "物理类"),
+        ("2025年内蒙古普通高校招生考试各分数段人数统计表-物理类", 2026, "物理类"),  # 年份不符
+    ):
+        assert not NM.title_ok(bad, year, subj), bad
+    with pytest.raises(ValueError, match="无法判定科类"):
+        NM.subject_of_title("2026年内蒙古普通高校招生考试各分数段人数统计表-综合类")
+
+
+def test_neimenggu_landed_four_years_two_generations():
+    """2023–2026 落盘；2022 专题页已清空进 KNOWN_GAPS；本段是派生值。"""
+    import rank_sync
+    from rank_sync.provinces import neimenggu as NM
+
+    assert set(NM.SOURCES) == {2023, 2024, 2025, 2026}
+    assert rank_sync._known_years(NM) == {2023, 2024, 2025, 2026}
+    assert set(NM.KNOWN_GAPS) == {2022}
+    floors = {2023: 280, 2024: 200, 2025: 200, 2026: 200}   # 2023 只印到专科线
+
+    for year in (2023, 2024, 2025, 2026):
+        doc = json.loads((_BACKEND / "data" / "rank_tables" / str(year) / "内蒙古.json")
+                         .read_text(encoding="utf-8"))
+        meta = doc["meta"]
+        assert meta["data_source"] == "official"
+        assert meta["source_columns"] == 2 and meta["columns"] == 3
+        assert meta["derived_seg"] is True
+        assert meta["subject_scheme"] == ("文理分科" if year <= 2024 else "3+1+2"), year
+        if year <= 2024:
+            assert meta["subject_aliases"] == {"历史类": "文科", "物理类": "理科"}, year
+        assert set(doc["subjects"]) == {"物理类", "历史类"}
+        for subj, blk in doc["subjects"].items():
+            rows, cum = blk["rows"], blk["cum"]
+            validate_rows(rows)
+            assert len(rows) > 340, (year, subj)
+            # 本段必须与累计差严格一致（派生口径的自证）
+            assert rows[0][1] == cum[0]
+            assert all(rows[i][1] == cum[i] - cum[i - 1] for i in range(1, len(rows)))
+            assert [r[2] for r in rows] == cum
+            assert rows[-1][0] == floors[year] == meta["score_floor"][subj], (year, subj)
+            assert blk["total"] == rows[-1][2] == cum[-1]
+            assert blk["top_note"] == f"{rows[0][0]}↑"
+            assert meta["source_url_map"][subj] == NM.SOURCES[year]["files"][subj]
+            assert meta["source_sha256_map"][subj]
+            assert blk["table_title"].endswith(
+                "-" + ("文科" if subj == "历史类" and year <= 2024 else
+                       "理科" if subj == "物理类" and year <= 2024 else subj))
+
+
+def test_neimenggu_landed_values_match_official_release():
+    """2025 与通稿逐项一致：物理 375（本科线）→68528、历史 418（本科线）→20570。"""
+    def block(year, subj):
+        doc = json.loads((_BACKEND / "data" / "rank_tables" / str(year) / "内蒙古.json")
+                         .read_text(encoding="utf-8"))
+        return {r[0]: r for r in doc["subjects"][subj]["rows"]}
+
+    b25p = block(2025, "物理类")
+    assert b25p[704] == [704, 11, 11]
+    assert b25p[375][2] == 68528      # 通稿「物理类本科批 375 分，68528 名考生上线」
+    b25h = block(2025, "历史类")
+    assert b25h[675] == [675, 12, 12]
+    assert b25h[600] == [600, 40, 1570]
+    assert b25h[523][2] == 7312       # 特招线
+    assert b25h[418] == [418, 127, 20570]   # 本科线，通稿「20570 名考生上线」
+
+    assert block(2023, "历史类")[638] == [638, 11, 11]     # 官方标签「638及以上」
+    assert block(2023, "历史类")[280][2] == 28783          # 只印到专科线 280
+    assert block(2024, "物理类")[704] == [704, 12, 12]
+    assert block(2026, "物理类")[703] == [703, 11, 11]
+    assert block(2026, "历史类")[670] == [670, 12, 12]
