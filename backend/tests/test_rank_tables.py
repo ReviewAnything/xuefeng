@@ -2008,3 +2008,193 @@ def test_neimenggu_landed_values_match_official_release():
     assert block(2024, "物理类")[704] == [704, 12, 12]
     assert block(2026, "物理类")[703] == [703, 11, 11]
     assert block(2026, "历史类")[670] == [670, 12, 12]
+
+
+# ---------------------------------------------------------------------------
+# 20. 宁夏：整页并排 6–7 组（两列「分数段|累计人数」）/ 列主序读 / 本段靠累计差反算
+# ---------------------------------------------------------------------------
+def _nx_lines(columns: list[list[str]], *, x0: float = 13.2, dx: float = 81.4,
+              y0: float = 773.1, dy: float = 10.5) -> list[tuple[float, float, str]]:
+    """按官方版式拼一页的文本框：每组一列，组内自上而下，组间 x 递增。"""
+    out = []
+    for ci, col in enumerate(columns):
+        for ri, text in enumerate(col):
+            out.append((x0 + ci * dx, y0 - ri * dy, text))
+    return out
+
+
+def test_ningxia_reads_side_by_side_columns_in_column_major_order():
+    """同一 y 上的各格分属不同区段：必须先跑完第 1 组再进第 2 组（列主序）。"""
+    from rank_sync.provinces import ningxia as NX
+
+    lines = _nx_lines([
+        ["700分以上 5", "699分以上 6", "698分以上 8"],
+        ["697分以上 11", "696分以上 13", "695分以上 20"],
+        ["694分以上 25", "693分以上 30", "692分以上 33"],
+    ])
+    got = NX.rows_from_lines(lines)
+    assert got["groups"] == 3
+    assert got["pairs"] == [
+        ("700分以上", 5), ("699分以上", 6), ("698分以上", 8),
+        ("697分以上", 11), ("696分以上", 13), ("695分以上", 20),
+        ("694分以上", 25), ("693分以上", 30), ("692分以上", 33),
+    ]
+
+
+def test_ningxia_accepts_split_cells_header_and_footer():
+    """同一年里两列可能是**一个文本框**（``616分以上 54``）或**两个**（``580分以上`` + ``119``）；
+    表头（``分数段 累计人数``）和页脚（``第 1页``）不能被当成数据行。"""
+    from rank_sync.provinces import ningxia as NX
+
+    lines = [(13.2, 785.0, "分数段 累计人数 分数段 累计人数")]
+    lines += [
+        (13.2, 773.1, "616分以上"),      # 首组：分数与人数分开
+        (60.0, 773.1, "54"),
+        (94.7, 773.1, "547分以上 916"),  # 次组：挤在一个框里
+        (13.2, 762.6, "615分以上"),
+        (60.0, 762.6, "59"),
+        (94.7, 762.6, "546分以上 940"),
+        (249.1, 5.1, "第 1页"),
+    ]
+    got = NX.rows_from_lines(lines)
+    assert got["pairs"] == [("616分以上", 54), ("615分以上", 59),
+                            ("547分以上", 916), ("546分以上", 940)]
+    assert got["groups"] == 2
+
+
+def test_ningxia_derives_seg_and_tolerates_zero_gap():
+    """官方只有累计列：本段=相邻累计差；差为 0 是合法的「该分无人」，下降才是读错。"""
+    from rank_sync.provinces import ningxia as NX
+
+    rows = NX.derive_rows([(600, 10), (599, 10), (598, 12)], min_rows=1)
+    assert rows == [[600, 10, 10], [599, 0, 10], [598, 2, 12]]
+    with pytest.raises(ValueError, match="累计人数下降"):
+        NX.derive_rows([(600, 10), (599, 9)], min_rows=1)
+    with pytest.raises(ValueError, match="疑似半页"):
+        NX.derive_rows([(600, 10), (599, 12)])
+    with pytest.raises(ValueError, match="未解析出任何数据行"):
+        NX.derive_rows([])
+
+
+def test_ningxia_rejects_broken_column_shapes():
+    """组内分数必须严格降序；分数越界直接拒收（列读错的典型症状）。"""
+    from rank_sync.provinces import ningxia as NX
+
+    with pytest.raises(ValueError, match="非降序"):
+        NX.rows_from_lines(_nx_lines([["700分以上 5", "701分以上 6"]]))
+    with pytest.raises(ValueError, match="分数越界"):
+        NX.rows_from_lines(_nx_lines([["999分以上 5"]]))
+    assert NX.rows_from_lines([(1.0, 2.0, "分数段 累计人数")])["pairs"] == []
+
+
+def test_ningxia_pick_files_skips_art_sport_and_year():
+    """附件名里带「历史组/物理组」的艺术、体育表必须挡掉；2026 的名字里没有「宁夏」。"""
+    from rank_sync.provinces import ningxia as NX
+
+    pairs = [
+        (".files/a_3.pdf", "03-2025年体育综合分一分段表（历史组）"),
+        (".files/a_5.pdf", "05-2025年艺术综合分一分段表（艺术历史组-音乐表演_器乐）"),
+        (".files/a_1.pdf", "01-2025年宁夏普通高考考生成绩一分段表（历史组）"),
+        (".files/a_2.pdf", "02-2025年宁夏普通高考考生成绩一分段表（物理组）"),
+        (".files/b_1.pdf", "01.2026年普通高考考生成绩一分段表（历史组）"),
+        (".files/b_2.pdf", "02.2026年普通高考考生成绩一分段表（物理组）"),
+    ]
+    assert NX.pick_files(pairs[:4], 2025) == {
+        "历史类": ".files/a_1.pdf", "物理类": ".files/a_2.pdf"}
+    assert NX.pick_files(pairs, 2026) == {
+        "历史类": ".files/b_1.pdf", "物理类": ".files/b_2.pdf"}
+    with pytest.raises(ValueError, match="缺普通类附件"):
+        NX.pick_files(pairs[:2], 2025)
+
+
+def test_ningxia_title_guard_and_subject_mapping():
+    from rank_sync.provinces import ningxia as NX
+
+    assert NX.title_ok("2022年宁夏普通高考总分一分段统计表（文史类）", 2022, "历史类")
+    assert NX.title_ok("2025年宁夏普通高考考生成绩一分段表（物理组）", 2025, "物理类")
+    assert NX.title_ok("2026年普通高考考生成绩一分段表（历史组）", 2026, "历史类")
+    assert NX.subject_of_label("2023年宁夏普通高考总分一分段统计表（理工类）") == "物理类"
+    assert NX.subject_of_label("2025年体育综合分一分段表（历史组）") == "历史类"
+    for bad, year, subj in (
+        ("2025年体育综合分一分段表（历史组）", 2025, "历史类"),
+        ("2025年艺术综合分一分段表（艺术物理组-书法类）", 2025, "物理类"),
+        ("2025年宁夏普通高考考生成绩一分段表（历史组）", 2026, "历史类"),   # 年份不符
+        ("2025年宁夏普通高考考生成绩一分段表（历史组）", 2025, "物理类"),   # 科类不符
+        ("2025年宁夏普通高校招生录取控制分数线", 2025, "历史类"),
+    ):
+        assert not NX.title_ok(bad, year, subj), bad
+
+
+def test_ningxia_landed_five_years_two_generations():
+    """2022–2026 五年全部落盘；2022–2024 文理分科、2025 起 3+1+2；本段是派生值。"""
+    import rank_sync
+    from rank_sync.provinces import ningxia as NX
+
+    assert set(NX.SOURCES) == {2022, 2023, 2024, 2025, 2026}
+    assert rank_sync._known_years(NX) == {2022, 2023, 2024, 2025, 2026}
+    assert NX.KNOWN_GAPS == {}
+    expect_rows = {2022: (451, 431), 2023: (463, 466), 2024: (485, 471),
+                   2025: (492, 467), 2026: (491, 469)}
+    floors = {y: {"物理类": 150, "历史类": 150} for y in expect_rows}
+    floors[2026] = {"物理类": 154, "历史类": 150}   # 2026 物理表只印到 154
+
+    for year in sorted(expect_rows):
+        doc = json.loads((_BACKEND / "data" / "rank_tables" / str(year) / "宁夏.json")
+                         .read_text(encoding="utf-8"))
+        meta = doc["meta"]
+        assert meta["data_source"] == "official" and meta["source_url"]
+        assert meta["source_columns"] == 2 and meta["columns"] == 3
+        assert meta["derived_seg"] is True
+        assert meta["subject_scheme"] == ("文理分科" if year <= 2024 else "3+1+2"), year
+        if year <= 2024:
+            assert meta["subject_aliases"] == {"历史类": "文史类", "物理类": "理工类"}, year
+        assert set(doc["subjects"]) == {"物理类", "历史类"}
+        for subj, n in zip(("物理类", "历史类"), expect_rows[year]):
+            blk = doc["subjects"][subj]
+            rows, cum = blk["rows"], blk["cum"]
+            validate_rows(rows)
+            assert len(rows) == n, (year, subj)
+            assert rows[0][1] == cum[0]
+            assert all(rows[i][1] == cum[i] - cum[i - 1] for i in range(1, len(rows)))
+            assert [r[2] for r in rows] == cum
+            assert rows[-1][0] == floors[year][subj] == meta["score_floor"][subj]
+            assert blk["total"] == rows[-1][2] == cum[-1]
+            assert meta["attachment_url_map"][subj] == NX.SOURCES[year]["files"][subj]
+            assert meta["attachment_sha256_map"][subj]
+            # 2022–2025 顶部是「X分以上」截断桶，2026 起标签不带「以上」
+            assert blk["top_note"] == (f"{rows[0][0]}分以上" if year <= 2025 else "")
+            assert "一分段" in blk["table_title"]
+            assert subj[:2] in blk["table_title"] or (
+                year <= 2024 and {"物理类": "理工", "历史类": "文史"}[subj] in blk["table_title"])
+
+
+def test_ningxia_landed_rank_matches_control_lines():
+    """省控线分数在表里都能查到，且位次落在合理区间——落盘数据的独立交叉核对。
+
+    2022–2024 一本/二本、2025 起特控线/本科批；2026 物理表止于 154，
+    所以专科线 150 这条在表外（不是缺数据，是官方没印）。
+    """
+    def block(year, subj):
+        doc = json.loads((_BACKEND / "data" / "rank_tables" / str(year) / "宁夏.json")
+                         .read_text(encoding="utf-8"))
+        return doc, {r[0]: r for r in doc["subjects"][subj]["rows"]}
+
+    _, b22h = block(2022, "历史类")
+    assert b22h[487] == [487, 76, 3316]         # 文史一本线 487
+    assert b22h[580] == [580, 119, 119]         # 顶部截断桶
+    _, b23l = block(2023, "物理类")
+    assert b23l[340][2] == 26150                 # 理科二本线 340
+    _, b24l = block(2024, "物理类")
+    assert b24l[432][2] == 14269                 # 理科一本线 432
+    _, b25h = block(2025, "历史类")
+    assert b25h[404] == [404, 121, 9485]         # 本科批 404
+    assert b25h[600] == [600, 5, 134]
+    _, b25l = block(2025, "物理类")
+    assert b25l[372][2] == 30025                 # 本科批 372
+    doc26l, b26l = block(2026, "物理类")
+    assert b26l[360][2] == 31395                 # 本科批 360
+    assert 150 not in b26l
+    assert doc26l["subjects"]["物理类"]["score_floor"] == 154
+    assert doc26l["meta"]["score_floor_note"]["物理类"].startswith("官方表止于 154")
+    assert doc26l["subjects"]["物理类"]["omitted_scores"] == [
+        183, 181, 179, 178, 177, 176, 167, 166, 163, 162, 159, 157, 156, 155]

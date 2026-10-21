@@ -13,11 +13,12 @@ from __future__ import annotations
 
 from . import (
     anhui, beijing, chongqing, guangdong, guangxi, heilongjiang, hubei, hunan, jiangxi,
-    jilin, liaoning, neimenggu, shaanxi, shandong, shanghai, zhejiang,
+    jilin, liaoning, neimenggu, ningxia, shaanxi, shandong, shanghai, zhejiang,
 )
 
 _MODULES = (guangdong, shandong, zhejiang, hubei, hunan, shaanxi, anhui, chongqing,
-            beijing, shanghai, liaoning, jiangxi, jilin, heilongjiang, guangxi, neimenggu)
+            beijing, shanghai, liaoning, jiangxi, jilin, heilongjiang, guangxi, neimenggu,
+            ningxia)
 
 REGISTRY: dict[str, object] = {m.PROVINCE: m for m in _MODULES}
 
