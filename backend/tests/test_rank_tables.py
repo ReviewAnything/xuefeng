@@ -28,6 +28,7 @@ sys.path.insert(0, str(_BACKEND))
 sys.path.insert(0, str(_BACKEND / "scripts"))
 
 import os
+from urllib.parse import urljoin
 
 os.environ.setdefault("XUEFENG_DB_PATH", "/tmp/xf_rank_tables_test.db")
 
@@ -1665,3 +1666,182 @@ def test_heilongjiang_landed_anchors_match_official_release():
     assert block(2022, "物理类")[677] == [677, 17, 17]
     assert block(2024, "物理类")[705] == [705, 45, 45]
     assert block(2026, "物理类")[700] == [700, 17, 17]
+
+
+# ---------------------------------------------------------------------------
+# 18. 广西：四列表（总分|人数|累计|名次）/ 年度独立子站 / 双加分轨
+# ---------------------------------------------------------------------------
+def _gx_page(rows: list[tuple[int, int, int, int]], *, year: int = 2025,
+             subj: str = "物理类") -> str:
+    """拼一张与官方同构的 4 列页面（表头 + 说明行 + 数据行）。"""
+    body = "".join(
+        f'<tr><td height="24" bgcolor="#FFFFFF"><div align="center">{s}</div></td>'
+        f'<td bgcolor="#FFFFFF"><div align="center">{seg}</div></td>'
+        f'<td bgcolor="#FFFFFF"><div align="center"><div>{cum}</div></td>'
+        f'<td bgcolor="#FFFFFF"><div align="center">{rank}</div></td></tr>'
+        for s, seg, cum, rank in rows
+    )
+    return (
+        f'<div align="center" class="STYLE4">{year}年{subj}一分一档表'
+        f'（总分=总成绩+全国性加分）</div>'
+        '<table width="400" border="0" align="center" cellpadding="0" cellspacing="1">'
+        '<tr><td colspan="4" bgcolor="#FFFFFF"><div align="left" class="STYLE5">'
+        '说明：总分=总成绩+全国性加分；人数、累计人数、名次统计均不包含已确定录取的考生。'
+        '</div></td></tr>'
+        '<tr><td width="91" height="24" bgcolor="#FFFFFF"><div align="center">总分</div></td>'
+        '<td width="123" bgcolor="#FFFFFF"><div align="center">人数</div></td>'
+        '<td width="112" bgcolor="#FFFFFF"><div align="center">累计人数</div></td>'
+        '<td width="69" bgcolor="#FFFFFF"><div align="center">名次</div></td></tr>'
+        f'{body}</table>'
+    )
+
+
+def test_guangxi_parse_table_keeps_three_columns_and_note():
+    """四列表的第 4 列「名次」是派生值，不落盘；说明行要提到 meta 备查。"""
+    from rank_sync.provinces import guangxi as GX
+
+    html = _gx_page([(687, 2, 14, 13), (686, 4, 18, 15), (684, 3, 21, 19)])
+    got = GX.parse_table(html)
+    assert got["rows"] == [[687, 2, 14], [686, 4, 18], [684, 3, 21]]
+    assert got["title"] == "2025年物理类一分一档表（总分=总成绩+全国性加分）"
+    assert got["note"].startswith("说明：总分=总成绩+全国性加分")
+    assert got["rank_checked"] == 3
+    # 顶行 累计(14) > 人数(2)：上面还有 12 人被并进合计
+    assert GX.top_note_of(got["rows"]) == "687↑"
+    assert GX.omitted_scores(got["rows"]) == [685]
+
+
+def test_guangxi_rank_column_mismatch_rejects_whole_page():
+    """名次 ≠ 累计−人数+1 说明这一行列错位了——只信前三列会静默落错数据。"""
+    from rank_sync.provinces import guangxi as GX
+
+    html = _gx_page([(687, 2, 14, 13), (686, 4, 18, 99)])   # 名次被写坏
+    with pytest.raises(ValueError, match="名次列不自洽"):
+        GX.parse_table(html)
+    with pytest.raises(ValueError, match="未解析出任何数据行"):
+        GX.parse_table("<table><tr><td>空页</td></tr></table>")
+
+
+def test_guangxi_parse_anchors_normalizes_backslash():
+    """索引页 href 用反斜杠当目录分隔符，直接 urljoin 会拼出不存在的 URL。"""
+    from rank_sync.provinces import guangxi as GX
+
+    html = ('<a href="yifenyidang\\2025_yifenyidang_wuli_qg.html">物理类一分一档表</a>'
+            '<a href="..\\x.htm">上级</a>')
+    pairs = GX.parse_anchors(html)
+    assert pairs[0] == ("yifenyidang/2025_yifenyidang_wuli_qg.html", "物理类一分一档表")
+    assert pairs[1][0] == "../x.htm"
+    base = "https://www.gxeea.cn/2025gxyfyd/index.html"
+    assert urljoin(base, pairs[0][0]) == (
+        "https://www.gxeea.cn/2025gxyfyd/yifenyidang/2025_yifenyidang_wuli_qg.html")
+
+
+def test_guangxi_pick_files_uses_suffix_not_link_text():
+    """88 条链接里只取 4 条；靠文件名后缀认轨，靠文字会被「国家专项计划历史类」骗到。"""
+    from rank_sync.provinces import guangxi as GX
+
+    pairs = [
+        ("yifenyidang/2025_yifenyidang_wuli_qg.html", "物理类一分一档表（总分=总成绩+全国性加分）"),
+        ("yifenyidang/2025_yifenyidang_wuli_qn.html", "物理类一分一档表（总分=…地方性加分）"),
+        ("yifenyidang/2025_yifenyidang_lishi_qg.html", "历史类一分一档表（总分=总成绩+全国性加分）"),
+        ("yifenyidang/2025_yifenyidang_lishi_qn.html", "历史类一分一档表（总分=…地方性加分）"),
+        ("yifenyidang/2025_yifenyidang_wuli_qg_zx.html", "国家专项计划物理类一分一档表"),
+        ("yifenyidang/2025_yifenyidang_lishi_qg_zx.html", "国家专项计划历史类一分一档表"),
+        ("yifenyidang/2025_yifenyidang_wuli_qg_1_tiyu.html", "体育类本科(物理)一分一档表"),
+        ("yifenyidang/2025_yifenyidang_lishi_qn_1_meishu.html", "美术与设计类本科(历史)一分一档表"),
+    ]
+    got = GX.pick_files(pairs, 2025)
+    assert got["files"] == {
+        "物理类": "yifenyidang/2025_yifenyidang_wuli_qg.html",
+        "历史类": "yifenyidang/2025_yifenyidang_lishi_qg.html",
+    }
+    assert got["alt"] == {
+        "物理类": "yifenyidang/2025_yifenyidang_wuli_qn.html",
+        "历史类": "yifenyidang/2025_yifenyidang_lishi_qn.html",
+    }
+    with pytest.raises(ValueError, match="缺链接"):
+        GX.pick_files(pairs[:3], 2025)     # 缺历史类
+
+
+def test_guangxi_title_guard():
+    """只认该年该科类的普通一分一档表：国家专项/艺术综合分一律挡掉。"""
+    from rank_sync.provinces import guangxi as GX
+
+    for title, year, subj in (
+        ("2024年物理类一分一档表（总分=总成绩+全国性加分）", 2024, "物理类"),
+        ("2025年历史类一分一档表（总分=总成绩+全国性加分和地方性加分的最高分）", 2025, "历史类"),
+        ("2026年物理类一分一档表（总分=总成绩+全国性加分）", 2026, "物理类"),
+    ):
+        assert GX.title_ok(title, year), title
+        assert GX.subject_of_title(title) == subj, title
+    for bad, year in (
+        ("2025年国家专项计划物理类一分一档表（总分=总成绩+全国性加分）", 2025),
+        ("2025年体育类本科(物理)一分一档表(总分=总成绩+全国性加分)", 2025),
+        ("2025年美术与设计类本科(历史)一分一档表(总分=总成绩+全国性加分)", 2025),
+        ("2024年物理类一分一档表（总分=总成绩+全国性加分）", 2025),   # 年份不符
+    ):
+        assert not GX.title_ok(bad, year), bad
+    with pytest.raises(ValueError, match="无法判定科类"):
+        GX.subject_of_title("2025年综合类一分一档表")
+
+
+def test_guangxi_landed_three_years_with_dual_tracks():
+    """2024–2026 已落盘；2022/2023 子站下线，在 KNOWN_GAPS 写明且不进适配器年份。"""
+    import rank_sync
+    from rank_sync.provinces import guangxi as GX
+
+    assert set(GX.SOURCES) == {2024, 2025, 2026}
+    assert rank_sync._known_years(GX) == {2024, 2025, 2026}
+    assert set(GX.KNOWN_GAPS) == {2022, 2023}
+    floors = {2024: 200, 2025: 200, 2026: 180}     # 2026 起官方印到 180 分
+
+    for year in (2024, 2025, 2026):
+        doc = json.loads((_BACKEND / "data" / "rank_tables" / str(year) / "广西.json")
+                         .read_text(encoding="utf-8"))
+        meta = doc["meta"]
+        assert meta["data_source"] == "official"
+        assert meta["source_url"] == GX.SOURCES[year]["index"]
+        assert meta["subject_scheme"] == "3+1+2"
+        assert meta["columns"] == 3
+        assert meta["tracks"]["primary"] == "总分=总成绩+全国性加分"
+        assert "地方性加分" in meta["tracks"]["alt"]
+        assert meta["published_note"].startswith("说明：总分=总成绩+全国性加分")
+        assert set(doc["subjects"]) == {"物理类", "历史类"}
+        for subj, blk in doc["subjects"].items():
+            rows = blk["rows"]
+            validate_rows(rows)
+            assert len(rows) > 450, (year, subj)
+            assert rows[-1][0] == floors[year] == meta["score_floor"][subj], (year, subj)
+            assert blk["total"] == rows[-1][2]
+            assert blk["top_note"] == f"{rows[0][0]}↑"       # 顶部恒为截断桶
+            assert rows[0][2] > rows[0][1], (year, subj)
+            assert meta["source_url_map"][subj] == GX.SOURCES[year]["files"][subj]
+            assert meta["source_sha256_map"][subj]
+            # 副轨（含地方性加分）单独存、单独校验，不混进主轨
+            alt = blk["alt_track"]
+            validate_rows(alt["rows"])
+            assert alt["label"] == "全国性加分和地方性加分的最高分"
+            assert alt["total"] == alt["rows"][-1][2]
+            assert meta["alt_source_url_map"][subj] == GX.SOURCES[year]["alt"][subj]
+            assert meta["alt_source_sha256_map"][subj]
+
+
+def test_guangxi_landed_values_match_pages():
+    """逐格核对源页（2025 物理 687→2/14/13、600→238/6442、名次 6205）。"""
+    def block(year, subj):
+        doc = json.loads((_BACKEND / "data" / "rank_tables" / str(year) / "广西.json")
+                         .read_text(encoding="utf-8"))
+        return {r[0]: r for r in doc["subjects"][subj]["rows"]}
+
+    b25 = block(2025, "物理类")
+    assert b25[687] == [687, 2, 14]        # 名次列印 13 = 14-2+1
+    assert b25[686] == [686, 4, 18]
+    assert 685 not in b25                  # 0 人不印
+    assert b25[600] == [600, 238, 6442]    # 名次列印 6205
+    assert b25[200] == [200, 80, 260429]
+
+    assert block(2025, "历史类")[600] == [600, 44, 1291]
+    assert block(2024, "物理类")[600] == [600, 242, 7522]
+    assert block(2024, "历史类")[670] == [670, 1, 21]   # 顶上还有 20 人被并进合计
+    assert block(2026, "物理类")[698] == [698, 1, 12]
+    assert block(2026, "历史类")[500] == [500, 238, 15637]
