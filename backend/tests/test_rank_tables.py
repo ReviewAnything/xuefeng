@@ -1341,3 +1341,166 @@ def test_jiangxi_landed_anchors_match_official_release():
     b26 = block(2026)
     assert b26["历史类"][663][2] == 24 and b26["历史类"][600][2] == 2100
     assert b26["历史类"][600][1] == 91
+
+
+# ---------------------------------------------------------------------------
+# 16. 吉林：整十分档 × 10 列「累计人数」宽表 / a 标签嵌套写坏 / xls 后缀装 xlsx
+# ---------------------------------------------------------------------------
+def test_jilin_parse_anchors_survives_nested_anchor():
+    """2023 正文把 `<a>` 嵌进了 `<a>`：体育表名会粘到文史行上，必须靠「遇新 a 先闭合」切断。"""
+    from rank_sync.provinces import jilin as JL
+
+    jl = "2023年吉林省普通高校招生考试{}1分段表(含照顾分)"
+    body = (
+        f'<a href="/a.xls">{jl.format("理工")}</a>'
+        '<a href="http://www.jleea.edu.cn/b.xls">)</a>'
+        f'<a href="/c.xls">{jl.format("文史")}<br />'
+        f'<a href="/d.xls">{jl.format("体育(理)")}</a>'
+    )
+    pairs = JL.parse_anchors(body)
+    assert pairs[0] == ("/a.xls", jl.format("理工"))
+    assert pairs[1] == ("http://www.jleea.edu.cn/b.xls", ")")
+    assert pairs[2] == ("/c.xls", jl.format("文史"))      # 没被体育表名污染
+    assert pairs[3][0] == "/d.xls" and "体育(理)" in pairs[3][1]
+
+
+def test_jilin_pick_files_skips_sport_art_and_orphan_fragment():
+    """6 个附件里只有理工/文史是普通类；体育/艺术另有表，标签为「)」的残片要跳过。"""
+    from rank_sync.provinces import jilin as JL
+
+    jl = "2023年吉林省普通高校招生考试{}1分段表(含照顾分)"
+    pairs = [
+        ("/a.xls", jl.format("理工")),
+        ("http://www.jleea.edu.cn/b.xls", ")"),
+        ("/c.xls", jl.format("文史")),
+        ("/d.xls", jl.format("体育(理)")),
+        ("/e.xls", jl.format("艺术(文)")),
+    ]
+    assert JL.pick_files(pairs) == {
+        "物理类": "https://www.jleea.com.cn/a.xls",
+        "历史类": "https://www.jleea.com.cn/c.xls",
+    }
+    with pytest.raises(ValueError, match="缺附件"):
+        JL.pick_files([("/a.xls", jl.format("理工"))])
+
+
+def test_jilin_bands_to_rows_turns_cumulative_into_segments():
+    """格子印的是累计人数：本段 = 本行 − 右邻；首个有值格子即「X 分及以上」。"""
+    from rank_sync.provinces import jilin as JL
+
+    bands = [(700, {4: 11, 3: 12, 2: 14, 1: 16, 0: 19}),
+             (690, {9: 23, 8: 25, 0: 76})]
+    rows = JL.bands_to_rows(bands)
+    assert rows[0] == [704, 11, 11]        # 顶部截断桶：本段=累计
+    assert rows[1] == [703, 1, 12]
+    assert rows[4] == [700, 3, 19]
+    # 699/698 有值，691..690 之间的空档不臆造分数（未印就是没人）
+    assert [r[0] for r in rows] == [704, 703, 702, 701, 700, 699, 698, 690]
+    assert rows[-1] == [690, 51, 76]
+
+
+def test_jilin_bands_to_rows_refuses_broken_shapes():
+    from rank_sync.provinces import jilin as JL
+
+    with pytest.raises(ValueError, match="累计人数回落"):
+        JL.bands_to_rows([(700, {0: 19}), (690, {9: 18})])
+    with pytest.raises(ValueError, match="不是整十"):
+        JL.bands_to_rows([(695, {0: 5})])
+    with pytest.raises(ValueError, match="未解析出任何分档行"):
+        JL.bands_to_rows([])
+
+
+def test_jilin_columns_of_cross_checks_x_against_column_count():
+    """列距均匀时两条判据同解；**中间**留白（跳档）会让两者打架 -> 拒收。"""
+    from rank_sync.provinces import jilin as JL
+
+    def row(*idxs):                       # 列距 42pt，列序越大 x 越大（+9 在最左）
+        return [(42 * i, 7) for i in idxs]
+
+    # 左侧留白是正常形态（顶部截断桶），两条判据一致
+    assert JL._columns_of(row(5, 6, 7, 8, 9)) == [5, 6, 7, 8, 9]
+    assert JL._columns_of(row(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)) == list(range(10))
+    with pytest.raises(ValueError, match="只印了 1 个数"):
+        JL._columns_of([(500, 7)])
+    # 中间跳了一档（5,6,_,8,9）：列数法认为占 6..9，x 法认为占了 5/6/8/9 -> 拒收
+    with pytest.raises(ValueError, match="列归属不一致"):
+        JL._columns_of(row(5, 6, 8, 9))
+
+
+def test_jilin_parse_table_reads_xls_grid_and_title():
+    """xls/xlsx 都是这张宽表：表头 `分数 +9…+0`，空单元格 = 该分无人。"""
+    from rank_sync.provinces import jilin as JL
+
+    table = [
+        ["2024年吉林省普通高校招生考试物理-普通1分段表(含照顾分)"],
+        ["分数", "+9", "+8", "+7", "+6", "+5", "+4", "+3", "+2", "+1", "+0"],
+        ["690", None, None, None, None, None, None, None, None, "113", "125"],
+        ["680", "139", None, None, None, None, None, None, "251", "268", "290"],
+    ]
+    rows, title = JL.parse_table(table)
+    assert title.startswith("2024年吉林省普通高校招生考试物理-普通")
+    assert rows[0] == [691, 113, 113]
+    assert rows[1] == [690, 12, 125]
+    assert rows[2] == [689, 14, 139]       # 中间空档（688..683 无人）不臆造
+    assert rows[3] == [682, 112, 251]
+
+    with pytest.raises(ValueError, match="表头"):
+        JL.parse_table([["随便一个标题"], ["没有表头的表"]])
+
+
+def test_jilin_landed_five_years_two_generations():
+    """2022/2023 文理分科（留痕 subject_aliases），2024 起 3+1+2；表体都印到 0 分。"""
+    import rank_sync
+    from rank_sync.provinces import jilin as JL
+
+    assert set(JL.SOURCES) == {2022, 2023, 2024, 2025, 2026}
+    assert rank_sync._known_years(JL) == {2022, 2023, 2024, 2025, 2026}
+
+    for year in (2022, 2023, 2024, 2025, 2026):
+        doc = json.loads((_BACKEND / "data" / "rank_tables" / str(year) / "吉林.json")
+                         .read_text(encoding="utf-8"))
+        meta = doc["meta"]
+        assert meta["data_source"] == "official"
+        assert meta["source_url"] == JL.SOURCES[year]["notice"]
+        assert meta["subject_scheme"] == ("文理分科" if year <= 2023 else "3+1+2"), year
+        assert meta["band_width"] == 10
+        if year <= 2023:
+            assert meta["subject_aliases"] == {"历史类": "文史", "物理类": "理工"}, year
+        else:
+            assert "subject_aliases" not in meta, year
+        assert set(doc["subjects"]) == {"物理类", "历史类"}
+        for subj, blk in doc["subjects"].items():
+            rows = blk["rows"]
+            validate_rows(rows)
+            assert len(rows) > 500, (year, subj)
+            # 宽表印到 0 分（含缺考计 0 的考生）
+            assert rows[-1][0] == 0 == meta["score_floor"][subj], (year, subj)
+            assert blk["total"] == rows[-1][2]
+            assert blk["top_note"] == f"{rows[0][0]}↑"
+            assert blk["bands"] == rows[0][0] // 10 - rows[-1][0] // 10 + 1
+            assert meta["attachment_url_map"][subj] == JL.SOURCES[year]["files"][subj]
+            assert meta["attachment_sha256_map"][subj]
+
+
+def test_jilin_landed_anchors_match_official_release():
+    """2025 物理与官方通稿逐格一致（704-750 段 11 人 / 700 分 19 人 / 600 分 5529 人）。"""
+    def block(year, subj):
+        doc = json.loads((_BACKEND / "data" / "rank_tables" / str(year) / "吉林.json")
+                         .read_text(encoding="utf-8"))
+        return {r[0]: r for r in doc["subjects"][subj]["rows"]}
+
+    b25 = block(2025, "物理类")
+    assert b25[704] == [704, 11, 11]       # 官方写作「704-750 | 11 | 11」
+    assert b25[703] == [703, 1, 12]
+    assert b25[700] == [700, 3, 19]
+    assert b25[690] == [690, 7, 76]
+    assert b25[600] == [600, 125, 5529]
+    assert b25[500][2] == 26306
+    assert b25[0] == [0, 1323, 80421]
+
+    assert block(2025, "历史类")[600] == [600, 31, 1175]
+    # 2024 是 3+1+2 首年；2022 是文理分科最后一年
+    assert block(2024, "物理类")[691] == [691, 113, 113]
+    assert block(2024, "物理类")[0][2] == 84184
+    assert block(2022, "物理类")[663] == [663, 106, 106]
+    assert block(2022, "物理类")[0][2] == 82199
