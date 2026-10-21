@@ -1118,3 +1118,130 @@ def test_shanghai_landed_anchors_match_official_release():
     assert b26[616][2] == 58 and b26[600][2] == 626
     assert b26[590][2] == 1554 and b26[580][2] == 2980
     assert b26[570][2] == 4886 and b26[560][2] == 7131 and b26[550][2] == 9637
+
+
+# ---------------------------------------------------------------------------
+# 14. 辽宁：每页并排 4 组 / 人数与累计时合时分 / 千分位逗号 / 0 人分段不印
+# ---------------------------------------------------------------------------
+def _ln_groups(rows: list[list[tuple[float, float, str]]]):
+    return [sorted(g, key=lambda c: c[1]) for g in rows]
+
+
+def test_liaoning_rows_from_groups_handles_merged_and_split_cells():
+    """同一行里，第 3 组是「217   6,245」合并格，第 2 组是两个独立格——都要能读。"""
+    from rank_sync.provinces import liaoning as LN
+
+    groups = _ln_groups([
+        [(755.8, 49.6, "分数"), (755.8, 93.7, "人数 累计"),
+         (755.8, 182.6, "分数"), (755.8, 226.8, "人数 累计"),
+         (755.8, 315.7, "分数"), (755.8, 359.9, "人数 累计"),
+         (755.8, 448.8, "分数"), (755.8, 493.0, "人数 累计")],
+        [(736.7, 48.0, "708"), (736.7, 63.7, "及以上"), (736.7, 81.0, "10"),
+         (736.7, 121.8, "10"), (736.7, 181.1, "670"), (736.7, 214.1, "62"),
+         (736.7, 253.6, "861"), (736.7, 314.2, "632"), (736.7, 347.2, "185   6,028"),
+         (736.7, 447.2, "594"), (736.7, 480.2, "290  16,001")],
+        [(717.9, 48.0, "707"), (717.9, 81.0, "4"), (717.9, 121.8, "14"),
+         (717.9, 181.1, "669"), (717.9, 214.1, "57"), (717.9, 253.6, "918"),
+         (717.9, 314.2, "631"), (717.9, 347.2, "217   6,245"),
+         (717.9, 447.2, "593"), (717.9, 480.2, "341  16,342")],
+    ])
+    rows, anchors, dropped = LN._rows_from_groups(groups)
+    assert anchors == [49.6, 182.6, 315.7, 448.8]
+    assert dropped == []
+    assert rows == [[708, 10, 10], [670, 62, 861], [632, 185, 6028], [594, 290, 16001],
+                    [707, 4, 14], [669, 57, 918], [631, 217, 6245], [593, 341, 16342]]
+
+
+def test_liaoning_rows_from_groups_skips_title_and_header_and_short_block():
+    """表名行/表头行不参与；末页某组提前结束时不能把整行当丢行。"""
+    from rank_sync.provinces import liaoning as LN
+
+    groups = _ln_groups([
+        [(770.0, 49.6, "2026年辽宁省普通高校招生考试成绩统计表(物理学科类)")],
+        [(755.8, 49.6, "分数"), (755.8, 93.7, "人数 累计"),
+         (755.8, 182.6, "分数"), (755.8, 226.8, "人数 累计")],
+        [(736.7, 48.0, "152"), (736.7, 81.0, "9"), (736.7, 121.8, "141000"),
+         (736.7, 181.1, "151"), (736.7, 214.1, "7"), (736.7, 253.6, "141007")],
+    ])
+    rows, _anchors, dropped = LN._rows_from_groups(groups)
+    assert dropped == []
+    assert rows == [[152, 9, 141000], [151, 7, 141007]]
+
+
+def test_liaoning_omitted_reports_zero_people_segments():
+    """0 人的分段官方不印：缺口要显式记下来，但不能当漏行拒收。"""
+    from rank_sync.provinces import liaoning as LN
+
+    rows = [[700, 5, 5], [699, 0, 5], [697, 3, 8], [696, 1, 9]]
+    assert LN._omitted(rows) == [698]
+    assert LN._omitted([[700, 5, 5], [699, 0, 5]]) == []
+
+
+def test_liaoning_title_guard_rejects_sport_and_art_tables():
+    """体育·/艺术·同类表是另一口径，标题不符必须拒收。"""
+    from rank_sync.provinces import liaoning as LN
+
+    assert LN.TITLE_PAT.match("2025年辽宁省普通高校招生考试成绩统计表(物理学科类)")
+    assert LN.TITLE_PAT.match("辽宁省2026年普通高校招生考试成绩统计表(历史学科类)")
+    for bad in (
+        "2025年辽宁省普通高校招生考试成绩统计表(体育·物理学科类)",
+        "2025年辽宁省普通高校招生考试成绩统计表(艺术·历史学科类)",
+        "2026年辽宁省普通高等学校专升本招生考试成绩统计表（一分一段表）",
+    ):
+        assert not LN.TITLE_PAT.match(bad), bad
+
+
+def test_liaoning_landed_four_years_and_2022_gap():
+    """2023–2026 落盘；2022 官方只发 PNG，进 KNOWN_GAPS。"""
+    import rank_sync
+    from rank_sync.provinces import liaoning as LN
+
+    assert set(LN.SOURCES) == {2023, 2024, 2025, 2026}
+    assert set(LN.KNOWN_GAPS) == {2022}
+    assert "不 OCR" in LN.KNOWN_GAPS[2022]
+    assert rank_sync._known_years(LN) == {2023, 2024, 2025, 2026}
+
+    for year in (2023, 2024, 2025, 2026):
+        doc = json.loads((_BACKEND / "data" / "rank_tables" / str(year) / "辽宁.json")
+                         .read_text(encoding="utf-8"))
+        meta = doc["meta"]
+        assert meta["subject_scheme"] == "3+1+2"
+        assert meta["data_source"] == "official"
+        assert meta["source_url"] == LN.SOURCES[year]["notice"]
+        assert set(doc["subjects"]) == {"物理类", "历史类"}
+        for subj, blk in doc["subjects"].items():
+            rows = blk["rows"]
+            validate_rows(rows)
+            assert len(rows) > 500, (year, subj)
+            assert meta["score_floor"][subj] == rows[-1][0]
+            assert meta["attachment_url_map"][subj] == LN.SOURCES[year]["pdfs"][subj]
+            assert meta["attachment_sha256_map"][subj]
+            # 缺口是官方没印的 0 人分段，必须落在表内且不重不漏
+            gaps = blk["omitted_scores"]
+            assert len(gaps) == len(set(gaps)), (year, subj)
+            assert all(rows[0][0] > g > rows[-1][0] for g in gaps), (year, subj, gaps)
+            assert not ({r[0] for r in rows} & set(gaps)), (year, subj)
+
+
+def test_liaoning_landed_anchors_match_official_release():
+    """2024 用沈阳晚报通稿（本科线/特招线累计），2023/2025/2026 用 600 分累计。"""
+    def block(year):
+        doc = json.loads((_BACKEND / "data" / "rank_tables" / str(year) / "辽宁.json")
+                         .read_text(encoding="utf-8"))
+        return {s: {r[0]: r for r in b["rows"]} for s, b in doc["subjects"].items()}
+
+    b24 = block(2024)
+    assert b24["物理类"][600][2] == 14612 and b24["物理类"][500][2] == 53044
+    assert b24["物理类"][368][2] == 116198 and b24["物理类"][510][2] == 48415
+    assert b24["历史类"][600][2] == 1960 and b24["历史类"][500][2] == 11872
+    assert b24["历史类"][400][2] == 25455 and b24["历史类"][510][2] == 10610
+
+    b23 = block(2023)
+    assert b23["物理类"][600][2] == 11280 and b23["历史类"][600][2] == 1341
+
+    b25 = block(2025)
+    assert b25["物理类"][600][2] == 13601
+
+    b26 = block(2026)
+    assert b26["物理类"][600][2] == 14235 and b26["物理类"][500][2] == 53434
+    assert b26["历史类"][600][2] == 2200 and b26["历史类"][500][2] == 14278
