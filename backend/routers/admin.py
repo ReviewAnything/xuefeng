@@ -706,6 +706,62 @@ def _parse_official_upload(raw: bytes, filename: str) -> tuple[list[dict], dict]
     return rows, {}
 
 
+# ---------------------------------------------------------------- 一分一段按省同步（S11）
+
+class RankSyncRequest(BaseModel):
+    """按省一键同步：province 必填；years 留空=该适配器登记的全部年份。"""
+    province: str = Field(min_length=2, max_length=8)
+    years: list[int] = Field(default_factory=list)
+    dry_run: bool = False       # 只解析校验，不落盘不写库
+    write_db: bool = True       # 落盘后同步写 rank_segments
+
+
+@router.get("/rank-tables/provinces")
+def admin_rank_provinces(admin: dict = Depends(auth.require_admin)):
+    """31 省看板（含上次同步结果），管理端「按省一键同步」列表用。"""
+    import rank_sync
+
+    return {"ok": True, **rank_sync.overview()}
+
+
+@router.post("/rank-tables/sync")
+def admin_rank_sync(req: RankSyncRequest, admin: dict = Depends(auth.require_admin_ready)):
+    """按省一键同步：抓取 → 强校验 → 落盘 → （可选）写 rank_segments。
+
+    与 CLI ``python -m rank_sync <省>`` 走**同一条** ``parse(year)`` 路径，
+    不存在「按钮能跑、脚本不能跑」的分裂。校验不过的年份整份拒收，
+    返回里逐条给出失败原因；不写半份文件。
+    """
+    import rank_sync
+    from rank_sync import common as RSC
+    from services import rank_store
+
+    rep = rank_sync.sync(req.province, years=req.years or None, dry_run=req.dry_run)
+    if rep.get("error"):
+        raise HTTPException(status_code=400, detail=rep["error"])
+    db_rows = []
+    if req.write_db and not req.dry_run:
+        for r in rep["years"]:
+            if not r.get("ok"):
+                continue
+            path = RSC.OUT_DIR / str(r["year"]) / f"{req.province}.json"
+            try:
+                db_rows.append(rank_store.import_file(path))
+            except Exception as exc:  # noqa: BLE001 - 落库失败不影响已落盘的数据
+                db_rows.append({"year": r["year"], "error": f"{type(exc).__name__}: {exc}"})
+    rep["db"] = db_rows
+    rep["operator"] = admin["username"]
+    return rep
+
+
+@router.get("/rank-tables/sync-status")
+def admin_rank_sync_status(admin: dict = Depends(auth.require_admin)):
+    """上次同步结果台账（逐省逐年，含失败原因）。"""
+    import rank_sync
+
+    return {"ok": True, **rank_sync.status()}
+
+
 # ---------------------------------------------------------------- 导出
 
 @router.get("/export/universities.csv")

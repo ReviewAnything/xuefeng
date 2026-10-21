@@ -708,6 +708,62 @@
 
             <div class="panel">
               <div class="panel-head">
+                <div>
+                  <h3>按省同步一分一段表</h3>
+                  <p>各省考试院官方成绩分段统计；同步 = 抓取 → 强校验 → 落盘 → 写 rank_segments</p>
+                </div>
+                <el-button size="small" @click="loadRankProvinces">刷新</el-button>
+              </div>
+              <el-descriptions :column="3" border size="small" class="line-desc" v-if="rankCounts">
+                <el-descriptions-item label="适配器就绪">{{ rankCounts.ready || 0 }} 省</el-descriptions-item>
+                <el-descriptions-item label="已探明受阻">{{ rankCounts.blocked || 0 }} 省</el-descriptions-item>
+                <el-descriptions-item label="待接">{{ rankCounts.planned || 0 }} 省</el-descriptions-item>
+              </el-descriptions>
+              <el-table :data="rankProvs" size="small" max-height="380">
+                <el-table-column prop="province" label="省份" width="86"></el-table-column>
+                <el-table-column label="状态" width="86">
+                  <template #default="s">
+                    <el-tag size="small" :type="rankTagType(s.row.status)" effect="plain">
+                      {{ rankStatusLabel(s.row.status) }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="scheme" label="模式" width="80"></el-table-column>
+                <el-table-column label="已落盘年份" min-width="150">
+                  <template #default="s">{{ s.row.covered_years.length ? s.row.covered_years.join('、') : '—' }}</template>
+                </el-table-column>
+                <el-table-column label="适配器年份" min-width="150">
+                  <template #default="s">{{ s.row.years.length ? s.row.years.join('、') : '—' }}</template>
+                </el-table-column>
+                <el-table-column label="上次同步" min-width="160">
+                  <template #default="s">
+                    <span v-if="s.row.last_sync">
+                      {{ s.row.last_sync.ok ? '成功' : '有失败' }} · {{ fmtTime(s.row.last_sync.at) }}
+                    </span>
+                    <span v-else>—</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="96" align="right">
+                  <template #default="s">
+                    <el-button size="small" type="primary" plain
+                               :loading="rankSyncing === s.row.province"
+                               :disabled="s.row.status !== 'ready' || !!rankSyncing"
+                               @click="syncProvince(s.row)">同步</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <el-alert v-if="rankReport" :type="rankReport.ok ? 'success' : 'warning'" :closable="false"
+                        show-icon class="line-alert"
+                        :title="rankReport.ok ? '同步完成' : '同步部分失败（逐年份明细）'"
+                        :description="rankReportText"></el-alert>
+              <p class="hint">
+                同步只认省考试院官方附件；扫描件/图片版按纪律留空不 OCR（状态标「受阻」并写明原因）。
+                校验不过的年份整份拒收，不会写入半份数据。
+              </p>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
                 <div><h3>一键落库</h3><p>把仓库自带的种子数据写进 school_lines（幂等，无需联网）</p></div>
                 <el-button size="small" @click="loadSeedStatus">刷新</el-button>
               </div>

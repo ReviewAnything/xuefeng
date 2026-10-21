@@ -67,7 +67,8 @@ def test_landed_json_structure_and_invariants():
         meta = doc["meta"]
         assert meta["data_source"] == "official", f
         assert meta["source_url"].startswith("https://"), f
-        assert meta["attachment_sha256"], f
+        # 附件型（PDF/XLS）记 attachment_sha256；HTML 直出型记 source_sha256
+        assert meta.get("attachment_sha256") or meta.get("source_sha256"), f
         assert meta["year"] == int(f.parent.name), f
         for subj, blk in doc["subjects"].items():
             # 双档位省用 物理类/历史类；3+3 省用 综合/选考X；其余（如 3+1+2）同前
@@ -331,3 +332,108 @@ def test_lookup_single_track_marks_rank_track(monkeypatch):
         assert got2["cum_ben"] == 12
     finally:
         RT._load.cache_clear()
+
+
+# ---------------------------------------------------------------------------
+# 8. 省级注册表 / 按省同步（S11）：一键同步的工具面
+# ---------------------------------------------------------------------------
+def test_province_registry_covers_31_and_marks_blocked():
+    from rank_sync import ALL_PROVINCES, BLOCKED, overview
+
+    ov = overview()
+    assert ov["total_provinces"] == 31 == len(ALL_PROVINCES)
+    assert len(ov["provinces"]) == 31
+    assert sum(ov["counts"].values()) == 31
+    status = {p["province"]: p["status"] for p in ov["provinces"]}
+    for prov in ("广东", "山东", "浙江", "湖北", "湖南"):
+        assert status[prov] == "ready", prov
+    for prov in ("四川", "河北", "河南"):
+        assert status[prov] == "blocked", prov
+        assert BLOCKED[prov], "受阻必须写明原因，不能只标状态"
+
+
+def test_overview_reports_disk_coverage_and_gaps():
+    from rank_sync import overview
+
+    rows = {r["province"]: r for r in overview()["provinces"]}
+    gd = rows["广东"]
+    assert 2025 in gd["covered_years"]
+    assert gd["covered"]["2025"]["rows"] > 500
+    # 广东 2023 是扫描件：必须显式登记为 known_gap，而不是静默缺失
+    assert 2023 in gd["known_gaps"]
+    assert "扫描件" in gd["known_gaps"][2023]
+
+
+def test_sync_blocked_or_unknown_province_returns_reason():
+    from rank_sync import sync
+
+    rep = sync("四川")
+    assert rep["ok"] is False and "图片" in rep["error"]
+    rep2 = sync("火星省")
+    assert rep2["ok"] is False and rep2["error"]
+
+
+def test_parse_html_table_splits_below_bucket():
+    from rank_sync import common as RSC
+
+    html = """<table>
+      <tr><td>档分</td><td>本段人数</td><td>累计人数</td></tr>
+      <tr><td>101</td><td>2</td><td>10</td></tr>
+      <tr><td>100</td><td>4</td><td>14</td></tr>
+      <tr><td>100</td><td>1369</td><td>1383</td></tr>
+    </table>"""
+    rows, note, below = RSC.parse_html_table(html)
+    assert rows == [[101, 2, 10], [100, 4, 14]]
+    assert below == {"score_below": 100, "seg": 1369, "cum": 1383}
+    validate_rows(rows)
+    assert note == ""  # 首行 累计 != 本段 时不给顶部备注
+
+
+def test_block_header_pattern_covers_zhejiang_and_hubei_layouts():
+    from rank_sync import common as RSC
+
+    # 浙江：三个「总分」格；湖北：一整行「分数 人数 累计人数」
+    assert RSC.BLOCK_HEADER_PAT.match("总分")
+    assert RSC.BLOCK_HEADER_PAT.match("分数 人数 累计人数")
+    assert RSC.BLOCK_HEADER_PAT.match("档分")
+    assert not RSC.BLOCK_HEADER_PAT.match("693")
+
+
+def test_admin_rank_sync_endpoint_requires_auth_and_delegates(monkeypatch):
+    from tests.helpers import ready_headers
+
+    client = _client()
+    assert client.get("/api/admin/rank-tables/provinces").status_code in (401, 403)
+
+    headers = ready_headers(client)
+    ok = client.get("/api/admin/rank-tables/provinces", headers=headers)
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["total_provinces"] == 31
+
+    import rank_sync
+
+    seen = {}
+
+    def fake_sync(province, years=None, dry_run=False, out_dir=None):
+        seen.update(province=province, years=years, dry_run=dry_run)
+        return {"ok": True, "province": province, "dry_run": dry_run,
+                "years": [{"year": 2025, "ok": True, "rows": 3, "subjects": {"综合": 3}}],
+                "saved": 1, "failed": 0}
+
+    monkeypatch.setattr(rank_sync, "sync", fake_sync)
+    r = client.post("/api/admin/rank-tables/sync", headers=headers,
+                    json={"province": "浙江", "dry_run": True, "write_db": False})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["ok"] is True and body["db"] == []
+    assert seen == {"province": "浙江", "years": None, "dry_run": True}
+
+
+def test_admin_rank_sync_blocked_province_is_400():
+    from tests.helpers import ready_headers
+
+    client = _client()
+    headers = ready_headers(client)
+    r = client.post("/api/admin/rank-tables/sync", headers=headers,
+                    json={"province": "四川", "dry_run": True, "write_db": False})
+    assert r.status_code == 400, r.text

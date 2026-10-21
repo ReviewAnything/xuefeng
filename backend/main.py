@@ -233,6 +233,14 @@ def rank_tables_overview():
     return {"years": RT.years()}
 
 
+@app.get("/api/rank-tables/provinces")
+def rank_tables_provinces():
+    """31 省看板：适配器是否就绪 / 已落盘年份 / 上次同步结果（管理端一键同步的数据源）。"""
+    import rank_sync
+
+    return rank_sync.overview()
+
+
 @app.get("/api/rank-tables/{year}/{province}")
 def rank_table_doc(year: int, province: str):
     """单年单省完整一分一段表（含 source_url 溯源与顶部分数备注）。"""

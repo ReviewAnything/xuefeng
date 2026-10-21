@@ -873,6 +873,57 @@ const app = createApp({
       }
     }
 
+    /* ---------- 一分一段按省同步（S11） ---------- */
+    const rankProvs = ref([]);
+    const rankCounts = ref(null);
+    const rankSyncing = ref("");
+    const rankReport = ref(null);
+    const rankReportText = computed(() => {
+      const r = rankReport.value;
+      if (!r) return "";
+      const parts = (r.years || []).map((y) => (y.ok
+        ? `${y.year}：${y.rows} 行（${Object.entries(y.subjects || {}).map(([k, v]) => `${k} ${v}`).join(" / ")}）`
+        : `${y.year}：${y.error}`));
+      if (r.db && r.db.length) {
+        parts.push("写库：" + r.db.map((d) => (d.error ? `${d.year} 失败` : `${d.year} ${d.rows} 行`)).join(" / "));
+      }
+      return parts.join("；") || r.error || "";
+    });
+
+    function rankTagType(status) {
+      return status === "ready" ? "success" : (status === "blocked" ? "danger" : "info");
+    }
+    function rankStatusLabel(status) {
+      return { ready: "可同步", blocked: "受阻", planned: "待接" }[status] || status;
+    }
+
+    async function loadRankProvinces() {
+      try {
+        const data = await api("/api/admin/rank-tables/provinces");
+        rankProvs.value = data.provinces || [];
+        rankCounts.value = data.counts || null;
+      } catch (_) { /* 未登录/无权限时静默 */ }
+    }
+
+    async function syncProvince(row) {
+      rankSyncing.value = row.province;
+      rankReport.value = null;
+      try {
+        const data = await api("/api/admin/rank-tables/sync", {
+          method: "POST",
+          body: JSON.stringify({ province: row.province, dry_run: false, write_db: true }),
+        });
+        rankReport.value = data;
+        if (data.ok) ElMessage.success(`${row.province} 同步完成：${data.saved} 个年份`);
+        else ElMessage.warning(`${row.province} 同步部分失败，见下方明细`);
+        await Promise.all([loadRankProvinces(), loadLineCoverage(), loadSeedStatus()]);
+      } catch (e) {
+        ElMessage.error(e.message || "同步失败");
+      } finally {
+        rankSyncing.value = "";
+      }
+    }
+
     /* ---------- 通用 ---------- */
     async function refreshAll() {
       if (!token.value) return;
@@ -919,7 +970,7 @@ const app = createApp({
         if (p === "baselines" && !baseRows.value.length) await loadBaselines();
         if (p === "versions") await loadVersions();
         if (p === "sync") await Promise.all([loadSources(), loadJobs(), loadSyncTargets()]);
-        if (p === "lines") await Promise.all([loadLineCoverage(), loadSeedStatus(), loadOfficialStatus(), loadOfficialSources()]);
+        if (p === "lines") await Promise.all([loadLineCoverage(), loadSeedStatus(), loadOfficialStatus(), loadOfficialSources(), loadRankProvinces()]);
         if (p === "events") await loadEvents();
         if (p === "settings") await Promise.all([loadProfile(), loadDbConfig()]);
       } catch (e) {
@@ -951,6 +1002,8 @@ const app = createApp({
       officialStatus, officialReport, officialLoading, officialForm, officialFileName,
       officialText, onOfficialFileChange, clearOfficialFile, submitOfficial, loadOfficialStatus,
       officialSources, loadOfficialSources,
+      rankProvs, rankCounts, rankSyncing, rankReport, rankReportText,
+      loadRankProvinces, syncProvince, rankTagType, rankStatusLabel,
       pwdForm, pwdLoading, changePassword,
       dbState, dbForm, dbDialects, dbResult, dbResultTitle, dbTesting, dbApplying, dbResetting,
       loadDbConfig, onDialectChange, testDb, applyDb, resetDb,
