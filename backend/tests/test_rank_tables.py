@@ -21,6 +21,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import pytest
+
 _BACKEND = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_BACKEND))
 sys.path.insert(0, str(_BACKEND / "scripts"))
@@ -68,19 +70,29 @@ def test_landed_json_structure_and_invariants():
         assert meta["attachment_sha256"], f
         assert meta["year"] == int(f.parent.name), f
         for subj, blk in doc["subjects"].items():
-            assert subj in ("物理类", "历史类"), f
+            # 双档位省用 物理类/历史类；3+3 省用 综合/选考X；其余（如 3+1+2）同前
+            assert subj in (
+                "物理类", "历史类", "综合",
+                "选考物理", "选考化学", "选考生物",
+                "选考思想政治", "选考历史", "选考地理",
+            ), f
             rows = blk["rows"]
             assert len(rows) > 100, f  # 一分一段表至少几百行
+            width = len(rows[0])
+            assert width in (3, 5), f
             prev = None
             for r in rows:
-                score, sb, cb, sz, cz = r
+                assert len(r) == width, f
+                score, sb, cb = r[0], r[1], r[2]
+                sz, cz = (r[3], r[4]) if width == 5 else (sb, cb)
                 if prev is None:
-                    assert cb == sb and cz == sz
+                    # 顶部分数桶可被截断（「X 分及以上共 N 人」），只要求 累计 >= 本段
+                    assert cb >= sb and cz >= sz, f
                 else:
                     assert score < prev[0], f
                     assert cb == prev[2] + sb, f
-                    assert cz == prev[4] + sz, f
-                prev = r
+                    assert cz == (prev[4] if width == 5 else prev[2]) + sz, f
+                prev = (score, sb, cb, sz, cz)
 
 
 # ---------------------------------------------------------------------------
@@ -135,7 +147,7 @@ def test_validate_rows_accepts_good_and_rejects_bad():
     good = [[697, 19, 19, 19, 19], [696, 13, 32, 13, 32], [695, 7, 39, 7, 39]]
     validate_rows(good)
     for bad in (
-        [[697, 19, 20, 19, 19]],                      # 首行累计≠本段
+        [[697, 19, 10, 19, 19]],                      # 首行累计 < 本段（负数前缀，不可能）
         [[697, 19, 19, 19, 19], [696, 13, 31, 13, 32]],  # 本科累计断裂
         [[697, 19, 19, 19, 19], [697, 0, 19, 0, 19]],    # 分数非严格降序
         [[697, -1, -1, 19, 19]],                      # 负数
@@ -173,7 +185,12 @@ def test_lookup_exact_and_lower_bound():
     # 精确命中
     r = RT.lookup(y0, p0, subj, rows[5][0])
     assert r["exact"] is True and r["matched_score"] == rows[5][0]
-    assert r["cum_ben"] == rows[5][2] and r["cum_zhuan"] == rows[5][4]
+    assert r["cum_ben"] == rows[5][2]
+    # 3 列=单档位（cum_zhuan 镜像 cum）；5 列=双档位（各有独立值）
+    if len(rows[5]) > 4:
+        assert r["cum_zhuan"] == rows[5][4] and r["rank_track"] == "dual"
+    else:
+        assert r["cum_zhuan"] == rows[5][2] and r["rank_track"] == "single"
     # 非精确：分数高于表内最高分（如含以上档再+1）-> 取最高分行作位次上界
     r2 = RT.lookup(y0, p0, subj, rows[0][0] + 1)
     assert r2["exact"] is False and r2["matched_score"] == rows[0][0]
@@ -262,3 +279,55 @@ def test_api_rank_tables_endpoints():
 
     r = _client().get("/api/rank-tables/1999/广东")
     assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# 7. 单档位（3 列）与顶部截断桶：跨省口径差异
+# ---------------------------------------------------------------------------
+def test_validate_rows_single_track_and_truncated_top():
+    # 单档位：cum = prev_cum + seg
+    validate_rows([[692, 7, 54], [691, 14, 68], [690, 12, 80]])
+    # 顶部截断桶（692 及以上 54 人，而 692 只有 7 人）必须被接受
+    validate_rows([[692, 7, 54], [691, 14, 68]])
+    # 首行 累计 < 本段 是错的（不可能有负数前缀）
+    with pytest.raises(ValueError):
+        validate_rows([[692, 54, 7]])
+    # 断链必须拦
+    with pytest.raises(ValueError):
+        validate_rows([[692, 7, 54], [691, 14, 69]])
+    # 非降序必须拦
+    with pytest.raises(ValueError):
+        validate_rows([[691, 7, 7], [692, 14, 21]])
+    # 不支持的行宽必须拦（防止上游把 4 列脏数据塞进来）
+    with pytest.raises(ValueError):
+        validate_rows([[692, 7, 54, 7]])
+
+
+def test_lookup_single_track_marks_rank_track(monkeypatch):
+    """3 列文档：cum_zhuan 取 cum（单档省只公布一套累计），并标 rank_track=single。"""
+    # 沙箱 shim 对已存在目录的 mkdir(exist_ok=True) 仍会抛 EEXIST，故先判存在
+    base = _BACKEND / "tests" / ".bk_tmp"
+    if not base.is_dir():
+        base.mkdir(parents=True)
+    tmpdir = Path(tempfile.mkdtemp(dir=str(base)))
+    (tmpdir / "2099").mkdir(parents=True)
+    doc = {
+        "meta": {"year": 2099, "province": "测试省", "data_source": "official",
+                 "source_url": "https://example.edu.cn/notice.html"},
+        # 故意留出 699 的缺口，用于验证「非精确命中取位次上界」
+        "subjects": {"综合": {"rows": [[700, 2, 5], [698, 4, 12], [697, 3, 15]]}},
+    }
+    (tmpdir / "2099" / "测试省.json").write_text(
+        json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr(RT, "DATA", tmpdir)
+    RT._load.cache_clear()
+    try:
+        got = RT.lookup(2099, "测试省", "综合", 700)
+        assert got["exact"] is True and got["cum_ben"] == 5
+        assert got["cum_zhuan"] == 5 and got["rank_track"] == "single"
+        # 分数不在表中 -> 取不高于该分的最近行（位次上界），标 exact=False
+        got2 = RT.lookup(2099, "测试省", "综合", 699)
+        assert got2["exact"] is False and got2["matched_score"] == 698
+        assert got2["cum_ben"] == 12
+    finally:
+        RT._load.cache_clear()

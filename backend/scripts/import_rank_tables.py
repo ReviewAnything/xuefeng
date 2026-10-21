@@ -38,7 +38,15 @@ def import_file(path: Path) -> dict:
         ).delete(synchronize_session=False)
         for subj, blk in subjects.items():
             for row in blk["rows"]:
-                score, sb, cb, sz, cz = row
+                # 5 列=双档位省（本科档/专科档分开）；3 列=单档位省（只公布一套累计，
+                # 不存在本科/专科加分差异，故两档镜像同一数值，非伪造）
+                if len(row) == 5:
+                    score, sb, cb, sz, cz = row
+                elif len(row) == 3:
+                    score, sb, cb = row
+                    sz, cz = sb, cb
+                else:
+                    raise ValueError(f"不支持的行宽 {len(row)}: {row}")
                 s.add(RankSegment(
                     year=year, province=prov, subject=subj, score=score,
                     seg_ben=sb, cum_ben=cb, seg_zhuan=sz, cum_zhuan=cz,

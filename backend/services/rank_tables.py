@@ -3,6 +3,12 @@
 数据形态见 scripts/scrape_rank_tables.py 模块注释。位次口径：
 ``cum_ben``/``cum_zhuan`` 为该分数累计人数（= 该分数的最低位次），
 本科档与专科档是两套不同位次，绝不能混用。
+
+行宽有两种（见 meta.subjects[*].tracks）：
+- 5 列 ``[score, seg_ben, cum_ben, seg_zhuan, cum_zhuan]``：广东等双档位省，
+  本科档（本科层次加分）与专科档（专科层次加分）位次不同；
+- 3 列 ``[score, seg, cum]``：多数省只公布一套累计（不分批次加分），
+  此时两档取值相同，``lookup`` 返回 ``rank_track="single"`` 以区分。
 """
 from __future__ import annotations
 
@@ -70,9 +76,13 @@ def lookup(year: int, province: str, subject: str, score: int) -> dict | None:
             break
     if chosen is None:
         return None  # score 低于表内最低分（如 100 以下）
+    # 5 列=双档位（本科档/专科档分开）；3 列=单档位（该省只公布一套累计，两档同值）
+    cum_ben = chosen[2]
+    cum_zhuan = chosen[4] if len(chosen) > 4 else chosen[2]
     return {
         "year": year, "province": province, "subject": subject,
         "score": score, "matched_score": chosen[0], "exact": chosen[0] == score,
-        "cum_ben": chosen[2], "cum_zhuan": chosen[4],
+        "cum_ben": cum_ben, "cum_zhuan": cum_zhuan,
+        "rank_track": "dual" if len(chosen) > 4 else "single",
         "source_url": d["meta"].get("source_url", ""),
     }
