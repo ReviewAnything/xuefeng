@@ -1245,3 +1245,99 @@ def test_liaoning_landed_anchors_match_official_release():
     b26 = block(2026)
     assert b26["物理类"][600][2] == 14235 and b26["物理类"][500][2] == 53434
     assert b26["历史类"][600][2] == 2200 and b26["历史类"][500][2] == 14278
+
+
+# ---------------------------------------------------------------------------
+# 15. 江西：顶部「X及以上 N」合并格 / 每页重复表名 / 文理分科与 3+1+2 两代
+# ---------------------------------------------------------------------------
+def test_jiangxi_row_of_handles_merged_top_bucket_and_thousands():
+    """`640及以上 20` 是「分数+人数」挤在一格，后面才是累计；千分位逗号要吃掉。"""
+    from rank_sync.provinces import jiangxi as JX
+
+    assert JX.row_of(["640及以上 20", "20"]) == [640, 20, 20]
+    assert JX.row_of(["662", "1", "25"]) == [662, 1, 25]
+    assert JX.row_of(["100", "6", "171,483"]) == [100, 6, 171483]
+    assert JX.row_of(["分数", "人数 累计人数"]) is None
+
+
+def test_jiangxi_noise_skips_repeated_title_header_footer():
+    """表名每页都印一遍（2022 式「…本科文史分段表」/ 2024 式「…一分一段表」）。"""
+    from rank_sync.provinces import jiangxi as JX
+
+    for cells in (
+        ["2022年江西省普通高考本科文史分段表"],
+        ["江西省2026年普通高考历史类一分一段表"],
+        ["分数", "人数 累计人数"],
+        ["第 1 页，共 21 页"],
+    ):
+        assert JX.is_noise(cells), cells
+    assert not JX.is_noise(["662", "1", "25"])
+
+
+def test_jiangxi_title_guard_and_subject_mapping():
+    """两代标题都要认，三校生表要挡；文史/理工 与 历史/物理 都归到两科类。"""
+    from rank_sync.provinces import jiangxi as JX
+
+    for title, subj in (
+        ("2022年江西省普通高考本科文史分段表", "历史类"),
+        ("2022年江西省普通高考本科理工分段表", "物理类"),
+        ("2023年江西省普通高考文史类本科一分一段表", "历史类"),
+        ("2023年江西省普通高考理工类本科一分一段表", "物理类"),
+        ("江西省2024年普通高考历史类一分一段表", "历史类"),
+        ("江西省2026年普通高考物理类一分一段表", "物理类"),
+    ):
+        assert JX.TITLE_PAT.match(title), title
+        assert JX._subject_of_title(title) == subj, title
+    for bad in (
+        "江西省2026年三校生一分一段表",
+        "江西省2026年普通高考艺术类一分一段表",
+    ):
+        assert not JX.TITLE_PAT.match(bad), bad
+
+
+def test_jiangxi_landed_five_years_two_generations():
+    """2022/2023 文理分科（留痕 subject_aliases），2024 起 3+1+2；表体都印到 100 分。"""
+    import rank_sync
+    from rank_sync.provinces import jiangxi as JX
+
+    assert set(JX.SOURCES) == {2022, 2023, 2024, 2025, 2026}
+    assert rank_sync._known_years(JX) == {2022, 2023, 2024, 2025, 2026}
+
+    for year in (2022, 2023, 2024, 2025, 2026):
+        doc = json.loads((_BACKEND / "data" / "rank_tables" / str(year) / "江西.json")
+                         .read_text(encoding="utf-8"))
+        meta = doc["meta"]
+        assert meta["data_source"] == "official"
+        assert meta["source_url"] == JX.SOURCES[year]["notice"]
+        expect = "文理分科" if year <= 2023 else "3+1+2"
+        assert meta["subject_scheme"] == expect, year
+        if year <= 2023:
+            assert meta["subject_aliases"] == {"历史类": "文史", "物理类": "理工"}, year
+        else:
+            assert "subject_aliases" not in meta, year
+        assert set(doc["subjects"]) == {"物理类", "历史类"}
+        for subj, blk in doc["subjects"].items():
+            rows = blk["rows"]
+            validate_rows(rows)
+            assert len(rows) > 500, (year, subj)
+            assert rows[-1][0] == 100 == meta["score_floor"][subj], (year, subj)
+            assert blk["total"] == rows[-1][2]
+            assert meta["attachment_url_map"][subj] == JX.SOURCES[year]["pdfs"][subj]
+            assert meta["attachment_sha256_map"][subj]
+
+
+def test_jiangxi_landed_anchors_match_official_release():
+    """2024 物理本科线上人数与 467/448 累计、2026 历史 600 分累计（均为当年通稿数字）。"""
+    def block(year):
+        doc = json.loads((_BACKEND / "data" / "rank_tables" / str(year) / "江西.json")
+                         .read_text(encoding="utf-8"))
+        return {s: {r[0]: r for r in b["rows"]} for s, b in doc["subjects"].items()}
+
+    b24 = block(2024)
+    assert b24["物理类"][467][2] == 128319
+    assert b24["物理类"][449][2] == 149236
+    assert b24["物理类"][448][2] == 150379     # 本科线（448 分）以上 150379 人
+
+    b26 = block(2026)
+    assert b26["历史类"][663][2] == 24 and b26["历史类"][600][2] == 2100
+    assert b26["历史类"][600][1] == 91
