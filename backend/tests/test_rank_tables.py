@@ -1504,3 +1504,164 @@ def test_jilin_landed_anchors_match_official_release():
     assert block(2024, "物理类")[0][2] == 84184
     assert block(2022, "物理类")[663] == [663, 106, 106]
     assert block(2022, "物理类")[0][2] == 82199
+
+
+# ---------------------------------------------------------------------------
+# 17. 黑龙江：三列逐分表 / 顶部「X及以上」与累计打架 / 表尾「N及以下 略」
+# ---------------------------------------------------------------------------
+def test_heilongjiang_header_row_not_confused_with_title():
+    """标题「…一分段统计表」里就含「分段」——表头只能按整格相等认，包含判断会认错行。"""
+    from rank_sync.provinces import heilongjiang as HL
+
+    table = [
+        ["黑龙江省2022年普通高考文化课成绩\n理科一分段统计表", "", ""],
+        ["", "", ""],
+        ["分段", "段内人数", "累计人数"],
+        ["677以上", 17, 17],
+        [676, 2, 19],
+    ]
+    got = HL.parse_table(table)
+    assert got["title"] == "黑龙江省2022年普通高考文化课成绩理科一分段统计表"
+    assert got["rows"] == [[677, 17, 17], [676, 2, 19]]
+    assert got["top_note"] == "677↑"
+
+
+def test_heilongjiang_top_bucket_seg_conflict_is_normalized():
+    """2025 的顶行把「上一分之上的人数」印进段内列（3 vs 累计 34），官方通稿写 34|34。"""
+    from rank_sync.provinces import heilongjiang as HL
+
+    table = [
+        ["黑龙江省2025年普通高考物理类文化课一分段统计表", "", ""],
+        ["分段", "分段人数", "累计人数"],
+        ["694及以上", 3, 34],
+        [693, 5, 39],
+        [692, 10, 49],
+    ]
+    got = HL.parse_table(table)
+    assert got["rows"][0] == [694, 34, 34]      # 顶行统一 本段=累计
+    assert got["top_seg_printed"] == 3           # 源表印的值留痕
+    assert got["top_note"] == "694↑"
+    assert got["rows"][1] == [693, 5, 39]
+
+
+def test_heilongjiang_below_marker_and_zero_count_gaps():
+    """表尾 `129及以下 | 略 | (空)` 不是分数行；0 人的分段不印，缺口要留痕。"""
+    from rank_sync.provinces import heilongjiang as HL
+
+    table = [
+        ["黑龙江省2025年普通高考物理类文化课一分段统计表", "", ""],
+        ["分段", "分段人数", "累计人数"],
+        ["694及以上", 3, 34],
+        [693, 5, 39],
+        [691, 15, 54],           # 692 无人（不印），691 的本段仍与累计自洽
+        [130, 1, 55],
+        ["129及以下", "略", ""],
+    ]
+    got = HL.parse_table(table)
+    assert [r[0] for r in got["rows"]] == [694, 693, 691, 130]
+    assert 692 in got["omitted_scores"]          # 0 人不印，但要留痕
+    assert 693 not in got["omitted_scores"]
+    assert got["omitted_below"] == {"score_below": 129, "note": "略"}
+
+
+def test_heilongjiang_title_guard_and_subject_mapping():
+    """只认「文化课」普通类；艺术类那份名字里也带「文化课」，靠 艺术/体育 挡。"""
+    from rank_sync.provinces import heilongjiang as HL
+
+    for title, year, subj in (
+        ("黑龙江省2022年普通高考文化课成绩理科一分段统计表", 2022, "物理类"),
+        ("101黑龙江省2023年普通高考文化课成绩理科一分段统计表", 2023, "物理类"),
+        ("201黑龙江省2023年普通高考文化课成绩文科一分段统计表", 2023, "历史类"),
+        ("2.黑龙江省2024年普通高考物理类文化课一分段统计表", 2024, "物理类"),
+        ("1.黑龙江省2025年普通高考历史类文化课一分段统计表", 2025, "历史类"),
+    ):
+        assert HL.title_ok(title, year), title
+        assert HL._subject_of_title(title) == subj, title
+    for bad, year in (
+        ("黑龙江省2023年普通高考理科艺术文化课成绩一分段表", 2023),
+        ("黑龙江省2024年普通高考美术与设计类综合分一分段统计表", 2024),
+        ("黑龙江省2023年普通高考理科体育平行志愿综合分一分段统计表", 2023),
+        ("黑龙江省2024年普通高考物理类文化课一分段统计表", 2025),   # 年份不符
+    ):
+        assert not HL.title_ok(bad, year), bad
+
+
+def test_heilongjiang_pick_files_skips_art_and_sport():
+    """一篇挂 22–24 个附件，只有两份文化课是普通类。"""
+    from rank_sync.provinces import heilongjiang as HL
+
+    pairs = [
+        ("/a.xls", "黑龙江省2022年普通高考文化课成绩理科一分段统计表"),
+        ("/b.xls", "黑龙江省2022年普通高考理科艺术文化课成绩一分段表"),
+        ("/c.xls", "黑龙江省2022年普通高考理科艺术美术类平行志愿综合分一分段统计表"),
+        ("/d.xls", "黑龙江省2022年普通高考理科体育平行志愿综合分一分段统计表"),
+        ("/e.xls", "黑龙江省2022年普通高考文化课成绩文科一分段统计表"),
+    ]
+    assert HL.pick_files(pairs, 2022) == {
+        "物理类": "https://www.lzk.hl.cn/a.xls",
+        "历史类": "https://www.lzk.hl.cn/e.xls",
+    }
+    with pytest.raises(ValueError, match="缺附件"):
+        HL.pick_files(pairs[:1], 2022)
+
+
+def test_heilongjiang_parse_table_refuses_broken_shapes():
+    from rank_sync.provinces import heilongjiang as HL
+
+    with pytest.raises(ValueError, match="表头"):
+        HL.parse_table([["只有标题"], ["没有表头"]])
+    with pytest.raises(ValueError, match="顶部截断桶缺数字"):
+        HL.parse_table([["t"], ["分段", "段内人数", "累计人数"], ["677以上", "", ""]])
+
+
+def test_heilongjiang_landed_five_years_two_generations():
+    """2022/2023 文理分科（留痕 subject_aliases），2024 起 3+1+2；表底逐年 150/130。"""
+    import rank_sync
+    from rank_sync.provinces import heilongjiang as HL
+
+    assert set(HL.SOURCES) == {2022, 2023, 2024, 2025, 2026}
+    assert rank_sync._known_years(HL) == {2022, 2023, 2024, 2025, 2026}
+    floors = {2022: 150, 2023: 130, 2024: 130, 2025: 130, 2026: 150}
+
+    for year in (2022, 2023, 2024, 2025, 2026):
+        doc = json.loads((_BACKEND / "data" / "rank_tables" / str(year) / "黑龙江.json")
+                         .read_text(encoding="utf-8"))
+        meta = doc["meta"]
+        assert meta["data_source"] == "official"
+        assert meta["source_url"] == HL.SOURCES[year]["notice"]
+        assert meta["subject_scheme"] == ("文理分科" if year <= 2023 else "3+1+2"), year
+        if year <= 2023:
+            assert meta["subject_aliases"] == {"历史类": "文科", "物理类": "理科"}, year
+        else:
+            assert "subject_aliases" not in meta, year
+        assert set(doc["subjects"]) == {"物理类", "历史类"}
+        for subj, blk in doc["subjects"].items():
+            rows = blk["rows"]
+            validate_rows(rows)
+            assert len(rows) > 400, (year, subj)
+            assert rows[-1][0] == floors[year] == meta["score_floor"][subj], (year, subj)
+            assert blk["total"] == rows[-1][2]
+            assert blk["top_note"] == f"{rows[0][0]}↑"
+            assert rows[0][1] == rows[0][2], (year, subj)   # 顶行统一 本段=累计
+            assert meta["attachment_url_map"][subj] == HL.SOURCES[year]["files"][subj]
+            assert meta["attachment_sha256_map"][subj]
+
+
+def test_heilongjiang_landed_anchors_match_official_release():
+    """2025 物理与官方通稿逐格一致（694-750 段 34 人 / 600 分 5997 / 本科线 360 分 85313）。"""
+    def block(year, subj):
+        doc = json.loads((_BACKEND / "data" / "rank_tables" / str(year) / "黑龙江.json")
+                         .read_text(encoding="utf-8"))
+        return {r[0]: r for r in doc["subjects"][subj]["rows"]}
+
+    b25 = block(2025, "物理类")
+    assert b25[694] == [694, 34, 34]        # 官方写作「694-750 | 34 | 34」
+    assert b25[693] == [693, 5, 39]
+    assert b25[600] == [600, 154, 5997]
+    assert b25[472][2] == 41927             # 特招线
+    assert b25[360] == [360, 363, 85313]    # 本科线
+
+    assert block(2023, "物理类")[679] == [679, 33, 33]
+    assert block(2022, "物理类")[677] == [677, 17, 17]
+    assert block(2024, "物理类")[705] == [705, 45, 45]
+    assert block(2026, "物理类")[700] == [700, 17, 17]
