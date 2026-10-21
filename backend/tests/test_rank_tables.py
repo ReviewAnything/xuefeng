@@ -832,3 +832,148 @@ def test_chongqing_landed_anchors_match_official_release():
     assert phys26[680][2] == 228 and phys26[600][2] == 12895
     assert phys26[406][2] == 107000 and phys26[496][1] == 523
     assert d26["物理类"]["omitted_scores"] == [188]
+
+
+# ---------------------------------------------------------------------------
+# 12. 北京：3+3 单表 / 逐分+10 分档两段 / HTML 与 PDF 两代形态
+# ---------------------------------------------------------------------------
+def _bj_table(*rows: str) -> str:
+    body = "".join(f"<tr>{r}</tr>" for r in rows)
+    return f"<html><body><table>{body}</table></body></html>"
+
+
+def test_beijing_parse_html_unescapes_arrow_and_tolerates_dirty_dash():
+    """区间单元格是 ``120&rarr;129``；2026 源 PDF 里还出现 ``160-→169`` 这种脏字符。"""
+    from rank_sync.provinces import beijing as BJ
+
+    page = _bj_table(
+        "<td>分数</td><td>本段人数</td><td>累计人数</td>",
+        "<td>700以上</td><td>5</td><td>5</td>",
+        "<td>699</td><td>3</td><td>8</td>",
+        "<td>120&rarr;129</td><td>10</td><td>18</td>",
+        "<td>110-→119</td><td>4</td><td>22</td>",
+    )
+    rows, buckets, top_note, dropped = BJ.parse_html(page)
+    assert dropped == []
+    assert rows == [[700, 5, 5], [699, 3, 8]]
+    assert top_note == "700↑"                 # 截断桶：累计 == 本段
+    assert buckets == [[120, 129, 10, 18], [110, 119, 4, 22]]
+    BJ._check_buckets(rows, buckets)          # 首档接在逐分表末尾，链自洽
+
+
+def test_beijing_parse_html_skips_title_header_and_footnote_only():
+    """标题行 / 表头 / 表尾注是版式噪声不算丢行；真解析不了的文本必须进 dropped。"""
+    from rank_sync.provinces import beijing as BJ
+
+    page = _bj_table(
+        "<td>北京市2026年高考考生分数分布</td>",
+        "<td>分数</td><td>本段人数</td><td>累计人数</td>",
+        "<td>700以上</td><td>2</td><td>2</td>",
+        "<td>699</td><td>1</td><td>3</td>",
+        "<td>注：统计中的分数含全国性（照顾）加分</td>",
+    )
+    rows, _buckets, top_note, dropped = BJ.parse_html(page)
+    assert dropped == [] and rows == [[700, 2, 2], [699, 1, 3]]
+    assert top_note == "700↑"
+
+    bad = _bj_table("<td>700以上</td><td>2</td><td>2</td>",
+                    "<td>缺考</td><td>3</td><td>9</td>")
+    _rows, _b, _t, dropped = BJ.parse_html(bad)
+    assert dropped == ["缺考 | 3 | 9"]
+
+
+def test_beijing_bucket_chain_refuses_broken_cumulative():
+    """10 分档累计链断一格就整份拒收——宁可不出数，不出错数。"""
+    from rank_sync.provinces import beijing as BJ
+
+    rows = [[700, 2, 2], [699, 1, 3]]
+    with pytest.raises(ValueError):
+        BJ._check_buckets(rows, [[690, 698, 5, 9]])      # 3+5 != 9
+    BJ._check_buckets(rows, [[690, 698, 5, 8]])          # 3+5 == 8 才放行
+
+
+def test_beijing_parse_falls_back_to_next_candidate(monkeypatch):
+    """正文页同时挂「高考」与「单考」两个 PDF，标题不符的要跳过、换下一个候选。"""
+    from rank_sync.provinces import beijing as BJ
+
+    seen: list[str] = []
+
+    def fake_parse_one(year, src, url):
+        seen.append(url)
+        if url.endswith("single.pdf"):
+            raise ValueError("不是「高考考生分数分布」表")
+        return {"meta": {"year": year}, "subjects": {}}
+
+    monkeypatch.setattr(BJ, "_parse_one", fake_parse_one)
+    monkeypatch.setattr(BJ, "source", lambda y: {"notice": "n", "data": ""})
+    monkeypatch.setattr(BJ, "candidates", lambda src: ["a/single.pdf", "b/gk.pdf"])
+    doc = BJ.parse(2026)
+    assert seen == ["a/single.pdf", "b/gk.pdf"]
+    assert doc["meta"]["year"] == 2026
+
+
+def test_beijing_known_years_come_from_sources():
+    """北京只在 ``SOURCES`` 登记年份（无 NOTICES/PDFS/PAGES），编排层必须认它。"""
+    import rank_sync
+    from rank_sync.provinces import beijing as BJ
+
+    assert set(BJ.SOURCES) == {2022, 2023, 2024, 2025, 2026}
+    assert rank_sync._known_years(BJ) == {2022, 2023, 2024, 2025, 2026}
+    for src in BJ.SOURCES.values():
+        assert set(src) == {"notice", "data"}
+        assert src["notice"].startswith("https://www.bjeea.cn/")
+
+
+def test_beijing_landed_five_years_html_then_pdf():
+    """2022–2024 是 HTML 表，2025 起换 PDF；两代形态溯源字段不同、口径一致。"""
+    from rank_sync.provinces import beijing as BJ
+
+    floors = {2022: 390, 2023: 400, 2024: 400, 2025: 380, 2026: 380}
+    for year in (2022, 2023, 2024, 2025, 2026):
+        doc = json.loads((_BACKEND / "data" / "rank_tables" / str(year) / "北京.json")
+                         .read_text(encoding="utf-8"))
+        meta = doc["meta"]
+        assert meta["year"] == year
+        assert meta["subject_scheme"] == "3+3"
+        assert meta["data_source"] == "official"
+        assert meta["source_url"] == BJ.SOURCES[year]["notice"]
+        assert list(doc["subjects"]) == ["综合"], year
+        blk = doc["subjects"]["综合"]
+        rows = blk["rows"]
+        validate_rows(rows)
+        assert len(rows) > 250, year
+        assert meta["score_floor"] == rows[-1][0] == floors[year]
+        # 10 分档紧接逐分表末尾，且每档宽度恰好 9 分
+        buckets = blk["buckets"]
+        assert len(buckets) >= 28, year
+        assert all(b["range"][1] - b["range"][0] == 9 for b in buckets), year
+        BJ._check_buckets(rows, [[b["range"][0], b["range"][1], b["seg"], b["cum"]]
+                                 for b in buckets])
+        assert meta["total"] == buckets[-1]["cum"]
+        assert buckets[-1]["range"] == [100, 109], year
+        if year <= 2024:
+            assert meta["data_url"].endswith(".html")
+            assert "source_sha256" in meta and "attachment_sha256" not in meta
+        else:
+            assert meta["data_url"].endswith(".pdf")
+            assert "attachment_sha256" in meta and "source_sha256" not in meta
+
+
+def test_beijing_landed_anchors_match_official_release():
+    """五年公开锚点（通稿逐项）对齐：顶部截断桶、600 分累计、本科线累计。"""
+    def block(year):
+        doc = json.loads((_BACKEND / "data" / "rank_tables" / str(year) / "北京.json")
+                         .read_text(encoding="utf-8"))
+        return {r[0]: r for r in doc["subjects"]["综合"]["rows"]}
+
+    b22 = block(2022)
+    assert b22[700][2] == 106 and b22[600][2] == 8671 and b22[425][2] == 37319
+    b23 = block(2023)
+    assert b23[696][2] == 104 and b23[600][2] == 10348 and b23[448][2] == 42347
+    b24 = block(2024)
+    assert b24[700][2] == 117 and b24[600][2] == 10787 and b24[434][2] == 44923
+    b25 = block(2025)
+    assert b25[698][2] == 113 and b25[600][2] == 11883 and b25[430][2] == 53994
+    b26 = block(2026)
+    assert b26[692][2] == 111 and b26[600][2] == 12682
+    assert b26[429][2] == 59457 and b26[521][2] == 35691

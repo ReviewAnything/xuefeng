@@ -72,11 +72,12 @@ def _covered(province: str) -> dict[int, dict]:
 
 
 def _known_years(mod) -> set[int]:
-    """适配器声明了哪些年份。三处登记位随省份形态不同：
-    ``NOTICES``（公告页）、``PDFS``（原表文件）、``PAGES``（索引页）。
+    """适配器声明了哪些年份。登记位随省份形态不同：
+    ``NOTICES``（公告页）、``PDFS``（原表文件）、``PAGES``（索引页）、
+    ``SOURCES``（{年份: {notice, data}}）。取并集，新形态不必再改编排层。
     """
     out: set[int] = set()
-    for attr in ("NOTICES", "PDFS", "PAGES"):
+    for attr in ("NOTICES", "PDFS", "PAGES", "SOURCES"):
         out |= set(getattr(mod, attr, {}) or {})
     return out
 
