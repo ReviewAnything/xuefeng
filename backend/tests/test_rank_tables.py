@@ -386,7 +386,8 @@ def test_parse_html_table_splits_below_bucket():
     assert rows == [[101, 2, 10], [100, 4, 14]]
     assert below == {"score_below": 100, "seg": 1369, "cum": 1383}
     validate_rows(rows)
-    assert note == ""  # 首行 累计 != 本段 时不给顶部备注
+    # 首行 累计(10) > 本段(2) -> 顶部有截断桶（101 之上还有 8 人），必须标注
+    assert note == "101↑"
 
 
 def test_block_header_pattern_covers_zhejiang_and_hubei_layouts():
@@ -437,3 +438,128 @@ def test_admin_rank_sync_blocked_province_is_400():
     r = client.post("/api/admin/rank-tables/sync", headers=headers,
                     json={"province": "四川", "dry_run": True, "write_db": False})
     assert r.status_code == 400, r.text
+
+
+# ---------------------------------------------------------------------------
+# 9. 双轨表（湖南 2022–2024）：主轨取含全国性加分，地方性加分单列
+# ---------------------------------------------------------------------------
+def test_parse_html_table_dual_track_keeps_both_tracks():
+    from rank_sync import common as RSC
+
+    html = """<table>
+      <tr><td>档分</td><td>本段人数</td><td>累计人数</td><td>本段人数</td><td>累计人数</td></tr>
+      <tr><td>(含全国性加分)</td><td></td><td></td><td>(含全国性和地方性加分)</td><td></td></tr>
+      <tr><td>692</td><td>8</td><td>57</td><td>8</td><td>59</td></tr>
+      <tr><td>691</td><td>13</td><td>70</td><td>11</td><td>70</td></tr>
+      <tr><td>690</td><td>4</td><td>74</td><td>4</td><td>74</td></tr>
+      <tr><td>100以下</td><td>1226</td><td>1300</td><td>1226</td><td>1302</td></tr>
+    </table>"""
+    rows, note, below, alt = RSC.parse_html_table(html, tracks=True)
+    # 主轨 = 含全国性加分（投档位次口径），不是地方性加分轨
+    assert rows == [[692, 8, 57], [691, 13, 70], [690, 4, 74]]
+    assert alt == {"label": "含全国性和地方性加分",
+                   "rows": [[692, 8, 59], [691, 11, 70], [690, 4, 74]]}
+    assert below == {"score_below": 100, "seg": 1226, "cum": 1300}
+    validate_rows(rows)
+    validate_rows(alt["rows"])  # 副轨也必须自洽，否则整份都不可信
+    # 主轨顶部截断桶（57 > 8）要给出备注，副轨不覆盖
+    assert note == "692↑"
+
+
+def test_parse_html_table_single_track_has_no_alt():
+    from rank_sync import common as RSC
+
+    html = ("<table><tr><td>档分</td><td>本段人数</td><td>累计人数</td></tr>"
+            "<tr><td>690</td><td>3</td><td>3</td></tr>"
+            "<tr><td>689</td><td>5</td><td>8</td></tr></table>")
+    rows, note, below, alt = RSC.parse_html_table(html, tracks=True)
+    assert alt is None and below is None
+    assert note == ""  # 首行 累计==本段（顶分单独一行）时不给顶部备注
+    assert rows == [[690, 3, 3], [689, 5, 8]]
+
+
+def test_fetch_retries_through_error_page(monkeypatch):
+    """省站限流时会回「HTTP 200 + 555 字节 404 页」，不能当正文。"""
+    from rank_sync import common as RSC
+
+    class _Resp:
+        def __init__(self, body, code=200):
+            self.content = body
+            self.status_code = code
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                import requests
+                raise requests.exceptions.HTTPError("boom")
+
+    bad = b"<html><head><title>404 Not Found</title></head><body>nginx/1.18.0</body></html>"
+    good = b"<html><body>" + b"x" * 5000 + b"</body></html>"
+    seq = [_Resp(bad), _Resp(bad), _Resp(good)]
+
+    def fake_get(url, headers=None, timeout=None):
+        return seq.pop(0)
+
+    monkeypatch.setattr(RSC.requests, "get", fake_get)
+    monkeypatch.setattr(RSC.time, "sleep", lambda *_: None)
+    assert RSC.http_get("https://example.edu.cn/x", retries=4) == good
+
+
+# ---------------------------------------------------------------------------
+# 10. 陕西三列表：截断桶人数留空 / 分数不连续 / 两位数低分 / 丢行必须报错
+# ---------------------------------------------------------------------------
+def _sx_parse(html):
+    from rank_sync.provinces import shaanxi as SX
+    return SX.parse_table(html)
+
+
+def test_shaanxi_table_handles_truncated_top_and_below_bucket():
+    # 2023 式：顶部「710分以上」人数留空；表尾「101分以下及缺考」
+    html = """<table>
+      <tr><td>分数</td><td>人数</td><td>总人数</td></tr>
+      <tr><td>710分以上</td><td></td><td>12</td></tr>
+      <tr><td>709</td><td>1</td><td>13</td></tr>
+      <tr><td>707</td><td>2</td><td>15</td></tr>
+      <tr><td>101分以下及缺考</td><td>50</td><td>65</td></tr>
+    </table>"""
+    rows, note, below = _sx_parse(html)
+    # 709 与 707 之间缺 708（0 人的分整行不印），不能因此报错
+    assert rows == [[710, 12, 12], [709, 1, 13], [707, 2, 15]]
+    assert note == "710↑"
+    assert below == {"score_below": 101, "seg": 50, "cum": 65}
+    validate_rows(rows)
+
+
+def test_shaanxi_table_keeps_two_digit_low_scores():
+    # 2022 式：低分段是两位数，且表尾是「50分以下或缺考」
+    html = """<table>
+      <tr><td>699分以上</td><td></td><td>9</td></tr>
+      <tr><td>698</td><td>6</td><td>15</td></tr>
+      <tr><td>52</td><td>1</td><td>164940</td></tr>
+      <tr><td>50分以下或缺考</td><td>1516</td><td>166456</td></tr>
+    </table>"""
+    rows, note, below = _sx_parse(html)
+    assert rows[0] == [699, 9, 9] and note == "699↑"
+    assert rows[-1] == [52, 1, 164940], "两位数的低分档不能被丢掉"
+    assert below["score_below"] == 50 and below["cum"] == 166456
+
+
+def test_shaanxi_table_refuses_to_drop_unparsed_rows():
+    """看起来像数据却解析不了 -> 整份拒收（曾静默丢掉 50–99 分整段）。"""
+    html = """<table>
+      <tr><td>709及以上</td><td>13</td><td>13</td></tr>
+      <tr><td>708</td><td>3</td><td>16</td></tr>
+      <tr><td>708(补)</td><td>3</td><td>19</td></tr>
+    </table>"""
+    with pytest.raises(ValueError, match="疑似数据未解析"):
+        _sx_parse(html)
+
+
+def test_shaanxi_subject_aliases_map_wenli_to_physics_history():
+    """2022–2024 是文理分科：理工->物理类、文史->历史类，且原始表头必须留痕。"""
+    from rank_sync.provinces import shaanxi as SX
+
+    assert SX.LABELS[2024] == {"物理类": "理工", "历史类": "文史"}
+    assert SX.LABELS[2025] == {"物理类": "物理", "历史类": "历史"}
+    assert set(SX.NOTICES) == {2022, 2023, 2024, 2025, 2026}
+    for year, pages in SX.NOTICES.items():
+        assert set(pages) == {"物理类", "历史类"}, year

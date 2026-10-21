@@ -32,6 +32,14 @@ NOTICES = {
     2025: "https://jyt.hubei.gov.cn/bmdt/ztzl/gxzs/zszy/zsfw/",
 }
 
+# 缺口的实证原因（不 OCR、不臆造；下一批拿到机读原表再补）
+KNOWN_GAPS = {
+    2022: "省教育厅「招生资料」栏目（15 页全扫）未见 2022 一分一段通知；市级考试院有 PDF 转载，启用须标 reprint",
+    2023: "同上，未找到省级机读原表",
+    2024: "通知页正文是 10 张 JPG（W0202406..._ORIGIN.jpg），无表格/附件——不 OCR",
+    2026: "省教育考试院通知页同为图片（11 张），无文本层——不 OCR",
+}
+
 
 def parse(year: int) -> dict:
     files = ATTACHMENTS[year]

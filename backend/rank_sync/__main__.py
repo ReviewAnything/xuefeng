@@ -19,11 +19,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.provinces:
         ov = overview()
-        print(f"{'省份':<6}{'状态':<9}{'已落盘':<22}{'适配器年份'}")
+        print(f"{'省份':<6}{'状态':<9}{'已落盘':<26}{'适配器年份'}")
         for r in ov["provinces"]:
             cov = ",".join(str(y) for y in r["covered_years"]) or "-"
             yrs = ",".join(str(y) for y in r["years"]) or "-"
-            print(f"{r['province']:<6}{r['status']:<9}{cov:<22}{yrs}")
+            # 列宽要容得下「5 个年份 + 逗号」= 23 字符，否则两列会黏在一起
+            print(f"{r['province']:<6}{r['status']:<9}{cov:<26}{yrs}")
         print("\n统计:", ov["counts"], "已覆盖省·年:", ov["covered_province_years"])
         return 0
 

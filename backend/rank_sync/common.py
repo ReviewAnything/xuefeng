@@ -16,6 +16,7 @@ import json
 import re
 import subprocess
 import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -64,34 +65,74 @@ def _curl_get(url: str, timeout: int = 60) -> bytes:
     return out.stdout
 
 
-def http_get(url: str, timeout: int = 60) -> bytes:
-    try:
-        r = requests.get(url, headers={"User-Agent": UA}, timeout=timeout)
-        r.raise_for_status()
-        return r.content
-    except (requests.exceptions.SSLError,
-            requests.exceptions.ConnectionError) as exc:
-        # 证书链不兼容 / 连接被重置（TLS 指纹差异）都走 curl 兜底
+_BAD_BODY_PAT = re.compile(rb"<title>\s*404 Not Found|nginx/\d|Access Denied|Bad Gateway", re.I)
+
+
+def _is_error_page(blob: bytes) -> bool:
+    """识别「HTTP 200 但内容其实是错误页」——省站限流时就这么回。
+
+    实测 hneeb.cn 在连续抓取时会回一个 555 字节的 nginx 404 页面，
+    ``requests`` 看到的是 200 + 正常 content，静默当成正文会解析出 0 行。
+    """
+    return len(blob) < 2048 and bool(_BAD_BODY_PAT.search(blob))
+
+
+def http_get(url: str, timeout: int = 60, retries: int = 4) -> bytes:
+    """抓取（带重试 + 退避 + curl 兜底）。
+
+    省站普遍有两类抖动，都必须重试而不是把错误页当正文：
+    1. 偶发 555 字节 404 页（限流，HTTP 200 但内容不是正文）；
+    2. TLS 握手失败 / 连接重置（证书链与 requests 不兼容，curl 可以）。
+    """
+    last: Exception | None = None
+    for attempt in range(retries):
         try:
-            return _curl_get(url, timeout)
-        except Exception:
-            raise exc
+            r = requests.get(url, headers={"User-Agent": UA}, timeout=timeout)
+            r.raise_for_status()
+            if not _is_error_page(r.content):
+                return r.content
+            last = RuntimeError(f"站点返回错误页（{len(r.content)} 字节）: {url}")
+        except (requests.exceptions.SSLError,
+                requests.exceptions.ConnectionError) as exc:
+            # 证书链不兼容 / 连接被重置（TLS 指纹差异）都走 curl 兜底
+            try:
+                blob = _curl_get(url, timeout)
+                if not _is_error_page(blob):
+                    return blob
+                last = RuntimeError(f"站点返回错误页（curl, {len(blob)} 字节）: {url}")
+            except Exception:
+                last = exc
+        except requests.exceptions.HTTPError as exc:
+            last = exc
+        if attempt < retries - 1:
+            time.sleep(0.8 * (attempt + 1))  # 线性退避，别把限流打成封禁
+    raise last if last else RuntimeError(f"抓取失败: {url}")
+
+
+_CHARSET_PAT = re.compile(rb'charset\s*=\s*["\']?([\w-]+)', re.I)
+# 声明名 -> 实际解码器（gb2312/gbk 是 gb18030 子集，统一用超集最稳）
+_ENC_ALIAS = {"gb2312": "gb18030", "gbk": "gb18030", "gb18030": "gb18030",
+              "utf8": "utf-8", "utf-8": "utf-8", "big5": "big5"}
 
 
 def decode_html(blob: bytes) -> str:
-    """省站编码混乱（UTF-8 / GBK 都有），按替换字符数量择优。"""
-    best, best_bad = "", 10 ** 9
-    for enc in ("utf-8", "gbk", "gb18030"):
+    """省站编码混乱（UTF-8 / GBK 都有），按「严格解码」择优。
+
+    不能靠替换字符计数：``gbk`` 解 UTF-8 字节、``utf-8`` 解 GBK 字节都可能
+    "成功"产出无 U+FFFD 的乱码（尤其 errors="ignore" 会静默丢字节，
+    让 ``累计`` 变成 ``ۼ``）。所以只认严格解码成功的结果，且优先信
+    ``<meta charset>`` 的声明（湖南站是 GBK）。
+    """
+    m = _CHARSET_PAT.search(blob[:4096])
+    declared = _ENC_ALIAS.get(m.group(1).decode("ascii", "ignore").lower()) if m else None
+    order = ([declared] if declared else []) + ["utf-8", "gb18030"]
+    for enc in dict.fromkeys(order):
         try:
-            t = blob.decode(enc)
-        except UnicodeDecodeError:
-            t = blob.decode(enc, "ignore")
-        bad = t.count("\ufffd")
-        if bad < best_bad:
-            best, best_bad = t, bad
-        if bad == 0:
-            break
-    return best
+            return blob.decode(enc)
+        except (UnicodeDecodeError, LookupError):
+            continue
+    # 全部严格失败才退化（保留替换字符，便于上层发现异常）
+    return blob.decode(declared or "gb18030", "replace")
 
 
 def http_get_html(url: str, timeout: int = 60) -> str:
@@ -310,39 +351,67 @@ def parse_blocked_pdf(pdf_bytes: bytes) -> tuple[list[list[int]], str]:
 # ---------------------------------------------------------------------------
 # 版式 C：HTML 表格（湖南式，服务端直出 <tr><td>）
 # ---------------------------------------------------------------------------
-def parse_html_table(html: str) -> tuple[list[list[int]], str, dict | None]:
+def parse_html_table(html: str, tracks: bool = False):
     """从 HTML 表格取 [score, seg, cum]。表尾「N 分以下」桶不计入 rows，
     作为 below_bucket 返回（它不是某个具体分数，混进 rows 会让位次失真）。
+
+    两种列宽都要支持（湖南自身就跨年变了口径）：
+    - 3 列 ``档分|本段|累计``（2025/2026，表头写「含优惠加分」）；
+    - 5 列 ``档分|本段|累计|本段|累计``（2022–2024，双轨：含全国性加分 /
+      含全国性和地方性加分）。双轨的**主轨取含全国性加分**（投档位次口径），
+      地方性加分那一轨另存，不混进主轨——它只对省属高校生效，混用会低估位次。
+
+    ``tracks=True`` 时返回 4 元组，第 4 项为 ``{"label", "rows"}`` 或 None。
 
     坑：湖南 2025 的源表把「100 以下」这一行的首格也印成 ``100``（与上一行同分），
     只靠文本分不出来。判据是结构性的——**末行与上一行同分，且 累计=前项+本段**，
     那它就是「N 分以下」合计桶（真实分数不会出现两行同分）。
     """
-    rows: list[list[int]] = []
+    singles: list[list[int]] = []
+    duals: list[list[int]] = []
     below: dict | None = None
     for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", html, re.S | re.I):
         cells = [
             re.sub(r"\s+", "", re.sub(r"<[^>]+>", "", c))
             for c in re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", tr, re.S | re.I)
         ]
-        if len(cells) != 3:
-            continue
-        m = re.fullmatch(r"(\d{3})", cells[0])
-        if m and cells[1].isdigit() and cells[2].isdigit():
-            rows.append([int(m.group(1)), int(cells[1]), int(cells[2])])
-            continue
-        mb = re.fullmatch(r"(\d{3})分?以下", cells[0])
-        if mb and cells[1].isdigit() and cells[2].isdigit():
-            below = {"score_below": int(mb.group(1)),
-                     "seg": int(cells[1]), "cum": int(cells[2])}
+        m = re.fullmatch(r"(\d{3})", cells[0]) if cells else None
+        mb = re.fullmatch(r"(\d{3})分?以下", cells[0]) if cells else None
+        if m:
+            nums = cells[1:]
+            if len(nums) == 2 and all(n.isdigit() for n in nums):
+                singles.append([int(m.group(1)), int(nums[0]), int(nums[1])])
+                continue
+            if len(nums) == 4 and all(n.isdigit() for n in nums):
+                duals.append([int(m.group(1))] + [int(n) for n in nums])
+                continue
+        if mb:
+            nums = cells[1:]
+            if len(nums) in (2, 4) and all(n.isdigit() for n in nums):
+                below = {"score_below": int(mb.group(1)),
+                         "seg": int(nums[0]), "cum": int(nums[1])}
+    # 双轨优先：同一页不会两种列宽并存（除非源站改版留下脏行）
+    if duals and len(duals) >= len(singles):
+        primary = [[r[0], r[1], r[2]] for r in duals]
+        alt = {"label": "含全国性和地方性加分",
+               "rows": [[r[0], r[3], r[4]] for r in duals]}
+        rows = primary
+    else:
+        rows, alt = singles, None
     if not rows:
         raise ValueError("HTML 表格未解析出任何数据行")
     # 末行与上一行同分且累计能接上 -> 「N 分以下」合计桶
     if (len(rows) >= 2 and rows[-1][0] == rows[-2][0]
             and rows[-1][2] == rows[-2][2] + rows[-1][1]):
         last = rows.pop()
+        if alt:
+            alt["rows"].pop()
         below = below or {"score_below": last[0], "seg": last[1], "cum": last[2]}
-    top_note = f"{rows[0][0]}↑" if rows[0][1] == rows[0][2] else ""
+    # 顶部截断桶：首行 累计 > 本段 说明该分之上还有被合并统计的考生
+    # （官方常印成「X 分及以上共 N 人」）。相等则是顶分单独一行，不需要备注。
+    top_note = f"{rows[0][0]}↑" if rows[0][2] > rows[0][1] else ""
+    if tracks:
+        return rows, top_note, below, alt
     return rows, top_note, below
 
 
