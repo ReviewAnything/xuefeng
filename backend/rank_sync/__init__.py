@@ -71,13 +71,23 @@ def _covered(province: str) -> dict[int, dict]:
     return out
 
 
+def _known_years(mod) -> set[int]:
+    """适配器声明了哪些年份。三处登记位随省份形态不同：
+    ``NOTICES``（公告页）、``PDFS``（原表文件）、``PAGES``（索引页）。
+    """
+    out: set[int] = set()
+    for attr in ("NOTICES", "PDFS", "PAGES"):
+        out |= set(getattr(mod, attr, {}) or {})
+    return out
+
+
 def entry(province: str) -> dict:
     """单省看板条目（注册表事实 + 磁盘事实 + 上次同步结果）。"""
     mod = REGISTRY.get(province)
     covered = _covered(province)
     last = (status().get("provinces") or {}).get(province)
     if mod is not None:
-        years = sorted(set(getattr(mod, "NOTICES", {})) | set(getattr(mod, "PDFS", {})))
+        years = sorted(_known_years(mod))
         return {
             "province": province,
             "status": "ready",
@@ -165,9 +175,7 @@ def sync(province: str, years: list[int] | None = None, dry_run: bool = False,
         return {"ok": False, "province": province, "error": hint,
                 "years": [], "saved": 0, "failed": 0, "elapsed_ms": 0}
     mod = REGISTRY[province]
-    notices: dict = getattr(mod, "NOTICES", {})
-    pdfs: dict = getattr(mod, "PDFS", {})
-    known = set(notices) | set(pdfs)
+    known = _known_years(mod)
     wanted = sorted(years or known, reverse=True)
     results = []
     saved = failed = 0

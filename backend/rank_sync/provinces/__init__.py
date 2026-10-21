@@ -11,9 +11,9 @@
 """
 from __future__ import annotations
 
-from . import anhui, guangdong, hubei, hunan, shaanxi, shandong, zhejiang
+from . import anhui, chongqing, guangdong, hubei, hunan, shaanxi, shandong, zhejiang
 
-_MODULES = (guangdong, shandong, zhejiang, hubei, hunan, shaanxi, anhui)
+_MODULES = (guangdong, shandong, zhejiang, hubei, hunan, shaanxi, anhui, chongqing)
 
 REGISTRY: dict[str, object] = {m.PROVINCE: m for m in _MODULES}
 

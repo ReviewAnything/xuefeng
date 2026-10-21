@@ -712,3 +712,123 @@ def test_anhui_subject_aliases_map_wenli_years():
                      .read_text(encoding="utf-8"))
     assert doc["meta"]["subject_scheme"] == "3+1+2"
     assert "subject_aliases" not in doc["meta"]
+
+
+# ---------------------------------------------------------------------------
+# 11. 重庆：顶部只印人数的截断桶 / 零人数分数段缺口 / 三年三种索引目录
+# ---------------------------------------------------------------------------
+def _cq_table(body: str) -> str:
+    return ("<html><body><table>"
+            "<tr><td>分数段</td><td>人数</td><td>累计人数</td></tr>"
+            + body + "</table></body></html>")
+
+
+def test_chongqing_top_bucket_prints_only_headcount():
+    """顶部「663及以上」只印人数：该桶人数即累计，且要打 top_note。"""
+    from rank_sync.provinces import chongqing as CQ
+
+    html = _cq_table(
+        "<tr><td>663及以上</td><td>60</td></tr>"
+        "<tr><td>662</td><td>8</td><td>68</td></tr>"
+        "<tr><td>661</td><td>10</td><td>78</td></tr>")
+    rows, top_note, below, dropped = CQ.parse_table(html)
+    assert rows == [[663, 60, 60], [662, 8, 68], [661, 10, 78]]
+    assert top_note == "663↑"
+    assert below is None and dropped == []
+    validate_rows(rows)
+
+
+def test_chongqing_zero_count_gaps_are_recorded_not_dropped():
+    """官方不印「本段人数 0」的分数段（2026 物理缺 188），累计链仍自洽。
+
+    这类缺口必须显式记录：按「逐分连续」校验会把官方口径判成漏行。
+    """
+    from rank_sync.provinces import chongqing as CQ
+
+    html = _cq_table(
+        "<tr><td>190</td><td>7</td><td>135591</td></tr>"
+        "<tr><td>189</td><td>1</td><td>135592</td></tr>"
+        "<tr><td>187</td><td>2</td><td>135594</td></tr>")
+    rows, _note, _below, _dropped = CQ.parse_table(html)
+    validate_rows(rows)
+    assert CQ._gaps(rows) == [188]
+
+
+def test_chongqing_below_bucket_and_title_rows():
+    """「N 分以下」桶单列返回；WPS 导出页的标题行与空行不算未解析。"""
+    from rank_sync.provinces import chongqing as CQ
+
+    html = (_cq_table(
+        "<tr><td>182</td><td>3</td><td>132322</td></tr>"
+        "<tr><td>180</td><td>3</td><td>132325</td></tr>"
+        "<tr><td>180分以下</td><td>9</td><td>132334</td></tr>")
+        .replace("<tr><td>分数段</td><td>人数</td><td>累计人数</td></tr>",
+                 "<tr><td>2022年物理类含加分一分段表[志愿填报]</td></tr>"
+                 "<tr><td>分数段</td><td>人数</td><td>累计人数</td></tr>"
+                 "<tr><td></td></tr>"))
+    rows, _note, below, dropped = CQ.parse_table(html)
+    assert rows == [[182, 3, 132322], [180, 3, 132325]]
+    assert below == {"score_below": 180, "seg": 9, "cum": 132334}
+    assert dropped == []
+
+
+def test_chongqing_refuses_unparsable_row():
+    """落不进任何一种行型的文本 -> 交给调用方整份拒收。"""
+    from rank_sync.provinces import chongqing as CQ
+
+    html = _cq_table("<tr><td>缺考</td><td>3</td><td>9</td></tr>")
+    rows, _note, _below, dropped = CQ.parse_table(html)
+    assert rows == [] and dropped
+
+
+def test_chongqing_landed_five_years_with_year_specific_dirs():
+    """2022–2024 在官方「往年」归档页，2025 在 pg 目录，2026 起在 ptgk 目录。"""
+    from rank_sync.provinces import chongqing as CQ
+
+    assert set(CQ.PAGES) == {2022, 2023, 2024, 2025, 2026}
+    assert "/hist/www2022/" in CQ.PAGES[2022]
+    assert "/2025/pg/yfd/fdb.htm" in CQ.PAGES[2025]
+    assert "/2026/ptgk/yfd/fdb.htm" in CQ.PAGES[2026]
+    for year in (2022, 2023, 2024, 2025, 2026):
+        doc = json.loads((_BACKEND / "data" / "rank_tables" / str(year) / "重庆.json")
+                         .read_text(encoding="utf-8"))
+        meta = doc["meta"]
+        assert meta["subject_scheme"] == "3+1+2", year
+        assert meta["data_source"] == "official"
+        assert meta["source_url"] == CQ.PAGES[year]
+        assert set(doc["subjects"]) == {"物理类", "历史类"}
+        for subj, blk in doc["subjects"].items():
+            rows = blk["rows"]
+            validate_rows(rows)
+            assert len(rows) > 400, (year, subj)
+            # 官方表底：常规止于 180；2023 物理当年只印到 182
+            expect_floor = 182 if (year, subj) == (2023, "物理类") else 180
+            assert rows[-1][0] == expect_floor, (year, subj, rows[-1][0])
+            assert meta["score_floor"][subj] == expect_floor
+            # 缺口 = 官方未印的分数段，必须是「累计链仍自洽」的真缺口
+            gaps = blk.get("omitted_scores") or []
+            assert all(rows[0][0] >= g > rows[-1][0] for g in gaps), (year, subj, gaps)
+
+
+def test_chongqing_landed_anchors_match_official_release():
+    """2025/2026 与官方通稿逐项对齐（含加分口径、本科线处的累计人数）。"""
+    def load(year):
+        return json.loads((_BACKEND / "data" / "rank_tables" / str(year) / "重庆.json")
+                          .read_text(encoding="utf-8"))
+
+    d25 = load(2025)["subjects"]
+    hist25 = {r[0]: r for r in d25["历史类"]["rows"]}
+    phys25 = {r[0]: r for r in d25["物理类"]["rows"]}
+    assert hist25[650][2] == 80 and hist25[600][2] == 1576
+    assert hist25[438][2] == 35253 and hist25[515][1] == 248   # 本科线 / 压线人数
+    assert phys25[680][2] == 176 and phys25[600][2] == 11716
+    assert phys25[425][2] == 103219 and phys25[498][1] == 648
+
+    d26 = load(2026)["subjects"]
+    hist26 = {r[0]: r for r in d26["历史类"]["rows"]}
+    phys26 = {r[0]: r for r in d26["物理类"]["rows"]}
+    assert hist26[660][2] == 89 and hist26[600][2] == 2120
+    assert hist26[415][2] == 38962 and hist26[500][2] == 17442
+    assert phys26[680][2] == 228 and phys26[600][2] == 12895
+    assert phys26[406][2] == 107000 and phys26[496][1] == 523
+    assert d26["物理类"]["omitted_scores"] == [188]
