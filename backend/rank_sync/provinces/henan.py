@@ -10,7 +10,7 @@
 """
 from __future__ import annotations
 
-from ..common import http_get_html, parse_html_table, validate_rows, now_iso
+from ..common import doc_from_html_pages
 
 PROVINCE = "河南"
 SITE = "https://gaokao.eol.cn"
@@ -37,31 +37,13 @@ KNOWN_GAPS = {
 }
 
 
+NOTE = ("第三方文本转录（gaokao.eol.cn）；河南官方 haeea.cn 反爬、heao.com.cn "
+        "官方 PDF 为图片型，沙箱不可取；正式填报以河南省教育考试院为准")
+
+
 def parse(year: int) -> dict:
     pages = PAGES.get(year)
     if not pages:
-        raise ValueError(KNOWN_GAPS.get(year, "该年未登记通知页"))
-    subjects: dict = {}
-    for subj, url in pages.items():
-        html = http_get_html(url, timeout=60)
-        rows, top, below = parse_html_table(html)
-        validate_rows(rows)
-        blk: dict = {"rows": rows, "source_url": url}
-        if top:
-            blk["top_note"] = top
-        if below:
-            blk["below_bucket"] = below
-        subjects[subj] = blk
-    return {
-        "meta": {
-            "year": year,
-            "province": PROVINCE,
-            "data_source": DATA_SOURCE,
-            "source_url": next(iter(pages.values())),
-            "subject_scheme": SCHEME,
-            "note": ("第三方文本转录（gaokao.eol.cn）；河南官方 haeea.cn 反爬、heao.com.cn "
-                     "官方 PDF 为图片型，沙箱不可取；正式填报以河南省教育考试院为准"),
-            "fetched_at": now_iso(),
-        },
-        "subjects": subjects,
-    }
+        raise ValueError(KNOWN_GAPS.get(year, "该年未登记文章页"))
+    return doc_from_html_pages(PROVINCE, year, pages, scheme=SCHEME,
+                               data_source=DATA_SOURCE, note=NOTE)

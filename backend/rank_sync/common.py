@@ -18,6 +18,7 @@ import subprocess
 import tempfile
 import time
 from datetime import datetime, timezone
+from html import unescape
 from pathlib import Path
 
 import requests
@@ -372,10 +373,18 @@ def parse_html_table(html: str, tracks: bool = False):
     below: dict | None = None
     for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", html, re.S | re.I):
         cells = [
-            re.sub(r"\s+", "", re.sub(r"<[^>]+>", "", c))
+            # &nbsp; 是实体不是空白字符，必须先 unescape 再压空白，
+            # 否则「657&nbsp;」既过不了 fullmatch 也过不了 isdigit（江苏 2025 历史）。
+            re.sub(r"\s+", "", unescape(re.sub(r"<[^>]+>", "", c)))
             for c in re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", tr, re.S | re.I)
         ]
         m = re.fullmatch(r"(\d{3})", cells[0]) if cells else None
+        if not m and cells:
+            # 官方常把关键批次线所在行标注成「520（特招线）」「441（本科线）」，
+            # 严格 fullmatch 会整行丢掉 -> 累计链断裂（福建 2025 就断在 520）。
+            # 取前导三位整数即可；纯区间行（如「689-750」）仍按顶部截断桶处理。
+            if not re.search(r"\d\s*[-—~－]\s*\d", cells[0]):
+                m = re.fullmatch(r"(\d{3})\D.*", cells[0])
         mb = re.fullmatch(r"(\d{3})分?以下", cells[0]) if cells else None
         if m:
             nums = cells[1:]
@@ -530,6 +539,43 @@ def validate_rows(rows: list[list[int]]) -> None:
                 raise ValueError(f"累计断裂 score={score}: {prev[i]}+{seg}!={cum}")
             prev[i] = cum
         prev_score = score
+
+
+# ---------------------------------------------------------------------------
+# 组装：第三方文本转录页 -> doc
+# ---------------------------------------------------------------------------
+def doc_from_html_pages(province: str, year: int, pages: dict[str, str], *,
+                        scheme: str, data_source: str, note: str,
+                        source_url: str | None = None) -> dict:
+    """按 ``{科类: 文章 URL}`` 逐个抓 HTML 表格，强校验通过后组装成 doc。
+
+    第三方文本转录省（如 gaokao.eol.cn）形态一致：单栏 ``<tr><td>`` 三列
+    ``分数 | 人数 | 累计人数``。纪律与官方管线完全相同——解析在内存完成，
+    任一科类校验不过就整份拒收，绝不落半份。
+    """
+    subjects: dict = {}
+    for subj, url in pages.items():
+        html_src = http_get_html(url, timeout=60)
+        rows, top, below = parse_html_table(html_src)
+        validate_rows(rows)
+        blk: dict = {"rows": rows, "source_url": url}
+        if top:
+            blk["top_note"] = top
+        if below:
+            blk["below_bucket"] = below
+        subjects[subj] = blk
+    return {
+        "meta": {
+            "year": year,
+            "province": province,
+            "data_source": data_source,
+            "source_url": source_url or next(iter(pages.values())),
+            "subject_scheme": scheme,
+            "note": note,
+            "fetched_at": now_iso(),
+        },
+        "subjects": subjects,
+    }
 
 
 # ---------------------------------------------------------------------------
