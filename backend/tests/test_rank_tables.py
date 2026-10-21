@@ -563,3 +563,152 @@ def test_shaanxi_subject_aliases_map_wenli_to_physics_history():
     assert set(SX.NOTICES) == {2022, 2023, 2024, 2025, 2026}
     for year, pages in SX.NOTICES.items():
         assert set(pages) == {"物理类", "历史类"}, year
+
+
+# ---------------------------------------------------------------------------
+# 10. 安徽：合并行拆分 / 行聚簇 / 末行桶与截断说明 / 文理分科别名
+# ---------------------------------------------------------------------------
+def test_anhui_split_pattern_takes_shortest_cumulative():
+    """2023 实测：'144375200 以下' 必须拆成 144375 + '200 以下'。
+
+    贪婪匹配会错拆成 '14437520' + '0 以下'（累计少一位、分数变成 0），
+    且累计链仍可能自洽——必须靠懒惰匹配 + 分数首位非零防住。
+    """
+    from rank_sync.provinces import anhui as AH
+
+    for text, digits, note in (
+        ("144375200 以下", "144375", "200 以下"),
+        ("292967200 以下", "292967", "200 以下"),
+        ("137403 200以下", "137403", "200以下"),
+        ("162638 200及以下", "162638", "200及以下"),
+    ):
+        m = AH.NOTE_SPLIT_PAT.match(text)
+        assert m, text
+        assert m.group(1) == digits and m.group(2) == note, text
+
+
+def test_anhui_clean_lines_splits_merged_cell_and_drops_footer():
+    """「上一组累计 + 下一组分数格」黏连行拆成两个单元格，页脚被剔除。"""
+    from rank_sync.provinces import anhui as AH
+
+    lines = [
+        (62.3, 82.3, 500.0, "分数"),                      # 表头（不参与）
+        (51.1, 96.0, 490.0, "637及以上"),
+        (136.3, 146.5, 490.0, "22"),
+        (187.0, 197.0, 490.0, "22"),
+        (166.7, 246.0, 478.0, "162638 200及以下"),        # 黏连行
+        (271.1, 296.1, 478.3, "17015"),
+        (315.7, 345.8, 478.0, "182811"),
+        (384.7, 456.2, 20.0, "第 1 页，共 6 页"),
+    ]
+    cells = AH._clean_lines(lines)
+    texts = [t for _x0, _x1, _y, t in cells]
+    assert "162638" in texts and "200及以下" in texts, texts
+    assert not any("第" in t for t in texts), texts
+    # 拆出的数字格 x1 按数字宽度重建，必须仍落在累计列（197.0）上
+    cum_cell = next(c for c in cells if c[3] == "162638")
+    assert abs(cum_cell[1] - 197.0) <= 1.0
+    # 注释格保留整行右边界（246.0，即下一组分数列），聚类只认 x1
+    note_cell = next(c for c in cells if c[3] == "200及以下")
+    assert abs(note_cell[1] - 246.0) <= 0.01
+
+
+def test_anhui_group_rows_keeps_cells_within_tolerance():
+    """同一行单元格 y 可差 0.3pt（124.4 vs 124.7），不能被 round(y/3) 劈开。"""
+    from rank_sync.provinces import anhui as AH
+
+    cells = [
+        (80.9, 95.9, 124.4, "237"),
+        (131.3, 146.4, 124.4, "108"),
+        (166.7, 196.7, 124.4, "162638"),
+        (271.1, 296.1, 124.7, "17015"),
+        (315.7, 345.8, 124.4, "182811"),
+        (80.9, 95.9, 112.0, "236"),
+    ]
+    rows = AH._group_rows(cells)
+    assert len(rows) == 2
+    assert len(rows[0]) == 5 and len(rows[1]) == 1
+
+
+def test_anhui_parse_page_below_bucket_with_numbers():
+    """2022 式末行：'200及以下' 落在分数列且带人数/累计 -> below_bucket。"""
+    from rank_sync.provinces import anhui as AH
+
+    cells = [
+        # 组0（列右边界 96/146/197）
+        (81.0, 96.0, 200.0, "300"), (131.0, 146.0, 200.0, "10"), (167.0, 197.0, 200.0, "10"),
+        (81.0, 96.0, 188.0, "299"), (131.0, 146.0, 188.0, "8"), (167.0, 197.0, 188.0, "18"),
+        (81.0, 96.0, 176.0, "298"), (131.0, 146.0, 176.0, "7"), (167.0, 197.0, 176.0, "25"),
+        # 组1（列右边界 247/297/347），末行是「200及以下」桶（接得上累计链）
+        (232.0, 247.0, 200.0, "200"), (282.0, 297.0, 200.0, "5"), (317.0, 347.0, 200.0, "30"),
+        (232.0, 247.0, 188.0, "199"), (282.0, 297.0, 188.0, "6"), (317.0, 347.0, 188.0, "36"),
+        (232.0, 247.0, 176.0, "200及以下"), (282.0, 297.0, 176.0, "9"),
+        (317.0, 347.0, 176.0, "45"),
+    ]
+    rows, omits, belows, dropped = AH._parse_page(cells)
+    assert dropped == []
+    assert rows == [[300, 10, 10], [299, 8, 18], [298, 7, 25], [200, 5, 30], [199, 6, 36]]
+    assert belows == [{"score_below": 200, "seg": 9, "cum": 45}]
+    assert omits == []
+    validate_rows(rows)
+
+
+def test_anhui_parse_page_floating_note_is_omitted_not_dropped():
+    """2025 式：落在任何列簇之外的「200以下」是表尾游离注释 -> omitted。"""
+    from rank_sync.provinces import anhui as AH
+
+    cells = [
+        (81.0, 96.0, 200.0, "300"), (131.0, 146.0, 200.0, "10"), (167.0, 197.0, 200.0, "10"),
+        (81.0, 96.0, 188.0, "299"), (131.0, 146.0, 188.0, "8"), (167.0, 197.0, 188.0, "18"),
+        (81.0, 96.0, 176.0, "298"), (131.0, 146.0, 176.0, "7"), (167.0, 197.0, 176.0, "25"),
+        (211.0, 224.0, 176.0, "200以下"),   # 游离在累计列右侧 13pt，不属于任何列
+    ]
+    rows, omits, belows, dropped = AH._parse_page(cells)
+    assert rows == [[300, 10, 10], [299, 8, 18], [298, 7, 25]]
+    assert omits == [{"score_below": 200, "omitted": True}]
+    assert belows == [] and dropped == []
+
+
+def test_anhui_parse_page_refuses_unparsable_cells():
+    """落不进任何列簇、又不是截断注释的文本 -> 整份拒收（不允许静默丢行）。"""
+    from rank_sync.provinces import anhui as AH
+
+    cells = [
+        (81.0, 96.0, 200.0, "300"), (131.0, 146.0, 200.0, "10"), (167.0, 197.0, 200.0, "10"),
+        (211.0, 224.0, 188.0, "缺考"),
+    ]
+    _rows, _omits, _belows, dropped = AH._parse_page(cells)
+    assert dropped, "无法归列的文本必须进 dropped"
+
+
+def test_anhui_landed_years_have_year_specific_tail_semantics():
+    """2022 末行桶带数字；2023 起官方改印「200以下略」只留标记。"""
+    from rank_sync.provinces import anhui as AH
+
+    assert set(AH.PDFS) == {2022, 2023, 2024, 2025, 2026}
+    for year in (2022, 2023, 2024, 2025, 2026):
+        f = _BACKEND / "data" / "rank_tables" / str(year) / "安徽.json"
+        doc = json.loads(f.read_text(encoding="utf-8"))
+        for subj, blk in doc["subjects"].items():
+            if year == 2022:
+                assert blk["below_bucket"]["score_below"] == 200, (year, subj)
+                assert blk["below_bucket"]["cum"] > blk["rows"][-1][2], (year, subj)
+            else:
+                assert "below_bucket" not in blk, (year, subj)
+                assert blk["omitted_below"] == {"score_below": 200, "omitted": True}
+
+
+def test_anhui_subject_aliases_map_wenli_years():
+    """2022/2023 官方表头写「文史/理工」，落盘必须留痕且口径标文理分科。"""
+    from rank_sync.provinces import anhui as AH
+
+    assert AH.SUBJECT_OF_LABEL["文史"] == "历史类"
+    assert AH.SUBJECT_OF_LABEL["理工"] == "物理类"
+    doc = json.loads((_BACKEND / "data" / "rank_tables" / "2022" / "安徽.json")
+                     .read_text(encoding="utf-8"))
+    assert doc["meta"]["subject_scheme"] == "文理分科"
+    assert doc["meta"]["subject_aliases"] == {"历史类": "文史", "物理类": "理工"}
+    doc = json.loads((_BACKEND / "data" / "rank_tables" / "2025" / "安徽.json")
+                     .read_text(encoding="utf-8"))
+    assert doc["meta"]["subject_scheme"] == "3+1+2"
+    assert "subject_aliases" not in doc["meta"]

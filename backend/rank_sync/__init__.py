@@ -77,7 +77,7 @@ def entry(province: str) -> dict:
     covered = _covered(province)
     last = (status().get("provinces") or {}).get(province)
     if mod is not None:
-        years = sorted(getattr(mod, "NOTICES", {}))
+        years = sorted(set(getattr(mod, "NOTICES", {})) | set(getattr(mod, "PDFS", {})))
         return {
             "province": province,
             "status": "ready",
@@ -166,11 +166,13 @@ def sync(province: str, years: list[int] | None = None, dry_run: bool = False,
                 "years": [], "saved": 0, "failed": 0, "elapsed_ms": 0}
     mod = REGISTRY[province]
     notices: dict = getattr(mod, "NOTICES", {})
-    wanted = sorted(years or notices, reverse=True)
+    pdfs: dict = getattr(mod, "PDFS", {})
+    known = set(notices) | set(pdfs)
+    wanted = sorted(years or known, reverse=True)
     results = []
     saved = failed = 0
     for year in wanted:
-        if year not in notices:
+        if year not in known:
             gap = getattr(mod, "KNOWN_GAPS", {}).get(year)
             results.append({"year": year, "ok": False, "skipped": True,
                             "error": gap or "该年未登记通知页"})
