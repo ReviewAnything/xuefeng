@@ -12,6 +12,9 @@ export const SCHOOL_GRAPH = graph;
 export const SCHOOL_TIERS = graph.tiers;
 export const SCHOOL_LEAGUES = graph.leagues;
 export const SCHOOLS = graph.schools;
+// 领域专有名词图谱（术语 ↔ 系统实现映射）：单一数据源在 shared/domain_glossary.json
+import glossary from "@shared/domain_glossary.json";
+export const GLOSSARY = glossary;
 // 内容可溯：观点整理年份与证据口径（每个专业另带 source_year / source_note）
 export const CONTENT_SOURCE = data.CONTENT_SOURCE || {};
 

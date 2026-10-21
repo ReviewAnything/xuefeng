@@ -3,7 +3,7 @@
     <view class="page">
       <view class="hero">
         <text class="h1">图谱库</text>
-        <text class="sub">专业图谱（观点 + 偏见校正）与学校图谱（层次圈层 × 高校联盟）合一。</text>
+        <text class="sub">专业图谱（观点 + 偏见校正）、学校图谱（层次圈层 × 高校联盟）、术语图谱（领域名词 ↔ 系统落点）三者合一。</text>
       </view>
 
       <view class="seg">
@@ -137,15 +137,67 @@
           </view>
         </view>
       </block>
+
+      <!-- ---------------- 术语图谱 ---------------- -->
+      <block v-if="view === 'term'">
+        <wd-search v-model="tkw" placeholder="搜索术语 / 别名 / 释义" hide-cancel />
+
+        <scroll-view class="filters" scroll-x="true">
+          <view class="chips">
+            <wd-tag v-for="c in termCats" :key="c" :type="curTermCat === c ? 'primary' : 'default'"
+                    :plain="curTermCat !== c" round @click="curTermCat = c">{{ c }}</wd-tag>
+          </view>
+        </scroll-view>
+
+        <view class="seg">
+          <view v-for="s in termSegs" :key="s.key" class="seg-item" :class="{ on: termView === s.key }"
+                @click="termView = s.key">
+            <text class="seg-text">{{ s.name }}</text>
+          </view>
+        </view>
+
+        <!-- 术语 -->
+        <template v-if="termView === 'terms'">
+          <view class="count">共 {{ filteredTerms.length }} 个术语</view>
+          <view class="grid">
+            <view v-for="n in filteredTerms" :key="n.id" class="tcard">
+              <view class="mhead">
+                <text class="mname">{{ n.term }}</text>
+                <wd-tag plain>{{ n.category }}</wd-tag>
+              </view>
+              <text v-if="n.aka && n.aka.length" class="aka">别名：{{ n.aka.join('、') }}</text>
+              <text class="mcat">{{ n.definition }}</text>
+              <view v-if="n.system" class="sys" @click="toggleSys(n.id)">
+                <text class="k">⚙ 系统落点（点击{{ openSys[n.id] ? '收起' : '展开' }}）</text>
+                <text v-if="openSys[n.id]" class="sys-body">{{ sysText(n.system) }}</text>
+              </view>
+            </view>
+          </view>
+          <view v-if="!filteredTerms.length" class="empty">没有匹配的术语，换个关键词试试。</view>
+        </template>
+
+        <!-- 关系网络 -->
+        <template v-else>
+          <view class="count">共 {{ filteredEdges.length }} 条关系</view>
+          <view class="grid">
+            <view v-for="(e, i) in filteredEdges" :key="i" class="ecard" @click="jumpTo(e.source)">
+              <text class="eterm">{{ termName(e.source) }}</text>
+              <text class="erel">{{ e.relation }}</text>
+              <text class="eterm">{{ termName(e.target) }}</text>
+            </view>
+          </view>
+          <view v-if="!filteredEdges.length" class="empty">没有匹配的关系。</view>
+        </template>
+      </block>
     </view>
     <wd-toast />
   </wd-config-provider>
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, reactive } from "vue";
 import { useToast } from "wot-design-uni";
-import { MAJORS, CATS, VIEW_LABEL, SCHOOL_GRAPH } from "@/utils/content.js";
+import { MAJORS, CATS, VIEW_LABEL, SCHOOL_GRAPH, GLOSSARY } from "@/utils/content.js";
 import { themeVars } from "@/utils/theme.js";
 
 const toast = useToast();
@@ -157,6 +209,7 @@ const allSchools = SCHOOL_GRAPH.schools;
 const segs = [
   { key: "major", name: "专业图谱" },
   { key: "school", name: "学校图谱" },
+  { key: "term", name: "术语图谱" },
 ];
 const view = ref("major");
 
@@ -246,6 +299,71 @@ function open(u) {
   uni.setClipboardData({ data: u, success: () => toast.show("链接已复制，请在浏览器打开") });
   // #endif
 }
+
+/* ---------- 术语图谱 ---------- */
+const termCats = ["全部", ...GLOSSARY.meta.categories];
+const curTermCat = ref("全部");
+const tkw = ref("");
+const termView = ref("terms");
+const termSegs = [
+  { key: "terms", name: "术语" },
+  { key: "edges", name: "关系网络" },
+];
+const openSys = reactive({});
+const termIndex = computed(() => {
+  const m = {};
+  GLOSSARY.nodes.forEach((n) => { m[n.id] = n; });
+  return m;
+});
+const filteredTerms = computed(() =>
+  GLOSSARY.nodes.filter(
+    (n) =>
+      (curTermCat.value === "全部" || n.category === curTermCat.value) &&
+      (!tkw.value || (n.term + (n.aka || []).join("") + n.definition).includes(tkw.value))
+  )
+);
+const filteredEdges = computed(() =>
+  GLOSSARY.edges.filter((e) => {
+    const s = termIndex.value[e.source];
+    const t = termIndex.value[e.target];
+    if (curTermCat.value !== "全部") {
+      const okS = s && s.category === curTermCat.value;
+      const okT = t && t.category === curTermCat.value;
+      if (!okS && !okT) return false;
+    }
+    if (tkw.value) {
+      const hay = (s ? s.term : e.source) + (t ? t.term : e.target) + e.relation;
+      if (!hay.includes(tkw.value)) return false;
+    }
+    return true;
+  })
+);
+function toggleSys(id) { openSys[id] = !openSys[id]; }
+function sysText(sys) {
+  if (!sys) return "";
+  const parts = [];
+  const push = (k, v) => { if (v != null) parts.push(k + "：" + (Array.isArray(v) ? v.join("、") : v)); };
+  push("表", sys.tables);
+  push("文件", sys.files);
+  push("字段", sys.fields);
+  push("模块", sys.modules);
+  push("接口", sys.api);
+  push("取值", sys.values);
+  push("来源", sys.data_source);
+  push("实践", sys.practice);
+  push("规则", sys.rule);
+  push("工具", sys.tool);
+  push("缓解", sys.mitigation);
+  push("计数", sys.counts);
+  if (sys.note) parts.push("注：" + sys.note);
+  return parts.join("；");
+}
+function termName(id) { const n = termIndex.value[id]; return n ? n.term : id; }
+function jumpTo(id) {
+  curTermCat.value = "全部";
+  tkw.value = termName(id);
+  termView.value = "terms";
+}
 </script>
 
 <style scoped>
@@ -324,4 +442,16 @@ function open(u) {
 .smeta { font-size: 21rpx; color: #6b7280; }
 
 .acts { display: flex; flex-wrap: wrap; gap: 12rpx; margin-top: 14rpx; }
+
+/* 术语图谱 */
+.tcard { background: #16191f; border: 1px solid #23262e; border-radius: 16rpx; padding: 22rpx; }
+.aka { display: block; margin-top: 8rpx; font-size: 21rpx; color: #6db3f2; }
+.sys { margin-top: 14rpx; padding-top: 14rpx; border-top: 1px solid #23262e; }
+.sys .sys-body { display: block; margin-top: 10rpx; font-size: 21rpx; color: #9aa0aa; line-height: 1.7; }
+.ecard {
+  background: #16191f; border: 1px solid #23262e; border-radius: 16rpx;
+  padding: 18rpx 20rpx; display: flex; flex-direction: column; gap: 8rpx;
+}
+.eterm { font-size: 25rpx; font-weight: 600; color: #e6e8ec; }
+.erel { font-size: 21rpx; color: #ffd24d; line-height: 1.6; }
 </style>

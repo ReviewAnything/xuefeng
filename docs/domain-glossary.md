@@ -1,7 +1,7 @@
 # 高考志愿填报领域专有名词图谱
 
 > 范围：xuefeng 项目（高考志愿填报辅助系统）领域术语 ↔ 系统实现映射。
-> 机器可读版本见同目录 [`domain-glossary.json`](./domain-glossary.json)（26 节点 / 30 关系边）。
+> 机器可读版本见 `shared/domain_glossary.json`（前端「图谱 → 术语图谱」页直接消费，单一数据源；26 节点 / 32 关系边）。
 > 版本：2026-10-21。
 
 ## 一、关系总览（Mermaid）
