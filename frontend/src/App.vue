@@ -1,8 +1,11 @@
 <script>
 // 应用启动：静默探测后端可用性（不弹窗、不打断），结果存端侧供各页判断是否提示「演示模式」。
 import { api } from "@/utils/api.js";
+import { initTheme } from "@/utils/theme.js";
 export default {
   onLaunch() {
+    // 在页面渲染前把主题变量铺到 <html>，避免明暗切换首帧闪烁
+    initTheme();
     if (api.isDemo()) {
       try { uni.setStorageSync("zhiyuan_backend_ok", false); } catch (e) {}
       return;
@@ -24,8 +27,10 @@ export default {
    变量定义在 page 上（H5 会映射到 uni-page-body，小程序同样支持自定义属性），
    子节点全部继承，所以页面里写 var(--xf-gold) 即可，不必再硬编码色值。
    =========================================================================== */
-/* 变量挂 page（H5 编译成 uni-page-body、小程序即页面根节点），子节点全部继承 */
-page {
+/* 变量挂 :root（H5 编译成 <html>，小程序即页面根节点）。
+   运行时主题切换会把 --xf-* 写到 <html>/config-provider 根，覆盖这里的默认值，
+   所以这里只留「暗夜金」作为首屏与无 JS 时的兜底。 */
+:root {
   /* 面 */
   --xf-bg: #0f1115;
   --xf-surface: #16191f;
@@ -51,6 +56,10 @@ page {
   --xf-real: #6db3f2;
   --xf-est: #9aa0aa;
   --xf-demo: #f0ad4e;
+  /* 主题相关（随主题切换覆盖） */
+  --xf-fill: rgba(255, 255, 255, 0.05);
+  --xf-shimmer-1: #1a1e25;
+  --xf-shimmer-2: #232833;
   /* 圆角 / 动效 */
   --xf-r-sm: 10rpx;
   --xf-r-md: 16rpx;
@@ -104,7 +113,7 @@ view, text, input, textarea, picker, scroll-view {
   padding: 5rpx 14rpx; border-radius: var(--xf-r-pill);
   font-size: 21rpx; line-height: 1.3;
   border: 1rpx solid var(--xf-line);
-  color: var(--xf-text-3); background: rgba(255, 255, 255, 0.03);
+  color: var(--xf-text-3); background: var(--xf-fill);
 }
 .xf-chip--official { color: var(--xf-official); border-color: rgba(95, 216, 127, 0.38); background: rgba(95, 216, 127, 0.08); }
 .xf-chip--real { color: var(--xf-real); border-color: rgba(109, 179, 242, 0.38); background: rgba(109, 179, 242, 0.08); }
@@ -131,7 +140,7 @@ view, text, input, textarea, picker, scroll-view {
 .xf-tile {
   flex: 0 0 auto; width: 64rpx; height: 64rpx; border-radius: 18rpx;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(255, 255, 255, 0.05); border: 1rpx solid var(--xf-line);
+  background: var(--xf-fill); border: 1rpx solid var(--xf-line);
 }
 .xf-tile--gold { background: rgba(255, 210, 77, 0.12); border-color: rgba(255, 210, 77, 0.3); }
 .xf-tile--reach { background: rgba(240, 173, 78, 0.12); border-color: rgba(240, 173, 78, 0.28); }
@@ -146,7 +155,7 @@ view, text, input, textarea, picker, scroll-view {
 
 /* ---- 骨架屏：替代白屏 loading ---- */
 .xf-skel {
-  background: linear-gradient(100deg, #1a1e25 20%, #232833 38%, #1a1e25 56%);
+  background: linear-gradient(100deg, var(--xf-shimmer-1) 20%, var(--xf-shimmer-2) 38%, var(--xf-shimmer-1) 56%);
   background-size: 260% 100%;
   border-radius: 10rpx;
   animation: xf-shimmer 1.25s ease-in-out infinite;

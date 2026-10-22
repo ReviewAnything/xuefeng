@@ -1,5 +1,5 @@
 <template>
-  <wd-config-provider theme="dark" :theme-vars="themeVars">
+  <wd-config-provider :theme="$theme.mode" :theme-vars="themeVars" :style="$theme.style">
     <view class="page">
       <!-- 打印专用页眉（屏幕上不显示，打印时替代 App 导航栏） -->
       <view class="print-head">

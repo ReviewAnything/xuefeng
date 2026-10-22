@@ -1,5 +1,5 @@
 <template>
-  <wd-config-provider theme="dark" :theme-vars="themeVars">
+  <wd-config-provider :theme="$theme.mode" :theme-vars="themeVars" :style="$theme.style">
     <view class="page">
       <view class="xf-hero">
         <view class="xf-tile xf-tile--gold">

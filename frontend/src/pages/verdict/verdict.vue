@@ -1,5 +1,5 @@
 <template>
-  <wd-config-provider theme="dark" :theme-vars="themeVars">
+  <wd-config-provider :theme="$theme.mode" :theme-vars="themeVars" :style="$theme.style">
     <view class="page">
       <!-- 输入：三个字段，一屏，一个问题 -->
       <view v-if="!r" class="ask">

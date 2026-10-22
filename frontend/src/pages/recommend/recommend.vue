@@ -1,5 +1,5 @@
 <template>
-  <wd-config-provider theme="dark" :theme-vars="themeVars">
+  <wd-config-provider :theme="$theme.mode" :theme-vars="themeVars" :style="$theme.style">
     <view class="page">
       <!-- 吸顶条件条：出过结果后不再让人滚回顶部找输入框 -->
       <view v-if="hasResult" class="sticky-bar">

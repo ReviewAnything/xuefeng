@@ -78,6 +78,9 @@ const PATHS = {
     '<rect x="3.8" y="5.6" width="16.4" height="14.6" rx="2"/><path d="M3.8 10.2h16.4"/>' +
     '<path d="M8.4 3.8v3.4M15.6 3.8v3.4"/>',
   clock: '<circle cx="12" cy="12" r="8.4"/><path d="M12 7.6V12l3 1.8"/>',
+  theme:
+    '<circle cx="12" cy="12" r="8.6"/>' +
+    '<path d="M12 3.4a8.6 8.6 0 0 0 0 17.2Z" fill="__C__" stroke="none"/>',
   book:
     '<path d="M12 6.6C10.4 5.2 8.2 4.6 5.4 4.6V17.6C8.2 17.6 10.4 18.2 12 19.6Z"/>' +
     '<path d="M12 6.6C13.6 5.2 15.8 4.6 18.6 4.6V17.6C15.8 17.6 13.6 18.2 12 19.6Z"/>',
@@ -93,6 +96,7 @@ export const ICON_ALIAS = {
   plan: "list",
   recommend: "school",
   verify: "search",
+  theme: "theme",
   me: "user",
   compass: "compass",
 };

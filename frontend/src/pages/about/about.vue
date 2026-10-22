@@ -1,5 +1,5 @@
 <template>
-  <wd-config-provider theme="dark" :theme-vars="themeVars">
+  <wd-config-provider :theme="$theme.mode" :theme-vars="themeVars" :style="$theme.style">
     <view class="page">
       <view class="xf-hero">
         <view class="avatar">
@@ -63,6 +63,35 @@
         <view v-if="demoOn" class="demo-note">
           <app-icon name="info" color="#f0ad4e" :size="24"></app-icon>
           <text class="demo-note-t">当前为演示数据（示意值，非真实录取信息）。</text>
+        </view>
+      </view>
+
+      <!-- 外观主题 -->
+      <view class="xf-card theme-card">
+        <view class="th-head">
+          <view class="xf-tile">
+            <app-icon name="theme" color="#c2c8d0" :size="30"></app-icon>
+          </view>
+          <view class="th-body">
+            <text class="xf-h3">外观主题</text>
+            <text class="xf-tiny">随时切换明暗与配色，选择会记住</text>
+          </view>
+        </view>
+        <view class="th-grid">
+          <view
+            v-for="t in THEMES"
+            :key="t.id"
+            class="th-opt"
+            :class="{ on: $theme.id === t.id }"
+            @click="pick(t.id)"
+          >
+            <view class="th-swatch">
+              <view class="th-bg" :style="{ background: t.swatch.bg }"></view>
+              <view class="th-surface" :style="{ background: t.swatch.surface, borderColor: t.vars['--xf-line'] }"></view>
+              <view class="th-dot" :style="{ background: t.swatch.accent }"></view>
+            </view>
+            <text class="th-name">{{ t.name }}</text>
+          </view>
         </view>
       </view>
 
@@ -213,7 +242,7 @@ import { ref, computed } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
 import { APP_VERSION, DATA_DATE, CONTENT_SOURCE, RESOURCES, RES_CATS, MAJORS, SCHOOLS } from "@/utils/content.js";
-import { themeVars } from "@/utils/theme.js";
+import { themeVars, THEMES, setTheme } from "@/utils/theme.js";
 import { api } from "@/utils/api.js";
 import { PROFILE_OPTIONS, getProfile, setProfile } from "@/utils/profile.js";
 
@@ -294,6 +323,12 @@ function onDemo() {
   const on = !!demoOn.value;
   api.setDemo(on);
   toast.show(on ? "已开启演示模式（内置样例数据）" : "已关闭演示模式（连接真实后端）");
+}
+
+function pick(id) {
+  setTheme(id);
+  const t = THEMES.find((x) => x.id === id);
+  toast.show("已切换至「" + (t ? t.name : id) + "」");
 }
 
 /* 开源资源（原「资源」tab 已并入本页） */
@@ -406,6 +441,25 @@ function openLink(u) {
 .disclaimer { margin-top: 30rpx; border-color: rgba(240, 173, 78, 0.3); background: rgba(240, 173, 78, 0.05); }
 .dis-head { display: flex; align-items: center; gap: 10rpx; margin-bottom: 8rpx; }
 .dis-title { font-size: 24rpx; font-weight: 600; color: var(--xf-demo); }
+
+/* 外观主题 */
+.theme-card { margin-top: 18rpx; }
+.th-head { display: flex; align-items: center; gap: 14rpx; margin-bottom: 16rpx; }
+.th-body { flex: 1; min-width: 0; }
+.th-grid { display: flex; gap: 14rpx; }
+.th-opt {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 10rpx;
+  padding: 14rpx 8rpx; border-radius: var(--xf-r-md);
+  border: 1rpx solid var(--xf-line); background: var(--xf-fill);
+  transition: border-color var(--xf-ease) 140ms;
+}
+.th-opt.on { border-color: var(--xf-gold); background: rgba(255, 210, 77, 0.06); }
+.th-swatch { position: relative; width: 100%; height: 84rpx; border-radius: 12rpx; overflow: hidden; display: flex; border: 1rpx solid var(--xf-line); }
+.th-bg { flex: 1; }
+.th-surface { flex: 1; border-left: 1rpx solid; }
+.th-dot { position: absolute; right: 10rpx; bottom: 10rpx; width: 22rpx; height: 22rpx; border-radius: 50%; box-shadow: 0 1rpx 4rpx rgba(0, 0, 0, 0.3); }
+.th-name { font-size: 21rpx; color: var(--xf-text-2); }
+.th-opt.on .th-name { color: var(--xf-gold); font-weight: 600; }
 
 .ver { display: block; margin-top: 26rpx; text-align: center; font-size: 19rpx; color: var(--xf-text-4); }
 </style>
