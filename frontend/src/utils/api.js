@@ -8,17 +8,21 @@ import { API_BASE as CONFIG_API_BASE } from "../config.js";
 //   2. .env.* 注入的 VITE_API_BASE（开发/生产各一套，见 frontend/.env.*，含端口）
 //   3. config.js 内置兜底
 // 生产/小程序请改 .env.production 的 VITE_API_BASE 为你的 https 域名（并配置小程序合法域名）。
-// 解析后端基地址（含端口）。优先级从高到低：
+// 解析后端基地址（含端口）。每次调用实时读取，优先级从高到低：
 //   1. 运行时覆盖（仅 H5）：window.__XUEFENG_API__ —— 部署后改静态页即可，无需重新构建
-//   2. config.js 已解析好的 API_BASE（H5 来自 .env.* 的 VITE_API_BASE；小程序/App 来自常量 + 端侧覆盖）
+//   2. 端侧覆盖（全平台，含小程序联调）：uni.getStorageSync('xf_api_base')
+//   3. config.js 已解析好的 API_BASE（来自 .env.* 的 VITE_API_BASE，经 vite define 注入）
 // 注意：这里【不能】使用 import.meta.env —— 小程序平台会把 import.meta 转译成 require('url')，
-// 导致 app.js 启动崩溃（module 'url.js' is not defined）。环境差异交给 config.js 用条件编译处理。
+// 导致 app.js 启动崩溃（module 'url.js' is not defined）。
+// 实时读取（而非模块加载时固化）是为了让「改静态页 / 改端侧缓存」即时生效。
 export function resolveBase() {
   if (typeof window !== "undefined" && window.__XUEFENG_API__) return window.__XUEFENG_API__;
+  try {
+    const ov = (typeof uni !== "undefined" && uni.getStorageSync) ? uni.getStorageSync("xf_api_base") : "";
+    if (ov && String(ov).trim()) return String(ov).trim();
+  } catch (e) { /* 端侧不可用时继续走配置值 */ }
   return CONFIG_API_BASE;
 }
-
-const API_BASE = resolveBase();
 
 // 演示模式开关（存端侧）。开启后优先走离线样例数据，无需后端。
 const DEMO_KEY = "zhiyuan_demo_on";
@@ -36,7 +40,7 @@ const OFFLINE_MSG = "数据服务未连接，可在「我的」开启演示模�
 function rawRequest(method, path, data) {
   return new Promise((resolve, reject) => {
     uni.request({
-      url: API_BASE + path,
+      url: resolveBase() + path,
       method,
       data,
       header: { "Content-Type": "application/json" },
@@ -60,7 +64,7 @@ async function request(method, path, data) {
 }
 
 export const api = {
-  base: API_BASE,
+  get base() { return resolveBase(); },
   isDemo,
   setDemo,
   health: () => request("GET", "/api/health"),

@@ -14,7 +14,8 @@
     "test:engine": "node tests/engine.test.mjs",
     "test:template": "node tests/template.test.mjs",
     "test:plan": "node tests/plan.test.mjs",
-    "test": "node tests/engine.test.mjs && node tests/plan.test.mjs && node tests/template.test.mjs"
+    "test:crossend": "node tests/crossend.test.mjs",
+    "test": "node tests/engine.test.mjs && node tests/plan.test.mjs && node tests/template.test.mjs && node tests/crossend.test.mjs"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-5020620260917001",
