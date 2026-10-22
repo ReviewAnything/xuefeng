@@ -1,29 +1,49 @@
 {
-  "name": "志愿决策助手",
-  "appid": "",
-  "description": "就业确定性优先 + 开源资源 + 观点×数据交叉核验的志愿决策助手",
-  "versionName": "2.0.0",
-  "versionCode": 200,
-  "transformPx": false,
-  "app-plus": {
-    "usingComponents": true,
-    "nvueStyleCompiler": "uni-app",
-    "compilerVersion": 3,
-    "splashscreen": { "alwaysShowBeforeRender": true, "waiting": true, "autoclose": true },
-    "modules": {},
-    "distribute": { "android": { "permissions": [] }, "ios": {}, "sdkConfigs": {} }
-  },
-  "quickapp": {},
-  "mp-weixin": {
-    "appid": "touristappid",
-    "setting": { "urlCheck": false, "es6": true },
-    "usingComponents": true
-  },
-  "h5": {
-    "router": { "mode": "hash", "base": "./" },
-    "darkmode": false,
-    "title": "志愿决策助手",
-    "devServer": { "port": 5173, "https": false }
-  },
-  "vueVersion": "3"
+    "name" : "懂分帝",
+    "appid" : "__UNI__18AD727",
+    "description" : "就业确定性优先 + 开源资源 + 观点×数据交叉核验的志愿决策助手",
+    "versionName" : "2.0.0",
+    "versionCode" : 200,
+    "transformPx" : false,
+    "app-plus" : {
+        "usingComponents" : true,
+        "nvueStyleCompiler" : "uni-app",
+        "compilerVersion" : 3,
+        "splashscreen" : {
+            "alwaysShowBeforeRender" : true,
+            "waiting" : true,
+            "autoclose" : true
+        },
+        "modules" : {},
+        "distribute" : {
+            "android" : {
+                "permissions" : []
+            },
+            "ios" : {},
+            "sdkConfigs" : {}
+        }
+    },
+    "quickapp" : {},
+    "mp-weixin" : {
+        "appid" : "wx406205a5cb9eccb8",
+        "setting" : {
+            "urlCheck" : false,
+            "es6" : true,
+            "minified" : true
+        },
+        "usingComponents" : true
+    },
+    "h5" : {
+        "router" : {
+            "mode" : "hash",
+            "base" : "./"
+        },
+        "darkmode" : false,
+        "title" : "懂分帝",
+        "devServer" : {
+            "port" : 5173,
+            "https" : false
+        }
+    },
+    "vueVersion" : "3"
 }

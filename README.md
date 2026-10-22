@@ -117,8 +117,10 @@ zhiyuan-app-v2/
 ### 1) 后端（Python，必需：P2 数据层 + 管理端）
 ```bash
 cd backend
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
+pyenv local 3.12.5
+python -m venv .venv  && source .venv/bin/activate
+pip install --upgrade pip
+python -m pip install -r requirements.txt &&python -m uvicorn main:app --port 8000
 # 接口文档：http://localhost:8000/docs
 # 管理端：  http://localhost:8000/admin
 ```

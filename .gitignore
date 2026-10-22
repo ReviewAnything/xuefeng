@@ -33,3 +33,4 @@ __pycache__/
 
 # 一分一段按省同步的运行期台账（非数据源，状态可由看板重算）
 backend/data/rank_tables/_sync_status.json
+/backend/.venv/
