@@ -8,15 +8,14 @@ import { API_BASE as CONFIG_API_BASE } from "../config.js";
 //   2. .env.* 注入的 VITE_API_BASE（开发/生产各一套，见 frontend/.env.*，含端口）
 //   3. config.js 内置兜底
 // 生产/小程序请改 .env.production 的 VITE_API_BASE 为你的 https 域名（并配置小程序合法域名）。
-// 解析后端基地址（含端口）。每次调用实时读取，优先级从高到低：
+// 解析后端基地址（含端口）。优先级从高到低：
 //   1. 运行时覆盖（仅 H5）：window.__XUEFENG_API__ —— 部署后改静态页即可，无需重新构建
-//   2. .env.* 注入的 VITE_API_BASE（开发/生产各一套，见 frontend/.env.*）
-//   3. config.js 内置兜底（开发 localhost:8000 / 生产占位域名）
-// 实时读取是为了让测试/调试能运行时注入不同地址，而非模块加载时固化。
+//   2. config.js 已解析好的 API_BASE（H5 来自 .env.* 的 VITE_API_BASE；小程序/App 来自常量 + 端侧覆盖）
+// 注意：这里【不能】使用 import.meta.env —— 小程序平台会把 import.meta 转译成 require('url')，
+// 导致 app.js 启动崩溃（module 'url.js' is not defined）。环境差异交给 config.js 用条件编译处理。
 export function resolveBase() {
   if (typeof window !== "undefined" && window.__XUEFENG_API__) return window.__XUEFENG_API__;
-  const env = typeof import.meta !== "undefined" && import.meta.env ? import.meta.env.VITE_API_BASE : "";
-  return (env && String(env).trim()) || CONFIG_API_BASE;
+  return CONFIG_API_BASE;
 }
 
 const API_BASE = resolveBase();
