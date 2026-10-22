@@ -71,11 +71,31 @@ docker compose up --build
 
 ## 数据与合规提示
 
-- 演示数据分「官方省控线（11 省）」与「模型估算（其余省）」，界面上会标注来源；
+- 演示数据分「官方省控线（**31 省，2022–2026，逐年附 source_url**）」与「模型估算（其余省）」，界面上会标注来源；
+- 一分一段表（位次锚定 / 等位分换算所需）已采集 **30/31 省**（仅西藏因官方不公布而缺失）；其中 9 省为经核实的第三方文本转录（标注 `third_party_text`），**不混入官方库、不参与 official 覆盖**；
+- 官方省控线主表不含位次：入库时保留估算基线的 min_rank，避免把生效年份的官方行置 0 拉垮冲稳保实时排名（设计意图，非缺口）；
 - 院校级投档线**不入库不发包**：需要自己上传（管理端「校线导入」或 `scripts/import_school_lines.py`），
   导入前推荐结果只到「层次」粒度；
 - 页面显著位置保留「仅供学习参考，正式填报以各省考试院为准」提示，部署时请勿移除；
 - 管理端默认口令属于演示用途，任何公网部署都必须改掉或关闭管理端。
+
+---
+
+## 公开只读 API（供 Pages demo 调用）
+
+部署 Render 后端并设 `XUEFENG_DISABLE_ADMIN=true` 后，以下端点对 demo 可见（`/api/admin/*` 已关闭）：
+
+| 端点 | 用途 |
+| --- | --- |
+| `GET /api/admission/control-line-years` | 近五年官方省控线可用年份（2022–2026） |
+| `GET /api/admission/control-lines?year=&province=` | 某年某省分科类/档位的省控线 + 当年来源链接 |
+| `GET /api/admission/volunteer-limit?province=` | 该省志愿个数上限（院校专业组 / 专业+院校 / 旧高考）+ 建议冲/稳/保分布 |
+| `GET /api/rank-tables/lookup?year=&province=&subject=&score=` | 分数 → 位次（一分一段，本科/专科双档位） |
+| `GET /api/equiv/curve?province=&subject=&year=` | 等位分换算曲线（真实一分一段锚定，标注官方/第三方来源） |
+| `GET /api/equiv/convert?province=&subject=&from_year=&to_year=&score=` | 跨年等位分换算（自动标注口径差异 caveat） |
+| `GET /api/health` | 健康检查：版本 / 生效年份 / 库大小 / 校线覆盖 |
+
+前端新增页：**年度罗盘（compass）** 浏览近五年省控线走势与跨省对比；**志愿表（plan）** 内置本省志愿个数上限、组内专业排序、服从专业调剂标记与导出对齐。
 
 ---
 

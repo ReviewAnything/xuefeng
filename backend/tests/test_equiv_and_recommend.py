@@ -10,9 +10,12 @@ c = TestClient(main.app)
 
 # ---------------------------------------------------------------- C2 曲线
 
-def test_curve_official_2024_henan():
+def test_curve_henan_2024_uses_rank_tables():
+    """河南 2024 已有真实一分一段（第三方文本转录），应给出密集曲线而非稀疏官方批次线。"""
     cur = E.curve("河南", "物理类", 2024)
-    assert cur["ok"] and cur["data_source"] == "official"
+    assert cur["ok"]
+    assert cur["data_source"] in ("official_table", "third_party_text")
+    assert len(cur["anchors"]) >= 100   # 一分一段表是数百点的密集曲线
     ranks = [a["rank"] for a in cur["anchors"]]
     scores = [a["score"] for a in cur["anchors"]]
     assert ranks == sorted(ranks)                 # 位次升序
@@ -27,6 +30,63 @@ def test_available_years_sorted_desc():
     years = E.available_years("河南", "物理类")
     assert len(years) >= 2
     assert [y["year"] for y in years] == sorted((y["year"] for y in years), reverse=True)
+
+
+def test_rank_tables_all_provinces_have_curve():
+    """S10-C：30 省 × 2022–2026 真实一分一段落盘后，每省每科类每有数据的年份都能出曲线。"""
+    import os
+    from services import rank_tables as RT
+    base = os.path.join(os.path.dirname(RT.__file__), "..", "data", "rank_tables")
+    checked = 0
+    for y in range(2022, 2027):
+        ydir = os.path.join(base, str(y))
+        if not os.path.isdir(ydir):
+            continue
+        for fn in sorted(os.listdir(ydir)):
+            if not fn.endswith(".json"):
+                continue
+            prov = fn[:-5]
+            d = RT.doc(y, prov)
+            subs = d.get("subjects") or {}
+            # 把文件里的科类键映射到系统口径，逐一验证都能构造出真实曲线
+            targets = set()
+            for raw in subs:
+                if raw == "综合":
+                    targets.add("综合")
+                elif raw in ("文科", "文史类", "历史科目组合"):
+                    targets.add("历史类")
+                elif raw in ("理科", "理工类", "物理科目组合"):
+                    targets.add("物理类")
+                elif raw.startswith("选考"):
+                    targets.add("综合")
+            for tgt in targets:
+                cur = E.curve(prov, tgt, y)
+                assert cur["ok"], f"{prov}/{tgt}/{y} 应有可用曲线"
+                assert len(cur["anchors"]) >= 2, f"{prov}/{tgt}/{y} 锚点过少"
+                assert cur["data_source"] in ("official_table", "third_party_text")
+                checked += 1
+    assert checked >= 30, f"应覆盖 30 省以上，实际校验 {checked} 条"
+
+
+def test_subject_normalization_henan_third_party():
+    """河南 2023/2024 用旧键 文科/理科（第三方文本转录），应归一化命中到 历史类/物理类。"""
+    for y in (2023, 2024):
+        cur_w = E.curve("河南", "历史类", y)
+        cur_l = E.curve("河南", "物理类", y)
+        assert cur_w["ok"] and cur_l["ok"], f"河南 {y} 旧键应归一化命中"
+        assert cur_w["data_source"] == "third_party_text"
+        assert len(cur_w["anchors"]) >= 100 and len(cur_l["anchors"]) >= 100
+
+
+def test_shandong_reform_subject_resolves_to_comprehensive():
+    """山东是综合改革省：落盘含「综合」+ 六个「选考*」表（同一考生池），应取综合主表出曲线。"""
+    y = 2024
+    cur = E.curve("山东", "综合", y)
+    assert cur["ok"], "山东综合改革应能用 综合 科类出曲线"
+    assert len(cur["anchors"]) >= 100
+    # 不应因重复 选考* 表而产生异常多的重复锚点（同分只保留一条）
+    ranks = [a["rank"] for a in cur["anchors"]]
+    assert len(ranks) == len(set(ranks))
 
 
 def test_score_rank_roundtrip():
@@ -65,7 +125,9 @@ def test_api_equiv_years():
 def test_api_equiv_curve():
     r = c.get("/api/equiv/curve", params={"province": "河南", "subject": "物理类", "year": 2024})
     assert r.status_code == 200
-    assert r.json()["data_source"] == "official"
+    ds = r.json()["data_source"]
+    assert ds in ("official_table", "third_party_text")
+    assert len(r.json()["anchors"]) >= 100
 
 
 def test_api_equiv_convert_by_score():

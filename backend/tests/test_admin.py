@@ -70,7 +70,8 @@ def test_admin_baselines_official_rows():
     official = [x for x in rows if x["data_source"] == "official"]
     assert len(official) == 5     # 河南物理：985/211/一本/二本/专科 均为官方覆盖
     yiben = next(x for x in rows if x["tier"] == "普通一本")
-    assert yiben["min_rank"] == 130195
+    # 2026 官方省控线行保留 estimated 基线位次（不置 0，避免拉垮实时排名）——河南物理一本 2026 实测 168000
+    assert yiben["min_rank"] == 168000
 
 
 def test_database_repository_matches_json():

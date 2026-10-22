@@ -396,7 +396,7 @@ export function fillOrder(plan, rows) {
 }
 
 /** 填报顺序的纯文本清单（可直接照抄，含序号与档位）。 */
-export function buildFillOrderText(plan, order, timeLabel) {
+export function buildFillOrderText(plan, order, timeLabel, cap) {
   const p = plan || {};
   const o = order || { items: [], basis: "" };
   const lines = [];
@@ -404,6 +404,9 @@ export function buildFillOrderText(plan, order, timeLabel) {
   lines.push("省份：" + (p.province || "-") + " | 科类：" + (p.subject || "-") +
     " | 位次：" + (p.user_rank || "-"));
   lines.push("生成时间：" + (timeLabel || "-"));
+  if (cap && cap.volLimit) {
+    lines.push("本科批志愿上限：" + cap.volLimit.undergrad + " 个（已填 " + cap.filledCount + "）· 以本省考试院为准");
+  }
   if (o.reference_year) {
     lines.push("位次余量参考口径：年份 " + o.reference_year +
       (o.reference_batch ? "、批次「" + o.reference_batch + "」" : "") +
@@ -436,13 +439,22 @@ export function buildFillOrderText(plan, order, timeLabel) {
 }
 
 /** 导出的纯文本志愿表（复制/打印共用）。 */
-export function buildPlanText(plan, groups, timeLabel) {
+export function buildPlanText(plan, groups, timeLabel, cap) {
   const p = plan || {};
   const lines = [];
   lines.push("志愿表草稿（学习参考，非填报依据）");
   lines.push("省份：" + (p.province || "-") + " | 科类：" + (p.subject || "-") +
     " | 位次：" + (p.user_rank || "-"));
   lines.push("生成时间：" + (timeLabel || "-"));
+  if (cap && cap.volLimit) {
+    lines.push("本科批志愿上限：" + cap.volLimit.undergrad + " 个（" + cap.volLimit.mode + "）· 已填 " + cap.filledCount);
+    if (cap.volLimit.mode === "院校专业组" && cap.adjust) {
+      lines.push("服从专业调剂：冲 " + (cap.adjust["冲"] ? "是" : "否") +
+        " / 稳 " + (cap.adjust["稳"] ? "是" : "否") +
+        " / 保 " + (cap.adjust["保"] ? "是" : "否"));
+    }
+    lines.push("（以本省教育考试院当年规定为准）");
+  }
   lines.push("");
   (groups || []).forEach((g) => {
     lines.push("【" + g.title + "】");

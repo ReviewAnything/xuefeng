@@ -88,6 +88,8 @@
           <text class="draft-txt">你有一份志愿表草稿，点击查看 / 继续编辑 ›</text>
         </view>
 
+        <text class="lk" style="display:block;margin:14rpx 0;" @click="goCompass">查看历年省控线（2022–2026）›</text>
+
         <text class="basis">{{ r.basis }}</text>
       </view>
     </view>
@@ -219,6 +221,9 @@ function openPlan() {
 
 function goDiagnose() {
   uni.navigateTo({ url: "/pages/diagnose/diagnose" });
+}
+function goCompass() {
+  uni.navigateTo({ url: "/pages/compass/compass" });
 }
 </script>
 

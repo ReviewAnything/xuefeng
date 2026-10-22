@@ -7,6 +7,7 @@
   },
   "pages": [
     { "path": "pages/verdict/verdict", "style": { "navigationBarTitleText": "结论" } },
+    { "path": "pages/compass/compass", "style": { "navigationBarTitleText": "年度罗盘" } },
     { "path": "pages/diagnose/diagnose", "style": { "navigationBarTitleText": "自我诊断" } },
     { "path": "pages/graph/graph", "style": { "navigationBarTitleText": "图谱" } },
     { "path": "pages/verify/verify", "style": { "navigationBarTitleText": "观点×数据核验" } },
@@ -29,6 +30,7 @@
     "borderStyle": "black",
     "list": [
       { "pagePath": "pages/verdict/verdict", "text": "结论" },
+      { "pagePath": "pages/compass/compass", "text": "罗盘" },
       { "pagePath": "pages/graph/graph", "text": "图谱" },
       { "pagePath": "pages/verify/verify", "text": "核验" },
       { "pagePath": "pages/about/about", "text": "关于" }

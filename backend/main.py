@@ -38,6 +38,7 @@ from services import content as C
 from services import admission as A
 from services import control_lines as CL
 from services import rank_tables as RT
+from services import volunteer_limits as VL
 from services import verify as V
 from services import equiv_score as E
 from services import recommend as R
@@ -257,6 +258,19 @@ def rank_table_lookup(year: int, province: str, subject: str, score: int):
     if not r:
         raise HTTPException(404, "无匹配数据（年份/省份/科类/分数超出覆盖）")
     return r
+
+
+@app.get("/api/admission/volunteer-limit")
+def volunteer_limit(province: str):
+    """各省高考志愿个数上限（S10-B）：本科批/专科批配额 + 建议的 冲/稳/保 分布。
+
+    数据来源阳光高考及各省考试院 2025 年规定，仅作填报参考；每年可能调整，
+    正式填报以本省教育考试院当年规定为准。
+    """
+    r = VL.recommended_split(province)
+    if not r:
+        raise HTTPException(404, f"暂无 {province} 的志愿上限数据")
+    return {"ok": True, "province": province, **r}
 
 
 @app.get("/api/content")

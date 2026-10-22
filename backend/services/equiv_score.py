@@ -9,12 +9,17 @@
 
 锚点来源（按优先级）
 --------------------
-1. ``backend/data/score_tables.json``（可选）：真实一分一段表，形如
+1. ``backend/data/score_tables.json``（可选）：显式覆盖层，形如
    ``{省份: {科类: {年份: {"cohort_size": 总人数, "points": [[score, rank], ...]}}}}``
    谁有官方数据就往里填，无需改代码即可覆盖下面所有估算锚点。
-2. ``admission_official_2024.json``：11 省官方省控线 + 985/211 入门投档位次（2024）。
-3. ``admission_real_baseline.json`` / ``admission_sample.json``：31 省估算/样例基线
-   （年份取自各自 meta.year）。
+2. ``backend/data/rank_tables/*.json``（逐省逐年落盘）：真实一分一段表，
+   覆盖 30 省 × 2022–2026 的逐年累计人数（本科档 cum_ben）；官方转录标 ``official``，
+   第三方文本转录标 ``third_party_text``，二者都是密集曲线（数百锚点），换算分辨率
+   远高于批次线。科类键已归一化（文科/理科/文史类/理工类/选考* → 历史类/物理类/综合）。
+3. ``admission_official_2024.json``：11 省官方省控线 + 985/211 入门投档位次（2024），
+   仅在 rank_tables 缺该省该年数据、且年份恰为 2024 时兜底。
+4. ``admission_real_baseline.json`` / ``admission_sample.json``：31 省估算/样例基线
+   （年份取自各自 meta.year），作最底层兜底。
 
 换算方法
 --------
@@ -38,6 +43,16 @@ _SAMPLE = os.path.join(_DATA_DIR, "admission_sample.json")
 # 与 admission.SUBJECT_ALIASES 保持一致：内容侧用「综合/未改革」，数据侧用「综合」
 SUBJECT_ALIASES = {"综合/未改革": "综合", "综合类": "综合"}
 
+# rank_tables 落盘 JSON 里出现过的科类键，统一归一化到系统内部口径
+# （物理类/历史类/综合）。注意：山东等综合改革省同时落了「综合」与六个「选考*」表，
+# 二者是同一考生池，取「综合」主表即可（_anchors_from_rank_tables 已处理）。
+RANKTABLE_SUBJECT_ALIASES = {
+    "理科": "物理类", "理工类": "物理类", "物理科目组合": "物理类",
+    "文科": "历史类", "文史类": "历史类", "历史科目组合": "历史类",
+    "选考物理": "综合", "选考化学": "综合", "选考生物": "综合",
+    "选考思想政治": "综合", "选考历史": "综合", "选考地理": "综合",
+}
+
 SCORE_MIN, SCORE_MAX = 0, 750
 RANK_MAX = 2_000_000
 
@@ -46,9 +61,19 @@ _CACHE = {}
 _SOURCE_LABEL = {
     "official": "官方省控线/投档线",
     "official_table": "官方一分一段表",
+    "third_party_text": "第三方文本转录一分一段表",
     "estimated": "模型估算基线",
     "sample": "参数化样例",
 }
+
+# rank_tables 服务（data/rank_tables/*.json）可能在部分运行态下不可见，做惰性兜底
+try:  # 标准包内运行（services 包）
+    from services import rank_tables as _RT
+except Exception:  # 兼容以脚本方式直接运行
+    try:
+        import rank_tables as _RT
+    except Exception:
+        _RT = None
 
 
 def _norm_subject(subject: str) -> str:
@@ -117,6 +142,47 @@ def _anchors_from_score_tables(province: str, subject: str, year: int):
     return anchors, node.get("cohort_size")
 
 
+def _anchors_from_rank_tables(province: str, subject: str, year: int):
+    """真实一分一段表（data/rank_tables/*.json）：返回 (anchors, data_source)。
+
+    覆盖 30 省 × 2022–2026 的逐年落盘数据，行宽 3 列（单档）或 5 列（本科/专科双档）。
+    取「本科档累计 cum_ben」作为主曲线位次（与系统本科层次基线口径一致）；单档省
+    cum_ben == cum，无需区分。科类键做归一化（文科/理科/文史类/理工类/选考* →
+    历史类/物理类/综合），否则河南等第三方转录会被整体漏掉。山东等综合改革省同时落了
+    「综合」与六个「选考*」表（同一考生池），只取「综合」主表避免重复行。
+    """
+    if _RT is None:
+        return [], None
+    d = _RT.doc(year, province)
+    if not d:
+        return [], None
+    target = _norm_subject(subject)
+    subs = d.get("subjects") or {}
+    if target == "综合" and "综合" in subs:
+        blocks = [subs["综合"]]
+    else:
+        blocks = [blk for raw, blk in subs.items()
+                  if RANKTABLE_SUBJECT_ALIASES.get(raw, raw) == target]
+    if not blocks:
+        return [], None
+    seen, out = set(), []
+    for blk in blocks:
+        for r in blk["rows"]:
+            score = r[0]
+            if score in seen:
+                continue
+            seen.add(score)
+            cum = r[2] if len(r) <= 4 else r[2]   # cum_ben（本科档累计）
+            if not cum or cum <= 0:
+                continue
+            out.append(_anchor(f"{score}分", score, cum, "tmp"))
+    if not out:
+        return [], None
+    ds = d["meta"].get("data_source", "third_party_text")
+    source = "official_table" if ds == "official" else "third_party_text"
+    return out, source
+
+
 def _year_of(path: str, default: int) -> int:
     data = _load_json(path)
     try:
@@ -149,6 +215,9 @@ def curve(province: str, subject: str, year: int) -> dict:
     subject_n = _norm_subject(subject)
     anchors, cohort = _anchors_from_score_tables(province, subject_n, year)
     source = "official_table"
+
+    if not anchors:
+        anchors, source = _anchors_from_rank_tables(province, subject_n, year)
 
     if not anchors and year == _year_of(_OFFICIAL, 2024):
         anchors = _anchors_from_official(province, subject_n)
@@ -191,6 +260,21 @@ def available_years(province: str, subject: str) -> list:
         c = curve(province, subject, yi)
         if c.get("ok"):
             years[yi] = {"year": yi, "data_source": c["data_source"], "anchors": len(c["anchors"])}
+    # rank_tables 真实一分一段表逐年覆盖（2022–2026）：逐年探测该省该科类是否落盘
+    if _RT is not None:
+        target = _norm_subject(subject)
+        for y in range(2022, 2027):
+            d = _RT.doc(y, province)
+            if not d:
+                continue
+            subs = d.get("subjects") or {}
+            has = ("综合" in subs) if target == "综合" else any(
+                RANKTABLE_SUBJECT_ALIASES.get(k, k) == target for k in subs)
+            if not has:
+                continue
+            c = curve(province, subject, y)
+            if c.get("ok"):
+                years[y] = {"year": y, "data_source": c["data_source"], "anchors": len(c["anchors"])}
     return sorted(years.values(), key=lambda x: -x["year"])
 
 

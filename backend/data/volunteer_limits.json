@@ -1,0 +1,45 @@
+{
+  "meta": {
+    "reference_year": 2025,
+    "note": "普通本科批 / 专科批常规志愿数量（不含提前批、艺术/体育类、征集志愿）。各省每年可能调整，正式填报以本省教育考试院当年规定为准。",
+    "source": "阳光高考及各省教育考试院 2025 年招生规定汇总",
+    "source_url": "https://www.xinshinet.com/cyzx/8470.html"
+  },
+  "split_presets": {
+    "45": { "reach": 7, "match": 22, "safe": 16 },
+    "96": { "reach": 34, "match": 29, "safe": 33 },
+    "112": { "reach": 40, "match": 33, "safe": 39 }
+  },
+  "provinces": {
+    "辽宁": { "mode": "专业+院校", "undergrad": 112, "junior": 60 },
+    "河北": { "mode": "专业+院校", "undergrad": 96, "junior": 96 },
+    "山东": { "mode": "专业+院校", "undergrad": 96, "junior": 96 },
+    "重庆": { "mode": "专业+院校", "undergrad": 96, "junior": 96 },
+    "贵州": { "mode": "专业+院校", "undergrad": 96, "junior": 96 },
+    "青海": { "mode": "专业+院校", "undergrad": 96, "junior": 96 },
+    "浙江": { "mode": "专业+院校", "undergrad": 80, "junior": 80 },
+    "广东": { "mode": "院校专业组", "undergrad": 45, "junior": 45 },
+    "湖南": { "mode": "院校专业组", "undergrad": 45, "junior": 30 },
+    "湖北": { "mode": "院校专业组", "undergrad": 45, "junior": 20 },
+    "安徽": { "mode": "院校专业组", "undergrad": 45, "junior": 45 },
+    "江西": { "mode": "院校专业组", "undergrad": 45, "junior": 45 },
+    "甘肃": { "mode": "院校专业组", "undergrad": 45, "junior": 45 },
+    "山西": { "mode": "院校专业组", "undergrad": 45, "junior": 45 },
+    "陕西": { "mode": "院校专业组", "undergrad": 45, "junior": 45 },
+    "宁夏": { "mode": "院校专业组", "undergrad": 45, "junior": 45 },
+    "内蒙古": { "mode": "院校专业组", "undergrad": 45, "junior": 45 },
+    "河南": { "mode": "院校专业组", "undergrad": 48, "junior": 48 },
+    "江苏": { "mode": "院校专业组", "undergrad": 40, "junior": 40 },
+    "福建": { "mode": "院校专业组", "undergrad": 40, "junior": 40 },
+    "广西": { "mode": "院校专业组", "undergrad": 40, "junior": 40 },
+    "云南": { "mode": "院校专业组", "undergrad": 40, "junior": 20 },
+    "吉林": { "mode": "院校专业组", "undergrad": 40, "junior": 40 },
+    "黑龙江": { "mode": "院校专业组", "undergrad": 40, "junior": 40 },
+    "天津": { "mode": "院校专业组", "undergrad": 75, "junior": 20 },
+    "北京": { "mode": "院校专业组", "undergrad": 30, "junior": 20 },
+    "海南": { "mode": "院校专业组", "undergrad": 30, "junior": 10 },
+    "上海": { "mode": "院校专业组", "undergrad": 24, "junior": 8 },
+    "新疆": { "mode": "旧高考", "undergrad": 9, "junior": 9, "note": "旧高考院校志愿模式（本科一批 9 个院校志愿，每校 6 专业+调剂），数量为常见设置，以本省考试院为准" },
+    "西藏": { "mode": "旧高考", "undergrad": 10, "junior": 10, "note": "旧高考院校志愿模式（本科一批 10 个院校志愿，每校 6 专业+调剂），数量为常见设置，以本省考试院为准" }
+  }
+}

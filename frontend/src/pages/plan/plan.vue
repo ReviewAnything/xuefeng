@@ -10,6 +10,7 @@
         <text class="small">还没有生成志愿表。请先到「院校推荐」页按位次生成 冲/稳/保 院校清单。</text>
         <view class="actions">
           <wd-button type="primary" block @click="goRecommend">去生成院校推荐</wd-button>
+          <text style="display:block;margin-top:14rpx;text-align:center;color:#ffd24d;font-size:24rpx;" @click="goCompass">查看历年省控线（2022–2026）›</text>
         </view>
       </view>
 
@@ -19,6 +20,28 @@
           <text class="meta-line">位次：{{ plan.user_rank }}<text v-if="plan.major"> · 目标专业：{{ plan.major }}</text></text>
           <text class="meta-line">生成时间：{{ timeLabel }}</text>
         </view>
+      </view>
+
+      <!-- S10-B：志愿个数上限（各省本科批配额），超填/偏少都提醒 -->
+      <view v-if="hasPlan && volLimit" class="section vol-cap">
+        <text class="vc-title">本科批志愿上限</text>
+        <text class="vc-sub">{{ modeLabel }} · 最多 {{ volLimit.undergrad }} 个志愿</text>
+        <view class="vc-bar">
+          <view class="vc-fill" :class="capCls" :style="{ width: fillPct + '%' }"></view>
+        </view>
+        <text class="vc-count">已填 {{ filledCount }} / 上限 {{ volLimit.undergrad }}
+          <text v-if="overLimit" class="vc-warn"> · 已超出，建议删减</text>
+          <text v-else-if="filledCount === 0" class="vc-muted"> · 尚未填写</text>
+          <text v-else-if="filledCount < minSafe" class="vc-warn"> · 偏少，注意保底</text>
+          <text v-else class="vc-ok"> · 数量合理</text>
+        </text>
+        <text v-if="volLimit.split" class="vc-suggest">建议分布：冲 {{ volLimit.split.reach }} · 稳 {{ volLimit.split.match }} · 保 {{ volLimit.split.safe }}</text>
+        <view class="vc-levels">
+          <text class="vc-lvl">冲 {{ levelCounts.reach }}</text>
+          <text class="vc-lvl">稳 {{ levelCounts.match }}</text>
+          <text class="vc-lvl">保 {{ levelCounts.safe }}</text>
+        </view>
+        <text class="vc-note">专科批上限 {{ volLimit.junior }} 个；提前批 / 艺术体育类不同。{{ volLimit.note || '每年可能调整，正式填报以本省教育考试院为准。' }}</text>
       </view>
 
       <view v-if="hasPlan" class="section">
@@ -58,10 +81,17 @@
       </view>
 
       <view v-if="hasPlan" class="section">
-        <view v-for="g in groups" :key="g.level" class="grp">
+          <view v-for="g in groups" :key="g.level" class="grp">
           <view class="grp-head">
             <text class="grp-title" :class="levelClass(g.level)">{{ g.title }}（{{ g.rows.length }}）</text>
-            <text class="grp-sub">门槛位次参考见各行院校层次</text>
+            <view v-if="volLimit && volLimit.mode === '院校专业组'" class="grp-adjust" @click="toggleAdjust(g.level)">
+              <text class="adj-label">服从专业调剂</text>
+              <view class="adj-switch" :class="adjust[g.level] ? 'on' : 'off'">
+                <text class="adj-knob">{{ adjust[g.level] ? '是' : '否' }}</text>
+              </view>
+            </view>
+            <text v-else-if="volLimit && volLimit.mode === '专业+院校'" class="grp-sub">专业+院校模式无调剂选项</text>
+            <text v-else class="grp-sub">门槛位次参考见各行院校层次</text>
           </view>
           <view v-for="(r, i) in g.rows" :key="r.key" class="row">
             <view class="row-left">
@@ -72,7 +102,13 @@
                 <text v-if="rowBreach(r) === 'breach'" class="row-breach-tip">你的位次 {{ plan.user_rank }} 比该校最低投档位次 {{ r.line_rank }} 更靠后，够不上</text>
               </view>
             </view>
-            <input class="row-major" v-model="r.major" placeholder="拟报专业" />
+            <view class="row-right">
+              <view class="row-actions no-print">
+                <text class="row-move" @click="move(r.key, 'up')">↑</text>
+                <text class="row-move" @click="move(r.key, 'down')">↓</text>
+              </view>
+              <input class="row-major" v-model="r.major" placeholder="拟报专业" />
+            </view>
           </view>
           <text v-if="isNoRow(g)" class="small">该档暂无院校，可回到推荐页放宽条件。</text>
         </view>
@@ -137,12 +173,49 @@ const rows = ref([]);
 const patching = ref(false);
 const patchDiff = ref(null);   // S7-E 补位前后对比
 const showFillOrder = ref(false);   // S8-D 填报顺序展开开关
+const volLimit = ref(null);   // S10-B：本省志愿个数上限（本科批配额）
+const adjust = ref({ 冲: true, 稳: true, 保: true });  // S10-B：各组服从专业调剂
 
 const hasPlan = computed(() => !!plan.value);
 const isEmpty = computed(() => !plan.value);
 const groups = computed(() => groupRows(rows.value));
 const stats = computed(() => fillStats(rows.value));
 const timeLabel = computed(() => formatTime(plan.value && plan.value.at));
+
+// S10-B：志愿个数上限相关派生量
+const modeLabel = computed(() => {
+  if (!volLimit.value) return "";
+  const m = volLimit.value.mode;
+  if (m === "院校专业组") return "院校专业组模式";
+  if (m === "专业+院校") return "专业+院校模式";
+  return "旧高考院校志愿模式";
+});
+const filledCount = computed(() => rows.value.length);
+const levelCounts = computed(() => {
+  const c = { reach: 0, match: 0, safe: 0 };
+  rows.value.forEach((r) => {
+    if (r.level === "冲") c.reach++;
+    else if (r.level === "稳") c.match++;
+    else if (r.level === "保") c.safe++;
+  });
+  return c;
+});
+const overLimit = computed(() => volLimit.value && filledCount.value > volLimit.value.undergrad);
+const minSafe = computed(() => (volLimit.value && volLimit.value.split ? volLimit.value.split.safe : 0));
+const fillPct = computed(() => {
+  if (!volLimit.value) return 0;
+  return Math.min(100, Math.round((filledCount.value / volLimit.value.undergrad) * 100));
+});
+const capCls = computed(() => {
+  if (overLimit.value) return "over";
+  if (filledCount.value === 0) return "empty";
+  if (filledCount.value < minSafe.value) return "low";
+  return "ok";
+});
+const capInfo = computed(() => (volLimit.value ? {
+  volLimit: volLimit.value, adjust: adjust.value,
+  filledCount: filledCount.value, levelCounts: levelCounts.value,
+} : null));
 
 // S8-D：按可及性排序的填报顺序（纯函数，随 rows 变动实时重算）
 const fillOrder = computed(() => buildFillOrder(plan.value, rows.value));
@@ -185,8 +258,15 @@ onLoad(() => {
   const p = uni.getStorageSync(PLAN_KEY);
   if (!p) return;
   plan.value = p;
+  if (p.adjust) adjust.value = { 冲: true, 稳: true, 保: true, ...p.adjust };
   // 回填上次手填的拟报专业，避免离开页面后全部丢失
   rows.value = applyMajors(flattenPlan(p), p.majors);
+  // S10-B：拉取本省志愿个数上限（缺数据不阻断志愿表使用）
+  if (p.province) {
+    api.volunteerLimit(p.province)
+      .then((r) => { volLimit.value = r; })
+      .catch(() => { /* 上限数据缺失时静默降级，仅不显示上限卡片 */ });
+  }
 });
 
 // 拟报专业改动即写入本机草稿（仅本地存储，不上传）
@@ -209,8 +289,40 @@ function isNoRow(g) {
   return g.rows.length === 0;
 }
 
+// S10-B：各组「服从专业调剂」开关（仅院校专业组模式有意义；专业+院校模式无此选项）。
+// 状态落在本机草稿 plan.adjust 上，离开页面不丢。
+function toggleAdjust(level) {
+  adjust.value = { ...adjust.value, [level]: !adjust.value[level] };
+  if (plan.value) {
+    plan.value.adjust = adjust.value;
+    try {
+      uni.setStorageSync(PLAN_KEY, { ...plan.value, majors: collectMajors(rows.value) });
+    } catch (e) { /* 存储失败不阻断 */ }
+  }
+}
+
+// S10-B：组内专业排序——在同档（冲/稳/保）内上下移动某行，调整填报顺序显示与导出顺序。
+// 直接改 plan.tiers[].schools 的顺序后重新拍平，保证落盘与导出一致。
+function move(key, dir) {
+  const p = plan.value;
+  if (!p || !Array.isArray(p.tiers)) return;
+  for (const t of p.tiers) {
+    const schools = t.schools || [];
+    const idx = schools.findIndex((s) => (t.tier + "-" + s.name) === key);
+    if (idx >= 0) {
+      const j = dir === "up" ? idx - 1 : idx + 1;
+      if (j < 0 || j >= schools.length) return;
+      const arr = schools.slice();
+      const tmp = arr[idx]; arr[idx] = arr[j]; arr[j] = tmp;
+      t.schools = arr;
+      break;
+    }
+  }
+  rows.value = applyMajors(flattenPlan(p), p.majors);
+}
+
 function buildText() {
-  return buildPlanText(plan.value, groups.value, timeLabel.value);
+  return buildPlanText(plan.value, groups.value, timeLabel.value, capInfo.value);
 }
 
 function copy() {
@@ -231,7 +343,7 @@ function copyFillOrder() {
     return;
   }
   uni.setClipboardData({
-    data: buildFillOrderText(plan.value, fillOrder.value, timeLabel.value),
+    data: buildFillOrderText(plan.value, fillOrder.value, timeLabel.value, capInfo.value),
     success: () => toast.show("已复制填报顺序清单"),
   });
 }
@@ -240,6 +352,9 @@ function goRecommend() {
   const p = plan.value;
   const q = p ? `province=${encodeURIComponent(p.province)}&subject=${encodeURIComponent(p.subject)}&user_rank=${encodeURIComponent(p.user_rank)}` : "";
   uni.navigateTo({ url: q ? "/pages/recommend/recommend?" + q : "/pages/recommend/recommend" });
+}
+function goCompass() {
+  uni.navigateTo({ url: "/pages/compass/compass" });
 }
 
 // S5-C 保底失守一键补位：拉取更低层次、用户位次可稳够的兜底院校并入「保」档。
@@ -359,6 +474,35 @@ function print() {
 .row-name { font-size: 25rpx; color: #c7ccd4; }
 .row-meta { font-size: 20rpx; color: #6b7280; margin-top: 2rpx; }
 .row-major { width: 260rpx; font-size: 22rpx; color: #c7ccd4; border: 1px solid #2a2e37; border-radius: 8rpx; padding: 6rpx 12rpx; }
+
+/* S10-B：志愿个数上限卡片 */
+.vol-cap { border: 1px solid #22262e; border-radius: 16rpx; padding: 20rpx; }
+.vc-title { display: block; font-size: 26rpx; font-weight: 600; color: #ffd24d; }
+.vc-sub { display: block; margin-top: 4rpx; font-size: 21rpx; color: #9aa0aa; }
+.vc-bar { height: 14rpx; border-radius: 8rpx; background: #1c2027; margin: 14rpx 0 8rpx; overflow: hidden; }
+.vc-fill { height: 100%; border-radius: 8rpx; transition: width 0.2s; }
+.vc-fill.ok { background: #5fd87f; }
+.vc-fill.low { background: #f0ad4e; }
+.vc-fill.over { background: #e5484d; }
+.vc-fill.empty { background: #3a4048; }
+.vc-count { display: block; font-size: 22rpx; color: #c7ccd4; }
+.vc-warn { color: #ff8787; }
+.vc-ok { color: #5fd87f; }
+.vc-muted { color: #8a909c; }
+.vc-suggest { display: block; margin-top: 8rpx; font-size: 20rpx; color: #6db3f2; }
+.vc-levels { display: flex; gap: 16rpx; margin-top: 8rpx; }
+.vc-lvl { font-size: 20rpx; color: #aeb6c2; background: rgba(255,255,255,0.04); border-radius: 6rpx; padding: 2rpx 12rpx; }
+.vc-note { display: block; margin-top: 8rpx; font-size: 19rpx; color: #6b7280; line-height: 1.5; }
+/* S10-B：组内专业排序 + 服从调剂 */
+.grp-adjust { display: flex; align-items: center; gap: 10rpx; margin-left: auto; }
+.adj-label { font-size: 20rpx; color: #9aa0aa; }
+.adj-switch { min-width: 48rpx; height: 36rpx; border-radius: 18rpx; display: flex; align-items: center; justify-content: center; font-size: 18rpx; }
+.adj-switch.on { background: rgba(95,216,127,0.18); color: #5fd87f; border: 1px solid #2f7d4f; }
+.adj-switch.off { background: rgba(229,72,77,0.14); color: #ff8787; border: 1px solid #7d2f2f; }
+.row-right { display: flex; align-items: center; gap: 12rpx; }
+.row-actions { display: flex; flex-direction: column; }
+.row-move { font-size: 26rpx; color: #9aa0aa; line-height: 1.1; padding: 2rpx 4rpx; }
+.row-move:active { color: #ffd24d; }
 
 @media print {
   .no-print { display: none; }

@@ -53,4 +53,11 @@ export const api = {
   majorGroupUniversities: (params) => request("GET", "/api/major-groups/universities", params),
   majorGroups: (university, subject) =>
     request("GET", "/api/major-groups", { university, subject }),
+  // S10-A 年度罗盘：近五年官方省控线（按年浏览 / 跨省对比）
+  controlLineYears: () => request("GET", "/api/admission/control-line-years"),
+  controlLines: (year, province) =>
+    request("GET", "/api/admission/control-lines", { year, province }),
+  // S10-B 志愿个数上限：各省本科批/专科批配额 + 建议 冲/稳/保 分布
+  volunteerLimit: (province) =>
+    request("GET", "/api/admission/volunteer-limit", { province }),
 };

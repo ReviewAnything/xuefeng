@@ -116,7 +116,7 @@ def test_two_schools_gates_are_named():
 def test_basis_is_one_line():
     d = get("广东", "物理类", 40000).json()
     assert d["basis"].count("\n") == 0
-    assert "2024" in d["basis"]
+    assert "2026" in d["basis"]
 
 
 def test_invalid_rank_rejected():

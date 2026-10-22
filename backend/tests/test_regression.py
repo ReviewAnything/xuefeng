@@ -79,11 +79,17 @@ def test_tier_order_is_batch_order():
 # ---------------------------------------------------------------- 官方值年份口径
 
 def test_official_source_year_surfaced():
-    """广东 2026 版本的官方值是沿用 2024 的，接口必须带上 source_year/carried。"""
+    """广东 985/211 入门投档线仍是沿用 2024 的官方值，接口必须带上 source_year/carried。
+
+    注：广东 普通一本/二本/专科 现已直接有 2026 官方省控线（source_year=2026, carried=False），
+    仍沿用 2024 的只有 985/211 入门投档位次，故断言聚焦这两档，守住「沿用值必须透出」的回归点。
+    """
     j = R.recommend_schools("广东", "物理类", 40000, limit=1)
     official = [t for t in j["tiers"] if t["data_source"] == "official"]
     assert official, "广东应有官方省控线覆盖"
-    for t in official:
+    carried = [t for t in official if t["tier"] in ("985", "211")]
+    assert carried, "广东应有沿用 2024 的 985/211 入门投档线"
+    for t in carried:
         assert t["source_year"] == 2024
         assert t["carried"] is True
 
