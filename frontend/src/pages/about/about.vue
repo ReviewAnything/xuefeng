@@ -1,140 +1,208 @@
 <template>
   <wd-config-provider theme="dark" :theme-vars="themeVars">
     <view class="page">
-      <view class="hero">
-        <text class="h1">我的</text>
-        <text class="sub">一次填好高考信息，所有页面自动带齐；演示模式让你没后端也能体验完整流程。</text>
-      </view>
-
-      <!-- 高考信息：全局档案 -->
-      <view class="section">
-        <text class="h3">我的高考信息</text>
-        <text class="p small">填一次，常驻本机。打开「我能上哪 / 院校池 / 查专业」会自动带上，不用重复输入。</text>
-        <wd-cell-group border>
-          <wd-picker v-model="pf.province" label="高考省份" :columns="provinces" placeholder="请选择" label-width="30%" />
-          <wd-picker v-model="pf.subject" label="选科方向" :columns="subjects" placeholder="请选择" label-width="30%" />
-          <wd-input v-model="pf.rank" label="高考位次" type="number" placeholder="如：40000" label-width="30%" />
-          <wd-picker v-model="pf.major" label="目标专业" :columns="majorOptions" placeholder="请选择" label-width="30%" />
-        </wd-cell-group>
-        <view class="actions">
-          <wd-button type="primary" block :loading="saving" @click="saveProfile">保存我的信息</wd-button>
+      <view class="xf-hero">
+        <view class="avatar">
+          <app-icon name="user" color="#ffd24d" :size="44"></app-icon>
+        </view>
+        <view class="xf-hero-body">
+          <text class="xf-h1">我的</text>
+          <text class="xf-sub">填一次高考信息，全站自动带齐。演示模式下没后端也能走完整流程。</text>
         </view>
       </view>
 
+      <!-- 我的档案：有档案先给摘要，要改再展开表单（默认收起，减少每次进页面的输入压力） -->
+      <view class="xf-card profile-card">
+        <view class="pf-head">
+          <text class="xf-h3">我的高考信息</text>
+          <view v-if="hasProfile && !editing" class="pf-edit" @click="editing = true">
+            <app-icon name="refresh" color="#8f96a2" :size="24"></app-icon>
+            <text class="pf-edit-t">修改</text>
+          </view>
+        </view>
+
+        <view v-if="hasProfile && !editing" class="pf-summary">
+          <view class="pf-main">
+            <text class="pf-rank">{{ pf.rank }}</text>
+            <text class="pf-rank-unit">名</text>
+          </view>
+          <text class="pf-cond">{{ pf.province }} · {{ pf.subject }}<text v-if="pf.major !== NO_MAJOR"> · {{ pf.major }}</text></text>
+          <view class="pf-go" @click="goVerdict">
+            <text class="pf-go-t">去看我能上哪</text>
+            <app-icon name="chevron-right" color="#c9a53a" :size="24"></app-icon>
+          </view>
+        </view>
+
+        <block v-else>
+          <text class="xf-tiny">填一次常驻本机；「我能上哪 / 院校池 / 查专业 / 志愿表」都会自动带入。</text>
+          <view class="pf-fields">
+            <wd-picker v-model="pf.province" label="高考省份" :columns="provinces" placeholder="请选择" label-width="30%" />
+            <wd-picker v-model="pf.subject" label="选科方向" :columns="subjects" placeholder="请选择" label-width="30%" />
+            <wd-input v-model="pf.rank" label="高考位次" type="number" placeholder="如：40000" label-width="30%" />
+            <wd-picker v-model="pf.major" label="目标专业" :columns="majorOptions" placeholder="请选择" label-width="30%" />
+          </view>
+          <view class="pf-actions">
+            <wd-button type="primary" block :loading="saving" @click="saveProfile">保存我的信息</wd-button>
+            <text v-if="hasProfile" class="pf-cancel" @click="cancelEdit">取消</text>
+          </view>
+        </block>
+      </view>
+
       <!-- 演示模式 -->
-      <view class="section">
-        <view class="switch-row">
-          <view class="switch-text">
-            <text class="h3">演示模式</text>
-            <text class="p small">开启后使用内置样例数据，无需连接后端即可体验全部界面。关闭则连接真实后端。</text>
+      <view class="xf-card demo-card">
+        <view class="demo-row">
+          <view class="xf-tile xf-tile--reach">
+            <app-icon name="sparkle" color="#f0ad4e" :size="30"></app-icon>
+          </view>
+          <view class="demo-body">
+            <text class="xf-h3">演示模式</text>
+            <text class="xf-tiny">开启后用内置样例数据，无需后端即可体验全部界面；关闭则连真实后端。</text>
           </view>
           <wd-switch v-model="demoOn" @change="onDemo" />
         </view>
         <view v-if="demoOn" class="demo-note">
-          <text class="p small">当前为演示数据（示意值，非真实录取信息）。关闭本开关并连接后端，即可查看真实录取数据。</text>
+          <app-icon name="info" color="#f0ad4e" :size="24"></app-icon>
+          <text class="demo-note-t">当前为演示数据（示意值，非真实录取信息）。</text>
         </view>
       </view>
 
-      <view class="section">
-        <text class="h3">三步怎么用</text>
+      <!-- 三步怎么用 -->
+      <view class="xf-card steps-card">
+        <text class="xf-h3">三步怎么用</text>
         <view class="steps">
-          <view class="step"><text class="step-n">1</text><text class="step-t">在「我能上哪」填位次，看自己落在哪一档、冲稳保怎么分。</text></view>
-          <view class="step"><text class="step-n">2</text><text class="step-t">去「院校池」看每个层次的学校清单，挑一批进志愿表。</text></view>
-          <view class="step"><text class="step-n">3</text><text class="step-t">在「志愿表」里排好顺序、填拟报专业，打印或导出给家人一起看。</text></view>
+          <view class="step">
+            <view class="step-n">1</view>
+            <view class="step-body">
+              <text class="step-t">在「我能上哪」填位次</text>
+              <text class="step-d">看自己落在哪一档、冲稳保怎么分</text>
+            </view>
+            <app-icon name="target" color="#6f7683" :size="26"></app-icon>
+          </view>
+          <view class="step">
+            <view class="step-n">2</view>
+            <view class="step-body">
+              <text class="step-t">去「院校池」挑学校</text>
+              <text class="step-d">每个层次有哪些院校、去年多少分</text>
+            </view>
+            <app-icon name="school" color="#6f7683" :size="26"></app-icon>
+          </view>
+          <view class="step">
+            <view class="step-n">3</view>
+            <view class="step-body">
+              <text class="step-t">在「志愿表」排顺序</text>
+              <text class="step-d">填拟报专业，打印或导出给家人看</text>
+            </view>
+            <app-icon name="list" color="#6f7683" :size="26"></app-icon>
+          </view>
         </view>
-        <text class="lk" @click="goVerdict">先去「我能上哪」填位次 ›</text>
       </view>
 
-      <view class="section">
-        <text class="h3">更多工具</text>
-        <wd-cell-group border>
-          <wd-cell title="专业图谱" label="看专业的观点、就业与偏见校正" is-link @click="goGraph" />
-          <wd-cell title="八连问 · 自我诊断" label="说不清想要什么？先回答几个问题" is-link @click="goDiagnose" />
-          <wd-cell title="历年省控线" label="2022–2026 各省批次线及走势" is-link @click="goCompass" />
-        </wd-cell-group>
+      <!-- 更多工具 -->
+      <view class="sec">
+        <text class="sec-title">更多工具</text>
+        <view class="tool-list">
+          <view class="xf-action" @click="goGraph">
+            <view class="xf-tile">
+              <app-icon name="graph" color="#c2c8d0" :size="30"></app-icon>
+            </view>
+            <view class="xf-action-label">
+              <text class="xf-action-title">专业图谱</text>
+              <text class="xf-action-desc">看专业的观点、就业与偏见校正</text>
+            </view>
+            <app-icon name="chevron-right" color="#6f7683" :size="26"></app-icon>
+          </view>
+          <view class="xf-action" @click="goDiagnose">
+            <view class="xf-tile">
+              <app-icon name="bulb" color="#c2c8d0" :size="30"></app-icon>
+            </view>
+            <view class="xf-action-label">
+              <text class="xf-action-title">八连问 · 自我诊断</text>
+              <text class="xf-action-desc">说不清想要什么？先回答几个问题</text>
+            </view>
+            <app-icon name="chevron-right" color="#6f7683" :size="26"></app-icon>
+          </view>
+          <view class="xf-action" @click="goCompass">
+            <view class="xf-tile">
+              <app-icon name="calendar" color="#c2c8d0" :size="30"></app-icon>
+            </view>
+            <view class="xf-action-label">
+              <text class="xf-action-title">历年省控线</text>
+              <text class="xf-action-desc">2022–2026 各省批次线及走势</text>
+            </view>
+            <app-icon name="chevron-right" color="#6f7683" :size="26"></app-icon>
+          </view>
+        </view>
       </view>
 
-      <view class="section">
-        <text class="h3">这是什么</text>
-        <text class="p">一个把「普通家庭 + 就业导向」的务实决策框架，与开源社区资源、真实录取数据结合的<text class="strong">志愿决策助手</text>。它输出决策框架而非录取结论，并内置偏见校正层。</text>
+      <!-- 关于（默认折叠：需要时才展开，避免一屏几千字） -->
+      <view class="sec">
+        <text class="sec-title">关于这个工具</text>
+        <view class="xf-card">
+          <wd-collapse v-model="open">
+            <wd-collapse-item title="这是什么" name="what">
+              <text class="p">一个把「普通家庭 + 就业导向」的务实决策框架，与开源社区资源、真实录取数据结合的<text class="strong">志愿决策助手</text>。它输出决策框架而非录取结论，并内置偏见校正层。</text>
+            </wd-collapse-item>
+            <wd-collapse-item title="技术与数据规模" name="arch">
+              <text class="p kv">前端 · uni-app (Vue3)，H5 / 小程序 / App</text>
+              <text class="p kv">后端 · Python FastAPI</text>
+              <text class="p kv">数据 · SQLite + SQLAlchemy</text>
+              <text class="p kv">规模 · 2868 所院校 · {{ majorCount }} 专业 · {{ schoolCount }} 所入图谱</text>
+              <text class="p kv">管理端 · {{ adminPath }}</text>
+            </wd-collapse-item>
+            <wd-collapse-item title="五个方向的落地方式" name="five">
+              <text class="p kv">① 决策辅助而非答案：八连问 → 框架画布，不下定论。</text>
+              <text class="p kv">② 定性 × 定量：图谱观点 → 后端按省/科类/位次返回门槛与冲稳保。</text>
+              <text class="p kv">③ 偏见校正：每个专业带反方 / 长期 / 官方口径提示。</text>
+              <text class="p kv">④ 本地隐私：问卷输入仅存端侧；后端只记录匿名查询事件。</text>
+              <text class="p kv">⑤ 动态更新：内容与录取数据集中管理，管理端一键同步入库。</text>
+            </wd-collapse-item>
+            <wd-collapse-item title="内容可溯" name="src">
+              <text class="p kv">观点依据 · {{ src.view_basis }}</text>
+              <text class="p kv">数据依据 · {{ src.data_basis }}</text>
+              <text class="p kv">整理年份 · {{ src.compiled_year }} 年（{{ src.compiled_date }}）</text>
+              <text class="p small">{{ src.caveat }}</text>
+            </wd-collapse-item>
+          </wd-collapse>
+        </view>
       </view>
 
-      <view class="section">
-        <text class="h3">架构</text>
-        <wd-cell-group border>
-          <wd-cell title="前端" value="uni-app (Vue3) · H5 / 小程序 / App" />
-          <wd-cell title="UI 组件库" value="wot-design-uni" />
-          <wd-cell title="后端" value="Python FastAPI" />
-          <wd-cell title="数据落库" value="SQLite + SQLAlchemy" />
-          <wd-cell title="数据规模" :value="'2868 所院校 · ' + majorCount + ' 专业 · ' + schoolCount + ' 所入图谱'" />
-          <wd-cell title="管理端" value="/admin" is-link @click="openAdmin" />
-        </wd-cell-group>
-      </view>
-
-      <view class="section">
-        <text class="h3">五个方向的落地方式</text>
-        <wd-collapse v-model="open">
-          <wd-collapse-item title="① 决策辅助而非答案" name="1">
-            <text class="p">灵魂八连问 → 框架画布，不下定论；位次只用于数据侧核验。</text>
-          </wd-collapse-item>
-          <wd-collapse-item title="② 定性 × 定量" name="2">
-            <text class="p">专业图谱的观点 → 后端按省/科类/位次返回录取门槛与 冲稳保 判定。</text>
-          </wd-collapse-item>
-          <wd-collapse-item title="③ 偏见校正" name="3">
-            <text class="p">每个专业都带反方 / 长期 / 官方口径提示，避免单一口径误导。</text>
-          </wd-collapse-item>
-          <wd-collapse-item title="④ 本地隐私" name="4">
-            <text class="p">问卷输入仅存端侧存储；后端只记录匿名查询事件（省/科类/位次）。</text>
-          </wd-collapse-item>
-          <wd-collapse-item title="⑤ 动态更新" name="5">
-            <text class="p">内容与录取数据集中在 shared/content.json 与 backend/data，管理端一键同步入库。</text>
-          </wd-collapse-item>
-        </wd-collapse>
-      </view>
-
-      <view class="section">
-        <text class="h3">内容可溯</text>
-        <wd-cell-group border>
-          <wd-cell title="观点依据" :value="src.view_basis" />
-          <wd-cell title="数据依据" :value="src.data_basis" />
-          <wd-cell title="整理年份" :value="src.compiled_year + ' 年（' + src.compiled_date + '）'" />
-        </wd-cell-group>
-        <text class="p small">{{ src.caveat }}</text>
-        <text class="p small">专业图谱内每个专业均标注 source_year（观点整理年份）与 source_note（该大类证据口径）。</text>
-      </view>
-
-      <view class="section">
-        <text class="h3">开源资源</text>
-        <text class="p small">与志愿决策 / 升学规划相关的开源项目，均提供进入入口。</text>
+      <!-- 开源资源 -->
+      <view class="sec">
+        <text class="sec-title">开源资源</text>
         <scroll-view class="filters" scroll-x="true">
           <view class="chips">
-            <wd-tag v-for="r in resCats" :key="r.key" :type="cur === r.key ? 'primary' : 'default'"
-                    :plain="cur !== r.key" round @click="cur = r.key">{{ r.label }}</wd-tag>
+            <view v-for="r in resCats" :key="r.key" class="chip" :class="{ on: cur === r.key }" @click="cur = r.key">{{ r.label }}</view>
           </view>
         </scroll-view>
         <view class="grid">
-          <view v-for="item in list" :key="item.name" class="res">
-            <view class="top">
-              <text class="name">{{ item.name }}</text>
-              <wd-tag type="default" plain>{{ item.lic }}</wd-tag>
+          <view v-for="item in list" :key="item.name" class="xf-card res">
+            <view class="res-top">
+              <text class="res-name">{{ item.name }}</text>
+              <text class="res-lic">{{ item.lic }}</text>
             </view>
-            <text class="meta">{{ item.meta }}</text>
-            <text class="desc">{{ item.desc }}</text>
-            <view class="acts">
-              <wd-button v-for="l in item.links" :key="l.u" size="small"
-                         :type="l.t.indexOf('GitHub') >= 0 ? 'primary' : 'default'"
-                         :plain="l.t.indexOf('GitHub') < 0" @click="openLink(l.u)">
-                {{ l.t }} ↗
-              </wd-button>
+            <text class="res-meta">{{ item.meta }}</text>
+            <text class="res-desc">{{ item.desc }}</text>
+            <view class="res-acts">
+              <view v-for="l in item.links" :key="l.u" class="res-link" @click="openLink(l.u)">
+                <text class="res-link-t">{{ l.t }}</text>
+                <app-icon name="external" :color="l.t.indexOf('GitHub') >= 0 ? '#6db3f2' : '#8f96a2'" :size="22"></app-icon>
+              </view>
             </view>
           </view>
         </view>
       </view>
 
-      <view class="section warn">
-        <text class="h3">免责声明</text>
-        <text class="p">本应用由 AI 基于公开资料与开源社区内容整理，<text class="strong">仅供学习参考，不构成正式升学/志愿填报建议</text>。实际填报请以各省教育考试院官方数据为准。收录的开源项目多为社区自发纪念与二次创作，与商业主体无关联。录取基线中 31 省为官方省控线（2022–2026），院校级投档线为真实抓取（非官方），其余为模型推算，已在接口逐条标注来源。</text>
+      <!-- 免责 -->
+      <view class="xf-card disclaimer">
+        <view class="dis-head">
+          <app-icon name="shield" color="#f0ad4e" :size="28"></app-icon>
+          <text class="dis-title">免责声明</text>
+        </view>
+        <text class="p">本应用由 AI 基于公开资料与开源社区内容整理，<text class="strong">仅供学习参考，不构成正式升学 / 志愿填报建议</text>。实际填报请以各省教育考试院官方数据为准。</text>
+        <text class="p small">录取基线中 31 省为官方省控线（2022–2026），院校级投档线为真实抓取（非官方），其余为模型推算，已在接口逐条标注来源。</text>
       </view>
+
+      <text class="ver">v{{ version }} · 数据 {{ date }}</text>
     </view>
     <wd-toast />
   </wd-config-provider>
@@ -153,7 +221,7 @@ const version = APP_VERSION;
 const date = DATA_DATE;
 const majorCount = MAJORS.length;
 const schoolCount = SCHOOLS.length;
-const open = ref("1");
+const open = ref("");
 const src = CONTENT_SOURCE;
 
 const toast = useToast();
@@ -165,6 +233,12 @@ const majorOptions = [NO_MAJOR].concat(MAJORS.map((m) => m.name));
 const pf = ref({ province: "", subject: "", rank: "", major: NO_MAJOR });
 const saving = ref(false);
 const demoOn = ref(false);
+const editing = ref(false);
+
+const hasProfile = computed(() => !!(pf.value.province && pf.value.subject && pf.value.rank));
+
+// 管理端入口：H5 与后端同源时是 /admin，小程序端只能提示拼地址
+const adminPath = "/admin（后端服务地址后）";
 
 // 进入本页即同步全局档案与演示开关，保证「我的」始终反映当前状态
 onShow(() => {
@@ -176,7 +250,20 @@ onShow(() => {
     major: p.major || NO_MAJOR,
   };
   demoOn.value = api.isDemo();
+  // 已有档案就默认收起表单（进页面先看摘要，不先看输入框）
+  editing.value = !(p.province && p.subject && p.rank);
 });
+
+function cancelEdit() {
+  const p = getProfile();
+  pf.value = {
+    province: p.province || "",
+    subject: p.subject || "",
+    rank: p.rank || "",
+    major: p.major || NO_MAJOR,
+  };
+  editing.value = false;
+}
 
 function saveProfile() {
   if (!pf.value.province || !pf.value.subject || !pf.value.rank) {
@@ -195,6 +282,7 @@ function saveProfile() {
       rank: pf.value.rank,
       major: pf.value.major === NO_MAJOR ? "" : pf.value.major,
     });
+    editing.value = false;
     toast.show("已保存，去「我能上哪」看看吧");
   } finally {
     saving.value = false;
@@ -234,51 +322,90 @@ function openLink(u) {
   uni.setClipboardData({ data: u, success: () => toast.show("链接已复制，请在浏览器打开") });
   // #endif
 }
-
-function openAdmin() {
-  // #ifdef H5
-  window.open("/admin", "_blank");
-  // #endif
-  // #ifndef H5
-  uni.setClipboardData({ data: "请在后端服务地址后访问 /admin" });
-  // #endif
-}
 </script>
 
 <style scoped>
-.page { padding: 24rpx 24rpx 60rpx; }
-.hero { padding: 16rpx 8rpx 20rpx; }
-.h1 { font-size: 40rpx; font-weight: 700; color: #ffd24d; }
-.sub { display: block; margin-top: 10rpx; font-size: 24rpx; color: #8a909c; line-height: 1.6; }
+.page { padding: 24rpx 24rpx 80rpx; min-height: 100vh; background: var(--xf-bg); }
 
-.section { margin-bottom: 24rpx; }
-.section.warn { border: 1px solid #5a4a1a; border-radius: 16rpx; padding: 20rpx; background: #1b1811; }
-.h3 { font-size: 30rpx; font-weight: 600; color: #e6e8ec; display: block; margin-bottom: 12rpx; }
-.p { font-size: 24rpx; color: #c7ccd4; line-height: 1.75; }
-.p.small { display: block; margin-top: 8rpx; font-size: 21rpx; color: #8a909c; }
-.strong { color: #ffd24d; font-weight: 600; }
-.actions { display: flex; flex-direction: column; gap: 16rpx; margin-top: 18rpx; }
+.avatar {
+  flex: 0 0 auto; width: 88rpx; height: 88rpx; border-radius: 28rpx;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 210, 77, 0.12); border: 1rpx solid rgba(255, 210, 77, 0.3);
+}
 
-/* 演示模式开关 */
-.switch-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16rpx; }
-.switch-text { flex: 1; }
-.demo-note { margin-top: 12rpx; padding: 12rpx 16rpx; border-radius: 12rpx; background: rgba(240, 173, 78, 0.08); border: 1px solid #5a4a1a; }
+/* 档案卡 */
+.profile-card { margin-top: 6rpx; }
+.pf-head { display: flex; align-items: center; justify-content: space-between; }
+.pf-edit { display: flex; align-items: center; gap: 6rpx; min-height: 64rpx; padding-left: 12rpx; }
+.pf-edit-t { font-size: 21rpx; color: var(--xf-text-3); }
+.pf-summary { margin-top: 10rpx; }
+.pf-main { display: flex; align-items: baseline; gap: 6rpx; }
+.pf-rank { font-size: 56rpx; font-weight: 700; color: var(--xf-gold); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.pf-rank-unit { font-size: 22rpx; color: var(--xf-text-3); }
+.pf-cond { display: block; margin-top: 4rpx; font-size: 23rpx; color: var(--xf-text-3); }
+.pf-go {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 18rpx; padding: 0 18rpx; min-height: 84rpx;
+  border-radius: var(--xf-r-md);
+  background: linear-gradient(135deg, rgba(255, 210, 77, 0.14), rgba(255, 210, 77, 0.03));
+  border: 1rpx solid rgba(255, 210, 77, 0.34);
+}
+.pf-go-t { font-size: 25rpx; font-weight: 600; color: var(--xf-gold); }
+.pf-fields { margin: 14rpx 0 18rpx; border: 1rpx solid var(--xf-line); border-radius: var(--xf-r-sm); overflow: hidden; }
+.pf-actions { display: flex; flex-direction: column; gap: 10rpx; }
+.pf-cancel { display: block; text-align: center; padding: 16rpx 0; font-size: 23rpx; color: var(--xf-text-3); }
 
-/* 三步引导 */
+/* 演示模式 */
+.demo-card { margin-top: 18rpx; }
+.demo-row { display: flex; align-items: flex-start; gap: 14rpx; }
+.demo-body { flex: 1; min-width: 0; }
+.demo-note { display: flex; align-items: center; gap: 8rpx; margin-top: 14rpx; padding: 12rpx 14rpx; border-radius: var(--xf-r-sm); background: rgba(240, 173, 78, 0.08); border: 1rpx solid rgba(240, 173, 78, 0.28); }
+.demo-note-t { flex: 1; font-size: 20rpx; color: var(--xf-demo); line-height: 1.5; }
+
+/* 三步 */
+.steps-card { margin-top: 18rpx; }
 .steps { margin-top: 8rpx; }
-.step { display: flex; align-items: flex-start; gap: 14rpx; padding: 12rpx 0; }
-.step-n { flex: 0 0 auto; width: 40rpx; height: 40rpx; border-radius: 50%; background: rgba(255, 210, 77, 0.15); color: #ffd24d; font-size: 22rpx; font-weight: 700; display: flex; align-items: center; justify-content: center; }
-.step-t { flex: 1; font-size: 23rpx; color: #c7ccd4; line-height: 1.7; }
-.lk { display: inline-block; margin-top: 14rpx; font-size: 24rpx; color: #6db3f2; }
+.step { display: flex; align-items: center; gap: 14rpx; padding: 14rpx 0; border-top: 1rpx solid var(--xf-line-soft); }
+.step:first-child { border-top: none; }
+.step-n {
+  flex: 0 0 auto; width: 44rpx; height: 44rpx; border-radius: 50%;
+  background: rgba(255, 210, 77, 0.14); color: var(--xf-gold);
+  font-size: 22rpx; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.step-body { flex: 1; min-width: 0; }
+.step-t { display: block; font-size: 24rpx; color: var(--xf-text-2); }
+.step-d { display: block; margin-top: 3rpx; font-size: 20rpx; color: var(--xf-text-4); }
 
-/* 开源资源（资源 tab 迁入） */
-.filters { white-space: nowrap; margin: 14rpx 0 12rpx; }
-.chips { display: inline-flex; gap: 12rpx; padding: 2rpx 2rpx 6rpx; }
-.grid { display: flex; flex-direction: column; gap: 20rpx; }
-.res { background: #16191f; border: 1px solid #23262e; border-radius: 16rpx; padding: 22rpx; }
-.top { display: flex; justify-content: space-between; align-items: center; gap: 12rpx; }
-.name { font-size: 27rpx; font-weight: 600; color: #e6e8ec; }
-.meta { display: block; font-size: 21rpx; color: #6b7280; margin-top: 8rpx; }
-.desc { font-size: 23rpx; color: #9aa0aa; line-height: 1.7; display: block; margin: 12rpx 0 16rpx; }
-.acts { display: flex; flex-wrap: wrap; gap: 12rpx; }
+/* 分区 */
+.sec { margin-top: 30rpx; }
+.sec-title { display: block; font-size: 22rpx; color: var(--xf-text-4); margin-bottom: 12rpx; letter-spacing: 1rpx; }
+.tool-list { display: flex; flex-direction: column; gap: 12rpx; }
+
+.p { display: block; font-size: 23rpx; color: var(--xf-text-2); line-height: 1.75; }
+.p.kv { margin-bottom: 8rpx; }
+.p.small { margin-top: 8rpx; font-size: 20rpx; color: var(--xf-text-4); line-height: 1.7; }
+.strong { color: var(--xf-gold); font-weight: 600; }
+
+/* 资源 */
+.filters { white-space: nowrap; margin-bottom: 12rpx; }
+.chips { display: inline-flex; gap: 12rpx; padding: 2rpx 2rpx 8rpx; }
+.chip { padding: 12rpx 24rpx; border-radius: 999rpx; font-size: 22rpx; background: var(--xf-surface); border: 1rpx solid var(--xf-line); color: var(--xf-text-3); }
+.chip.on { background: rgba(255, 210, 77, 0.12); border-color: rgba(255, 210, 77, 0.42); color: var(--xf-gold); font-weight: 600; }
+.grid { display: flex; flex-direction: column; gap: 16rpx; }
+.res-top { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; }
+.res-name { font-size: 26rpx; font-weight: 600; color: var(--xf-text); }
+.res-lic { font-size: 19rpx; color: var(--xf-text-4); border: 1rpx solid var(--xf-line); border-radius: 6rpx; padding: 2rpx 8rpx; }
+.res-meta { display: block; margin-top: 8rpx; font-size: 20rpx; color: var(--xf-text-4); }
+.res-desc { display: block; margin: 10rpx 0 14rpx; font-size: 22rpx; color: var(--xf-text-3); line-height: 1.7; }
+.res-acts { display: flex; flex-wrap: wrap; gap: 10rpx; }
+.res-link { display: flex; align-items: center; gap: 6rpx; padding: 10rpx 18rpx; min-height: 64rpx; border-radius: 999rpx; border: 1rpx solid var(--xf-line); background: rgba(255, 255, 255, 0.03); }
+.res-link-t { font-size: 21rpx; color: var(--xf-real); }
+
+/* 免责 */
+.disclaimer { margin-top: 30rpx; border-color: rgba(240, 173, 78, 0.3); background: rgba(240, 173, 78, 0.05); }
+.dis-head { display: flex; align-items: center; gap: 10rpx; margin-bottom: 8rpx; }
+.dis-title { font-size: 24rpx; font-weight: 600; color: var(--xf-demo); }
+
+.ver { display: block; margin-top: 26rpx; text-align: center; font-size: 19rpx; color: var(--xf-text-4); }
 </style>

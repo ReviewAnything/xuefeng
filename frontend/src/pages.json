@@ -29,11 +29,11 @@
     "backgroundColor": "#16191f",
     "borderStyle": "black",
     "list": [
-      { "pagePath": "pages/verdict/verdict", "text": "我能上哪" },
-      { "pagePath": "pages/recommend/recommend", "text": "院校池" },
-      { "pagePath": "pages/plan/plan", "text": "志愿表" },
-      { "pagePath": "pages/verify/verify", "text": "查专业" },
-      { "pagePath": "pages/about/about", "text": "我的" }
+      { "pagePath": "pages/verdict/verdict", "text": "我能上哪", "iconPath": "static/tabbar/verdict.png", "selectedIconPath": "static/tabbar/verdict-on.png" },
+      { "pagePath": "pages/recommend/recommend", "text": "院校池", "iconPath": "static/tabbar/recommend.png", "selectedIconPath": "static/tabbar/recommend-on.png" },
+      { "pagePath": "pages/plan/plan", "text": "志愿表", "iconPath": "static/tabbar/plan.png", "selectedIconPath": "static/tabbar/plan-on.png" },
+      { "pagePath": "pages/verify/verify", "text": "查专业", "iconPath": "static/tabbar/verify.png", "selectedIconPath": "static/tabbar/verify-on.png" },
+      { "pagePath": "pages/about/about", "text": "我的", "iconPath": "static/tabbar/me.png", "selectedIconPath": "static/tabbar/me-on.png" }
     ]
   }
 }

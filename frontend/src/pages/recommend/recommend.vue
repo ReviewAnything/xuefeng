@@ -1,86 +1,153 @@
 <template>
   <wd-config-provider theme="dark" :theme-vars="themeVars">
     <view class="page">
-      <view class="hero">
-        <text class="h1">院校推荐 · 冲稳保</text>
-        <text class="sub">按你的位次给出各层次（985 / 211 / 普通本科 / 专科）的门槛判定与院校池。</text>
+      <!-- 吸顶条件条：出过结果后不再让人滚回顶部找输入框 -->
+      <view v-if="hasResult" class="sticky-bar">
+        <text class="sticky-cond">{{ f.province }} · {{ f.subject }} · {{ f.user_rank }} 名</text>
+        <view class="sticky-act" @click="editConditions">
+          <app-icon name="refresh" color="#8f96a2" :size="26"></app-icon>
+          <text class="sticky-act-t">改条件</text>
+        </view>
       </view>
 
-      <view class="section">
+      <view v-if="!hasResult" class="xf-hero">
+        <view class="xf-tile xf-tile--gold">
+          <app-icon name="school" color="#ffd24d" :size="36"></app-icon>
+        </view>
+        <view class="xf-hero-body">
+          <text class="xf-h1">能上哪些学校</text>
+          <text class="xf-sub">按你的位次分档：冲、稳、保各给一批院校，标出去年最低分。</text>
+        </view>
+      </view>
+
+      <!-- 输入 -->
+      <view v-if="!hasResult" class="xf-card input-card">
         <view class="section-head">
-          <text class="h3">输入你的条件</text>
-          <wd-tag type="primary" plain>教育部 2868 所</wd-tag>
+          <text class="xf-h3">输入你的条件</text>
+          <view class="xf-chip">
+            <app-icon name="layers" color="#8f96a2" :size="22"></app-icon>
+            <text>教育部 2868 所</text>
+          </view>
         </view>
 
-        <wd-cell-group border>
+        <view class="fields">
           <wd-picker v-model="f.province" label="高考省份" :columns="provinces" placeholder="请选择" label-width="30%"></wd-picker>
           <wd-picker v-model="f.subject" label="选科方向" :columns="subjects" placeholder="请选择" label-width="30%"></wd-picker>
           <wd-input v-model="f.user_rank" label="高考位次" type="number" placeholder="如：40000" label-width="30%"></wd-input>
           <wd-picker v-model="f.major" label="目标专业" :columns="majorOptions" placeholder="请选择" label-width="30%"></wd-picker>
-        </wd-cell-group>
-
-        <view class="actions">
-          <wd-button type="primary" block size="large" :loading="loading" @click="run">生成院校推荐</wd-button>
         </view>
+
+        <wd-button type="primary" block size="large" :loading="loading" @click="run">
+          生成院校推荐
+        </wd-button>
         <text v-if="err" class="err">{{ err }}</text>
+
+        <view v-if="loading" class="skel">
+          <view class="xf-skel xf-skel-line xf-skel-line--w40"></view>
+          <view class="xf-skel xf-skel-line"></view>
+          <view class="xf-skel xf-skel-line xf-skel-line--w70"></view>
+        </view>
       </view>
 
-      <view class="section" v-if="hasResult">
-        <view class="section-head">
-          <text class="h3">梯度概览</text>
-          <text class="bk-sub">{{ result.province }} · {{ result.subject }} · 位次 {{ result.user_rank }}</text>
-        </view>
-        <view class="sum">
-          <text class="sum-i reach">冲 {{ result.summary.reach }}</text>
-          <text class="sum-i match">稳 {{ result.summary.match }}</text>
-          <text class="sum-i safe">保 {{ result.summary.safe }}</text>
-          <text class="sum-i none">不可及 {{ result.summary.unreachable }}</text>
-        </view>
-        <text class="small">数据源：{{ sourceLabel }}</text>
-        <!-- S5-A：校线权威声明（真实抓取 ≠ 官方） -->
-        <text class="small auth-rcmd" v-if="result && result.school_line_hits">其中 {{ result.school_line_hits }} 所院校已匹配投档线（行内标「去年最低」）；当前全部为真实抓取（掌上高考 2025），非考试院官方发布。</text>
-        <text class="small auth-rcmd" v-else-if="result">该省尚未导入院校级投档线，院校行不含「去年最低」；可在管理端「校线导入」上传各省考试院官方投档原表后重新生成。</text>
-      </view>
-
-      <view class="section" v-if="hasResult">
-        <view v-for="t in result.tiers" :key="t.tier" class="tier-card">
-          <view class="tier-head">
-            <text class="tier-name">{{ t.tier }}</text>
-            <wd-tag :type="levelType(t.level)" plain>{{ t.level }}</wd-tag>
-            <wd-tag :type="dsType(t.data_source)" plain>{{ sourceTag(t) }}</wd-tag>
+      <!-- 结果 -->
+      <view v-if="hasResult" class="res xf-fade">
+        <!-- 汇总：四个数一眼看完 -->
+        <view class="sum-card">
+          <view class="sum-row">
+            <view class="sum-item">
+              <text class="sum-n reach">{{ result.summary.reach }}</text>
+              <text class="sum-l">冲</text>
+            </view>
+            <view class="sum-item">
+              <text class="sum-n match">{{ result.summary.match }}</text>
+              <text class="sum-l">稳</text>
+            </view>
+            <view class="sum-item">
+              <text class="sum-n safe">{{ result.summary.safe }}</text>
+              <text class="sum-l">保</text>
+            </view>
+            <view class="sum-item">
+              <text class="sum-n none">{{ result.summary.unreachable }}</text>
+              <text class="sum-l">不可及</text>
+            </view>
           </view>
-          <text class="tier-meta">门槛 ≈{{ t.min_score }} 分 / 位次 {{ t.min_rank }} · {{ t.pool_label }}（共 {{ t.pool_total }} 所，展示前 {{ t.schools.length }} 所）</text>
-          <text class="basis">{{ t.basis }}</text>
+          <view class="sum-foot">
+            <view :class="['xf-chip', 'xf-chip--' + cred.cls]">
+              <app-icon :name="cred.icon" :color="cred.color" :size="22"></app-icon>
+              <text>{{ cred.label }}</text>
+            </view>
+            <text class="sum-source">{{ sourceLabel }}</text>
+          </view>
+        </view>
+
+        <!-- S5-A：校线权威声明（真实抓取 ≠ 官方） -->
+        <view v-if="result && result.school_line_hits" class="notice notice--real">
+          <app-icon name="info" color="#6db3f2" :size="28"></app-icon>
+          <text class="notice-t">其中 {{ result.school_line_hits }} 所院校已匹配投档线（行内标「去年最低」）；当前为真实抓取结果，非考试院官方发布。</text>
+        </view>
+        <view v-else-if="result" class="notice">
+          <app-icon name="info" color="#8f96a2" :size="28"></app-icon>
+          <text class="notice-t">该省尚未导入院校级投档线，院校行不含「去年最低」。可在管理端「校线导入」上传官方原表后重新生成。</text>
+        </view>
+
+        <!-- 档位卡：左侧色条 + 档位图标，扫读即分档 -->
+        <view v-for="t in result.tiers" :key="t.tier" class="tier-card" :class="'tier-card--' + stripCls(t.level)">
+          <view class="tier-head">
+            <view class="xf-tile" :class="'xf-tile--' + stripCls(t.level)">
+              <app-icon :name="levelIcon(t.level)" :color="levelColor(t.level)" :size="30"></app-icon>
+            </view>
+            <view class="tier-head-body">
+              <text class="tier-name">{{ t.tier }}</text>
+              <text class="tier-meta">门槛 ≈ {{ t.min_score }} 分 · 位次 {{ t.min_rank }}</text>
+            </view>
+            <view class="xf-chip" :class="'xf-chip--' + stripCls(t.level)">{{ t.level }}</view>
+          </view>
+
+          <text class="tier-pool">{{ t.pool_label }}（共 {{ t.pool_total }} 所，展示前 {{ t.schools.length }} 所）</text>
 
           <view v-if="t.schools.length" class="schools">
             <view v-for="s in t.schools" :key="s.name" class="school" @click="goGroups(s)">
               <view class="school-top">
                 <text class="school-name">{{ s.name }}</text>
                 <view class="school-right">
-                  <wd-tag v-if="s.nature" type="default" plain>{{ s.nature }}</wd-tag>
-                  <text class="chev">专业组 ›</text>
+                  <text v-if="s.nature" class="school-nature">{{ s.nature }}</text>
+                  <app-icon name="chevron-right" color="#6f7683" :size="24"></app-icon>
                 </view>
               </view>
               <text class="school-meta">{{ s.province }}<text v-if="s.city"> · {{ s.city }}</text><text v-if="s.category"> · {{ s.category }}</text></text>
-              <text v-if="s.min_score" class="school-line">去年最低 {{ s.min_score }} 分<text v-if="s.min_rank"> · 位次 {{ s.min_rank }}</text><text v-if="s.line_year">（{{ s.line_year }} 年投档线）</text></text>
+              <view v-if="s.min_score" class="school-line">
+                <app-icon name="check" color="#5fd87f" :size="22"></app-icon>
+                <text class="school-line-t">去年最低 {{ s.min_score }} 分<text v-if="s.min_rank"> · 位次 {{ s.min_rank }}</text><text v-if="s.line_year">（{{ s.line_year }} 年投档线）</text></text>
+              </view>
             </view>
           </view>
-          <text v-if="noLine(t)" class="basis">本档还没有院校投档线，行内不显示「去年最低」，只按层次归类。</text>
-          <text v-if="isShared(t)" class="small">院校已在上方「{{ t.pool_shared_with }}」档展示（同一院校池）。</text>
-          <text v-if="isEmptyTier(t)" class="small">该层次暂无匹配院校（请放宽筛选条件）。</text>
-        </view>
-      </view>
 
-      <view class="section" v-if="hasResult">
-        <view class="actions">
-          <wd-button block plain @click="goPlan">生成志愿表（可打印 / 导出 PDF）</wd-button>
+          <text v-if="noLine(t)" class="tier-tip">本档还没有院校投档线，只按层次归类，不显示「去年最低」。</text>
+          <text v-if="isShared(t)" class="tier-tip">院校已在上方「{{ t.pool_shared_with }}」档展示（同一院校池）。</text>
+          <text v-if="isEmptyTier(t)" class="tier-tip">该层次暂无匹配院校，可放宽目标专业再试。</text>
         </view>
-        <!-- S5-D 志愿表发现性：存在本机草稿时显式入口 + 红点提示 -->
+
+        <!-- 下一步 -->
+        <view class="actions">
+          <view class="xf-action xf-action--primary" @click="goPlan">
+            <view class="xf-tile xf-tile--gold">
+              <app-icon name="list" color="#ffd24d" :size="32"></app-icon>
+            </view>
+            <view class="xf-action-label">
+              <text class="xf-action-title">生成志愿表</text>
+              <text class="xf-action-desc">可继续编辑、复制、打印或导出 PDF</text>
+            </view>
+            <app-icon name="chevron-right" color="#c9a53a" :size="26"></app-icon>
+          </view>
+        </view>
+
         <view class="draft-row" v-if="hasDraft" @click="openPlan">
           <text class="draft-dot"></text>
-          <text class="draft-txt">你有一份志愿表草稿，点击查看 ›</text>
+          <text class="draft-txt">你有一份志愿表草稿，点击继续编辑</text>
+          <app-icon name="chevron-right" color="#5fd87f" :size="24"></app-icon>
         </view>
-        <view class="notes">
+
+        <view v-if="result.notes && result.notes.length" class="notes">
           <text v-for="(n, i) in result.notes" :key="i" class="note">· {{ n }}</text>
         </view>
       </view>
@@ -96,7 +163,7 @@ import { useToast } from "wot-design-uni";
 import { MAJORS } from "@/utils/content.js";
 import { api } from "@/utils/api.js";
 import { PLAN_KEY, buildPlan } from "@/utils/plan.js";
-import { themeVars } from "@/utils/theme.js";
+import { themeVars, credMeta, levelColor, levelIcon } from "@/utils/theme.js";
 import { applyProfile, saveFromForm } from "@/utils/profile.js";
 
 const toast = useToast();
@@ -115,6 +182,17 @@ const hasResult = computed(() => {
   const r = result.value;
   return !!(r && r.tiers && r.tiers.length);
 });
+
+// P2 信任呈现：口径统一走 theme.credMeta
+const cred = computed(() => credMeta(result.value && result.value.data_source));
+
+// 档位 → CSS 色条/芯片后缀（冲/稳/保/其它）
+function stripCls(level) {
+  if (level === "冲") return "reach";
+  if (level === "稳") return "match";
+  if (level === "保") return "safe";
+  return "est";
+}
 
 // S5-D：本机是否存在志愿表草稿（决定推荐页是否展示常驻入口 + 红点）
 const hasDraft = computed(() => !!uni.getStorageSync(PLAN_KEY));
@@ -139,13 +217,6 @@ onShow(() => {
   Object.assign(f, applyProfile(f));
 });
 
-function levelType(level) {
-  if (level === "冲") return "warning";
-  if (level === "稳") return "primary";
-  if (level === "保") return "success";
-  return "info";
-}
-
 // 模板里不写复合表达式（Vue in-DOM 编译器对 && 支持不稳），统一抽成方法
 function hasSchools(t) {
   return !!(t && t.schools && t.schools.length);
@@ -158,18 +229,6 @@ function isShared(t) {
 }
 function isEmptyTier(t) {
   return !hasSchools(t) && !t.pool_shared_with;
-}
-
-function dsType(ds) {
-  return ds === "official" ? "success" : "warning";
-}
-
-// 官方值可能是往年沿用（carried），必须把真实来源年份显示出来，
-// 否则「2026 官方 532 分」其实是 2024 特控线，属于误导。
-function sourceTag(t) {
-  if (!t || t.data_source !== "official") return "估算";
-  if (t.carried && t.source_year) return "官方·沿用" + t.source_year;
-  return "官方";
 }
 
 async function run() {
@@ -204,6 +263,12 @@ function savePlan() {
   if (p) uni.setStorageSync(PLAN_KEY, p);
 }
 
+// 回到条件输入（吸顶条上的「改条件」）
+function editConditions() {
+  result.value = null;
+  err.value = "";
+}
+
 function goPlan() {
   uni.switchTab({ url: "/pages/plan/plan" });
 }
@@ -222,48 +287,90 @@ function goGroups(s) {
 </script>
 
 <style scoped>
-.page { padding: 24rpx 24rpx 60rpx; }
-.hero { padding: 16rpx 8rpx 24rpx; }
-.h1 { font-size: 40rpx; font-weight: 700; color: #ffd24d; }
-.sub { display: block; margin-top: 10rpx; font-size: 24rpx; color: #8a909c; line-height: 1.6; }
+.page { padding: 24rpx 24rpx 80rpx; min-height: 100vh; background: var(--xf-bg); }
 
-.section { margin-bottom: 24rpx; }
+/* 吸顶条件条 */
+.sticky-bar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: space-between;
+  margin: -24rpx -24rpx 20rpx; padding: 18rpx 24rpx;
+  background: rgba(15, 17, 21, 0.94);
+  border-bottom: 1rpx solid var(--xf-line);
+  backdrop-filter: blur(8px);
+}
+.sticky-cond { font-size: 23rpx; color: var(--xf-text-2); font-variant-numeric: tabular-nums; }
+.sticky-act { display: flex; align-items: center; gap: 8rpx; min-height: 64rpx; padding-left: 12rpx; }
+.sticky-act-t { font-size: 23rpx; color: var(--xf-text-3); }
+
+/* 输入卡 */
+.input-card { margin-top: 8rpx; }
 .section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14rpx; }
-.h3 { font-size: 30rpx; font-weight: 600; color: #e6e8ec; }
-.bk-sub { font-size: 21rpx; color: #6b7280; }
-.auth-rcmd { color: #f0ad4e; }
-.actions { display: flex; flex-direction: column; gap: 16rpx; margin-top: 18rpx; }
-.small { font-size: 21rpx; color: #6b7280; display: block; margin-top: 10rpx; line-height: 1.6; }
-.err { font-size: 22rpx; color: #ff6b6b; display: block; margin-top: 12rpx; line-height: 1.5; }
+.fields { margin: 6rpx 0 26rpx; border: 1rpx solid var(--xf-line); border-radius: var(--xf-r-sm); overflow: hidden; }
+.err { display: block; margin-top: 16rpx; font-size: 23rpx; color: var(--xf-danger-text); line-height: 1.6; }
+.skel { margin-top: 28rpx; }
 
-.sum { display: flex; flex-wrap: wrap; gap: 12rpx; }
-.sum-i { font-size: 22rpx; padding: 4rpx 16rpx; border-radius: 999rpx; border: 1px solid #2a2e37; }
-.sum-i.reach { color: #f0ad4e; }
-.sum-i.match { color: #6db3f2; }
-.sum-i.safe { color: #5fd87f; }
-.sum-i.none { color: #6b7280; }
+/* 汇总 */
+.sum-card {
+  padding: 24rpx 22rpx 20rpx; border-radius: var(--xf-r-lg);
+  background: var(--xf-surface); border: 1rpx solid var(--xf-line);
+}
+.sum-row { display: flex; }
+.sum-item { flex: 1; text-align: center; border-right: 1rpx solid var(--xf-line-soft); }
+.sum-item:last-child { border-right: none; }
+.sum-n { display: block; font-size: 44rpx; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.sum-n.reach { color: var(--xf-reach); }
+.sum-n.match { color: var(--xf-match); }
+.sum-n.safe { color: var(--xf-safe); }
+.sum-n.none { color: var(--xf-text-4); }
+.sum-l { display: block; margin-top: 4rpx; font-size: 21rpx; color: var(--xf-text-3); }
+.sum-foot { display: flex; align-items: center; gap: 12rpx; margin-top: 20rpx; padding-top: 18rpx; border-top: 1rpx solid var(--xf-line-soft); }
+.sum-source { flex: 1; font-size: 21rpx; color: var(--xf-text-4); line-height: 1.5; }
 
-.tier-card { border: 1px solid #22262e; border-radius: 16rpx; padding: 20rpx; margin-bottom: 18rpx; }
-.tier-head { display: flex; align-items: center; gap: 12rpx; margin-bottom: 8rpx; }
-.tier-name { font-size: 30rpx; font-weight: 600; color: #e6e8ec; }
-.tier-meta { display: block; font-size: 22rpx; color: #8a909c; line-height: 1.6; }
-.basis { display: block; font-size: 20rpx; color: #6b7280; margin-top: 4rpx; line-height: 1.5; }
+/* 声明条 */
+.notice { display: flex; align-items: flex-start; gap: 12rpx; margin-top: 16rpx; padding: 16rpx 18rpx; border-radius: var(--xf-r-sm); background: rgba(143, 150, 162, 0.08); border: 1rpx solid var(--xf-line); }
+.notice--real { background: rgba(109, 179, 242, 0.08); border-color: rgba(109, 179, 242, 0.28); }
+.notice-t { flex: 1; font-size: 21rpx; color: var(--xf-text-3); line-height: 1.65; }
 
-.schools { margin-top: 14rpx; }
-.school { padding: 12rpx 0; border-top: 1px solid #1c2027; }
-.school-top { display: flex; align-items: center; justify-content: space-between; }
+/* 档位卡 */
+.tier-card {
+  margin-top: 18rpx; padding: 22rpx;
+  background: var(--xf-surface);
+  border: 1rpx solid var(--xf-line);
+  /* 左侧语义色条：用局部变量承接，避免被上面的 border 简写覆盖 */
+  border-left: 7rpx solid var(--tier-c, var(--xf-line));
+  border-radius: 0 var(--xf-r-md) var(--xf-r-md) 0;
+}
+.tier-card--reach { --tier-c: var(--xf-reach); }
+.tier-card--match { --tier-c: var(--xf-match); }
+.tier-card--safe { --tier-c: var(--xf-safe); }
+.tier-card--est { --tier-c: var(--xf-text-4); }
+.tier-head { display: flex; align-items: center; gap: 16rpx; }
+.tier-head-body { flex: 1; min-width: 0; }
+.tier-name { display: block; font-size: 30rpx; font-weight: 700; color: var(--xf-text); }
+.tier-meta { display: block; margin-top: 4rpx; font-size: 21rpx; color: var(--xf-text-3); font-variant-numeric: tabular-nums; }
+.tier-pool { display: block; margin-top: 14rpx; font-size: 21rpx; color: var(--xf-text-4); line-height: 1.6; }
+.tier-tip { display: block; margin-top: 12rpx; font-size: 21rpx; color: var(--xf-text-4); line-height: 1.6; }
+
+/* 院校行 */
+.schools { margin-top: 8rpx; }
+.school { padding: 16rpx 0; min-height: 88rpx; border-top: 1rpx solid var(--xf-line-soft); }
+.school:active { background: rgba(255, 255, 255, 0.02); }
+.school-top { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; }
 .school-right { display: flex; align-items: center; gap: 10rpx; }
-.chev { font-size: 20rpx; color: #6db3f2; }
-.school-name { font-size: 25rpx; color: #c7ccd4; }
-.school-meta { display: block; font-size: 20rpx; color: #6b7280; margin-top: 4rpx; }
-.school-line { display: block; font-size: 20rpx; color: #5fd87f; margin-top: 4rpx; }
-.school-line.muted { color: #5a606b; }
+.school-nature { font-size: 19rpx; color: var(--xf-text-3); border: 1rpx solid var(--xf-line); border-radius: 6rpx; padding: 2rpx 8rpx; }
+.school-name { font-size: 26rpx; color: var(--xf-text); font-weight: 600; }
+.school-meta { display: block; font-size: 20rpx; color: var(--xf-text-4); margin-top: 5rpx; }
+.school-line { display: flex; align-items: center; gap: 8rpx; margin-top: 6rpx; }
+.school-line-t { font-size: 21rpx; color: var(--xf-safe); }
 
-.notes { margin-top: 16rpx; }
-.note { display: block; font-size: 20rpx; color: #f0ad4e; line-height: 1.6; }
+/* 动作 */
+.actions { display: flex; flex-direction: column; gap: 14rpx; margin-top: 30rpx; }
 
-/* S5-D 志愿表草稿常驻入口 */
-.draft-row { display: flex; align-items: center; margin-top: 16rpx; padding: 14rpx 18rpx; border: 1px dashed #3a3f48; border-radius: 12rpx; background: rgba(95, 216, 127, 0.05); }
-.draft-dot { width: 14rpx; height: 14rpx; border-radius: 50%; background: #e5484d; margin-right: 12rpx; box-shadow: 0 0 8rpx 1rpx rgba(229, 72, 77, 0.6); }
-.draft-txt { font-size: 22rpx; color: #c7ccd4; }
+.notes { margin-top: 22rpx; }
+.note { display: block; font-size: 21rpx; color: var(--xf-demo); line-height: 1.7; }
+
+/* 草稿入口 */
+.draft-row { display: flex; align-items: center; gap: 10rpx; margin-top: 18rpx; padding: 18rpx; min-height: 88rpx; border: 1rpx dashed rgba(95, 216, 127, 0.45); border-radius: var(--xf-r-md); background: rgba(95, 216, 127, 0.05); }
+.draft-dot { width: 14rpx; height: 14rpx; border-radius: 50%; background: var(--xf-danger); margin-right: 6rpx; box-shadow: 0 0 8rpx 1rpx rgba(229, 72, 77, 0.6); }
+.draft-txt { flex: 1; font-size: 23rpx; color: var(--xf-text-2); }
 </style>

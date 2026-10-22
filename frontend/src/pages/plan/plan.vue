@@ -1,62 +1,116 @@
 <template>
   <wd-config-provider theme="dark" :theme-vars="themeVars">
     <view class="page">
-      <view class="hero">
-        <text class="h1">志愿表草稿</text>
-        <text class="sub">按 冲/稳/保 三档整理，可填写拟报专业后打印或另存为 PDF（全程仅存本机）。</text>
+      <!-- 打印专用页眉（屏幕上不显示，打印时替代 App 导航栏） -->
+      <view class="print-head">
+        <text class="print-title">志愿表草稿</text>
+        <text class="print-meta">{{ printMeta }}</text>
       </view>
 
-      <view v-if="isEmpty" class="section">
-        <text class="small">还没有生成志愿表。请先到「院校推荐」页按位次生成 冲/稳/保 院校清单。</text>
-        <view class="actions">
-          <wd-button type="primary" block @click="goRecommend">去生成院校推荐</wd-button>
-          <text style="display:block;margin-top:14rpx;text-align:center;color:#ffd24d;font-size:24rpx;" @click="goCompass">查看历年省控线（2022–2026）›</text>
+      <view v-if="!hasPlan" class="xf-hero">
+        <view class="xf-tile xf-tile--gold">
+          <app-icon name="list" color="#ffd24d" :size="36"></app-icon>
+        </view>
+        <view class="xf-hero-body">
+          <text class="xf-h1">志愿表</text>
+          <text class="xf-sub">按冲稳保整理成表，填好拟报专业后可直接打印或存成 PDF。全程只存本机。</text>
+        </view>
+      </view>
+
+      <view v-if="isEmpty" class="empty-wrap">
+        <view class="xf-card empty-card">
+          <view class="xf-empty">
+            <app-icon name="list" color="#4b515b" :size="64"></app-icon>
+            <text class="xf-empty-title">还没有志愿表</text>
+            <text class="xf-empty-desc">先按位次生成一份冲稳保院校清单，再来这里调整顺序、填专业、导出。</text>
+          </view>
+          <view class="xf-action xf-action--primary" @click="goRecommend">
+            <view class="xf-tile xf-tile--gold">
+              <app-icon name="school" color="#ffd24d" :size="32"></app-icon>
+            </view>
+            <view class="xf-action-label">
+              <text class="xf-action-title">去生成院校推荐</text>
+              <text class="xf-action-desc">用你的位次算出冲稳保三档院校</text>
+            </view>
+            <app-icon name="chevron-right" color="#c9a53a" :size="26"></app-icon>
+          </view>
+          <view class="link-row" @click="goCompass">
+            <app-icon name="calendar" color="#8f96a2" :size="28"></app-icon>
+            <text class="link-row-t">查看历年省控线（2022–2026）</text>
+            <app-icon name="chevron-right" color="#6f7683" :size="24"></app-icon>
+          </view>
         </view>
       </view>
 
       <view v-if="hasPlan" class="section">
-        <view class="meta-card">
-          <text class="meta-line">省份：{{ plan.province }} · 科类：{{ plan.subject }}</text>
-          <text class="meta-line">位次：{{ plan.user_rank }}<text v-if="plan.major"> · 目标专业：{{ plan.major }}</text></text>
-          <text class="meta-line">生成时间：{{ timeLabel }}</text>
+        <view class="xf-card meta-card">
+          <view class="meta-row">
+            <app-icon name="user" color="#8f96a2" :size="26"></app-icon>
+            <text class="meta-line">{{ plan.province }} · {{ plan.subject }} · {{ plan.user_rank }} 名</text>
+            <text class="meta-time">{{ timeLabel }}</text>
+          </view>
+          <view v-if="plan.major" class="meta-row">
+            <app-icon name="bulb" color="#8f96a2" :size="26"></app-icon>
+            <text class="meta-line">目标专业：{{ plan.major }}</text>
+          </view>
         </view>
       </view>
 
       <!-- S10-B：志愿个数上限（各省本科批配额），超填/偏少都提醒 -->
-      <view v-if="hasPlan && volLimit" class="section vol-cap">
-        <text class="vc-title">本科批志愿上限</text>
-        <text class="vc-sub">{{ modeLabel }} · 最多 {{ volLimit.undergrad }} 个志愿</text>
-        <view class="vc-bar">
-          <view class="vc-fill" :class="capCls" :style="{ width: fillPct + '%' }"></view>
+      <view v-if="hasPlan && volLimit" class="section">
+        <view class="xf-card cap-card" :class="'cap--' + capCls">
+          <view class="cap-head">
+            <view class="cap-num-wrap">
+              <text class="cap-num" :class="capCls">{{ filledCount }}</text>
+              <text class="cap-den">/ {{ volLimit.undergrad }}</text>
+            </view>
+            <view class="cap-head-body">
+              <text class="cap-title">本科批志愿上限</text>
+              <text class="cap-sub">{{ modeLabel }} · 最多 {{ volLimit.undergrad }} 个</text>
+            </view>
+            <view :class="['xf-chip', capChipCls]">{{ capText }}</view>
+          </view>
+
+          <view class="cap-bar">
+            <view class="cap-fill" :class="capCls" :style="{ width: fillPct + '%' }"></view>
+          </view>
+
+          <view class="cap-levels">
+            <text class="cap-lvl reach">冲 {{ levelCounts.reach }}</text>
+            <text class="cap-lvl match">稳 {{ levelCounts.match }}</text>
+            <text class="cap-lvl safe">保 {{ levelCounts.safe }}</text>
+            <text v-if="volLimit.split" class="cap-suggest">建议 冲{{ volLimit.split.reach }} 稳{{ volLimit.split.match }} 保{{ volLimit.split.safe }}</text>
+          </view>
+
+          <text class="cap-note">专科批上限 {{ volLimit.junior }} 个；提前批 / 艺术体育类另计。{{ volLimit.note || '每年可能调整，正式填报以本省教育考试院为准。' }}</text>
         </view>
-        <text class="vc-count">已填 {{ filledCount }} / 上限 {{ volLimit.undergrad }}
-          <text v-if="overLimit" class="vc-warn"> · 已超出，建议删减</text>
-          <text v-else-if="filledCount === 0" class="vc-muted"> · 尚未填写</text>
-          <text v-else-if="filledCount < minSafe" class="vc-warn"> · 偏少，注意保底</text>
-          <text v-else class="vc-ok"> · 数量合理</text>
-        </text>
-        <text v-if="volLimit.split" class="vc-suggest">建议分布：冲 {{ volLimit.split.reach }} · 稳 {{ volLimit.split.match }} · 保 {{ volLimit.split.safe }}</text>
-        <view class="vc-levels">
-          <text class="vc-lvl">冲 {{ levelCounts.reach }}</text>
-          <text class="vc-lvl">稳 {{ levelCounts.match }}</text>
-          <text class="vc-lvl">保 {{ levelCounts.safe }}</text>
-        </view>
-        <text class="vc-note">专科批上限 {{ volLimit.junior }} 个；提前批 / 艺术体育类不同。{{ volLimit.note || '每年可能调整，正式填报以本省教育考试院为准。' }}</text>
       </view>
 
+      <!-- 保底安全网 -->
       <view v-if="hasPlan" class="section">
-        <view class="safe-net" :class="breach.cls">
+        <view class="xf-card safe-net" :class="breach.cls">
           <view class="safe-head">
-            <text class="safe-dot" :class="breach.cls"></text>
-            <text class="safe-title">保底安全网</text>
-            <text class="safe-count" :class="breach.cls">{{ breach.text }}</text>
+            <view class="xf-tile" :class="breachTile">
+              <app-icon :name="breachIcon" :color="breachColor" :size="30"></app-icon>
+            </view>
+            <view class="safe-head-body">
+              <text class="safe-title">保底安全网</text>
+              <text class="safe-count" :class="breach.cls">{{ breach.text }}</text>
+            </view>
           </view>
           <text class="safe-desc">{{ breach.desc }}</text>
-          <wd-button v-if="breach.cls === 'danger'" type="error" block size="small"
-                     class="safe-patch no-print" :loading="patching" @click="patchSafe">
-            一键补位：拉取更低层次兜底院校
-          </wd-button>
-          <!-- S7-E 补位前后对比：新增几所、失守填平几所、还剩几所够不上 -->
+
+          <view v-if="breach.cls === 'danger'" class="xf-action xf-action--primary no-print" @click="patchSafe">
+            <view class="xf-tile xf-tile--gold">
+              <app-icon name="refresh" :color="patching ? '#8f96a2' : '#ffd24d'" :size="30"></app-icon>
+            </view>
+            <view class="xf-action-label">
+              <text class="xf-action-title">{{ patching ? "正在补位…" : "一键补位" }}</text>
+              <text class="xf-action-desc">拉取更低层次、你能稳够的兜底院校</text>
+            </view>
+          </view>
+
+          <!-- S7-E 补位前后对比：用户真正关心的是「失守有没有被填平」 -->
           <view v-if="patchDiff" class="patch-diff no-print">
             <text class="patch-title">补位前后对比</text>
             <text class="patch-line">
@@ -80,54 +134,114 @@
         </view>
       </view>
 
+      <!-- 三档明细 -->
       <view v-if="hasPlan" class="section">
-          <view v-for="g in groups" :key="g.level" class="grp">
+        <view v-for="g in groups" :key="g.level" class="grp" :class="'grp--' + levelClass(g.level)">
           <view class="grp-head">
-            <text class="grp-title" :class="levelClass(g.level)">{{ g.title }}（{{ g.rows.length }}）</text>
-            <view v-if="volLimit && volLimit.mode === '院校专业组'" class="grp-adjust" @click="toggleAdjust(g.level)">
-              <text class="adj-label">服从专业调剂</text>
+            <view class="grp-head-left">
+              <app-icon :name="levelIcon(g.level)" :color="levelColor(g.level)" :size="28"></app-icon>
+              <text class="grp-title" :class="levelClass(g.level)">{{ g.title }}</text>
+              <text class="grp-count">{{ g.rows.length }}</text>
+            </view>
+            <view v-if="volLimit && volLimit.mode === '院校专业组'" class="grp-adjust no-print" @click="toggleAdjust(g.level)">
+              <text class="adj-label">服从调剂</text>
               <view class="adj-switch" :class="adjust[g.level] ? 'on' : 'off'">
                 <text class="adj-knob">{{ adjust[g.level] ? '是' : '否' }}</text>
               </view>
             </view>
-            <text v-else-if="volLimit && volLimit.mode === '专业+院校'" class="grp-sub">专业+院校模式无调剂选项</text>
-            <text v-else class="grp-sub">门槛位次参考见各行院校层次</text>
+            <text v-else-if="volLimit && volLimit.mode === '专业+院校'" class="grp-sub">专业+院校模式无调剂</text>
           </view>
+
           <view v-for="(r, i) in g.rows" :key="r.key" class="row">
-            <view class="row-left">
-              <text class="row-idx">{{ i + 1 }}</text>
-              <view class="row-info">
-                <text class="row-name">{{ r.name }}<text v-if="rowBreach(r) === 'breach'" class="row-breach">失守</text></text>
-                <text class="row-meta">{{ r.tier }} · {{ r.province }}<text v-if="r.line"> · 去年 {{ r.line }} 分<text v-if="r.line_rank"> / 位次 {{ r.line_rank }}</text><text v-if="r.line_year">（{{ r.line_year }}）</text></text></text>
-                <text v-if="rowBreach(r) === 'breach'" class="row-breach-tip">你的位次 {{ plan.user_rank }} 比该校最低投档位次 {{ r.line_rank }} 更靠后，够不上</text>
+            <text class="row-idx">{{ i + 1 }}</text>
+            <view class="row-info">
+              <view class="row-name-line">
+                <text class="row-name">{{ r.name }}</text>
+                <text v-if="rowBreach(r) === 'breach'" class="row-breach">失守</text>
               </view>
+              <text class="row-meta">{{ r.tier }} · {{ r.province }}<text v-if="r.line"> · 去年 {{ r.line }} 分<text v-if="r.line_rank"> / 位次 {{ r.line_rank }}</text><text v-if="r.line_year">（{{ r.line_year }}）</text></text></text>
+              <text v-if="rowBreach(r) === 'breach'" class="row-breach-tip">你的位次 {{ plan.user_rank }} 比该校最低投档位次 {{ r.line_rank }} 更靠后，够不上</text>
             </view>
             <view class="row-right">
-              <view class="row-actions no-print">
-                <text class="row-move" @click="move(r.key, 'up')">↑</text>
-                <text class="row-move" @click="move(r.key, 'down')">↓</text>
-              </view>
               <input class="row-major" v-model="r.major" placeholder="拟报专业" />
+              <view class="row-actions no-print">
+                <view class="row-move" @click="move(r.key, 'up')">
+                  <app-icon name="arrow-up" color="#9aa0aa" :size="26"></app-icon>
+                </view>
+                <view class="row-move" @click="move(r.key, 'down')">
+                  <app-icon name="arrow-down" color="#9aa0aa" :size="26"></app-icon>
+                </view>
+              </view>
             </view>
           </view>
-          <text v-if="isNoRow(g)" class="small">该档暂无院校，可回到推荐页放宽条件。</text>
+          <text v-if="isNoRow(g)" class="grp-empty">该档暂无院校，可回到院校池放宽条件。</text>
         </view>
       </view>
 
+      <!-- 动作区 -->
       <view v-if="hasPlan" class="section">
-        <text class="small">已填拟报专业 {{ stats.filled }} / {{ stats.total }}</text>
+        <text class="fill-stat">已填拟报专业 {{ stats.filled }} / {{ stats.total }}</text>
+
         <view class="actions no-print">
           <!-- #ifdef H5 -->
-          <wd-button type="primary" block @click="print">打印 / 另存为 PDF</wd-button>
+          <view class="xf-action xf-action--primary" @click="print">
+            <view class="xf-tile xf-tile--gold">
+              <app-icon name="printer" color="#ffd24d" :size="32"></app-icon>
+            </view>
+            <view class="xf-action-label">
+              <text class="xf-action-title">打印 / 另存为 PDF</text>
+              <text class="xf-action-desc">自动隐藏按钮，切浅色 A4 版式</text>
+            </view>
+            <app-icon name="chevron-right" color="#c9a53a" :size="26"></app-icon>
+          </view>
           <!-- #endif -->
-          <wd-button block plain @click="copy">复制为文本</wd-button>
-          <wd-button block plain @click="toggleFillOrder">
-            {{ showFillOrder ? "收起填报顺序" : "查看填报顺序" }}
-          </wd-button>
-          <wd-button block plain @click="copyFillOrder">复制填报顺序</wd-button>
-          <wd-button block plain @click="goRecommend">重新生成</wd-button>
+
+          <view class="xf-action" @click="copy">
+            <view class="xf-tile">
+              <app-icon name="copy" color="#c2c8d0" :size="30"></app-icon>
+            </view>
+            <view class="xf-action-label">
+              <text class="xf-action-title">复制为文本</text>
+              <text class="xf-action-desc">粘到微信 / 备忘录里继续改</text>
+            </view>
+            <app-icon name="chevron-right" color="#6f7683" :size="26"></app-icon>
+          </view>
+
+          <view class="xf-action" @click="toggleFillOrder">
+            <view class="xf-tile">
+              <app-icon name="trending-up" color="#c2c8d0" :size="30"></app-icon>
+            </view>
+            <view class="xf-action-label">
+              <text class="xf-action-title">{{ showFillOrder ? "收起填报顺序" : "看填报顺序" }}</text>
+              <text class="xf-action-desc">按往年投档位次的相对可及性排序</text>
+            </view>
+            <app-icon :name="showFillOrder ? 'chevron-down' : 'chevron-right'" color="#6f7683" :size="26"></app-icon>
+          </view>
+
+          <view class="xf-action" @click="copyFillOrder">
+            <view class="xf-tile">
+              <app-icon name="download" color="#c2c8d0" :size="30"></app-icon>
+            </view>
+            <view class="xf-action-label">
+              <text class="xf-action-title">复制填报顺序</text>
+              <text class="xf-action-desc">带序号的纯文本清单，可直接照抄</text>
+            </view>
+            <app-icon name="chevron-right" color="#6f7683" :size="26"></app-icon>
+          </view>
+
+          <view class="xf-action" @click="goRecommend">
+            <view class="xf-tile">
+              <app-icon name="refresh" color="#c2c8d0" :size="30"></app-icon>
+            </view>
+            <view class="xf-action-label">
+              <text class="xf-action-title">重新生成</text>
+              <text class="xf-action-desc">回到院校池换条件再出表</text>
+            </view>
+            <app-icon name="chevron-right" color="#6f7683" :size="26"></app-icon>
+          </view>
         </view>
-        <!-- S8-D：按可及性排序的填报顺序（可解释，不承诺录取）；S9-B 增跨年/跨批次可比性标注 -->
+
+        <!-- S8-D：按可及性排序的填报顺序；S9-B 跨年/跨批次可比性标注 -->
         <view v-if="showFillOrder && hasPlan" class="fill-order">
           <text class="fo-title">填报顺序建议（{{ fillOrder.total }} 所）</text>
           <view v-if="fillOrder.reference_year" class="fo-ref">
@@ -147,12 +261,15 @@
             其中 {{ fillOrder.unknown_count }} 所缺往年投档位次，附在同档末尾，顺序不代表可及性判断。
           </text>
           <text v-if="fillOrder.incomparable_count" class="fo-note warn">
-            另有 {{ fillOrder.incomparable_count }} 所投档线与参考年份/批次口径不同，其位次余量仅供参考，不宜直接比较冲刺性价比。
+            另有 {{ fillOrder.incomparable_count }} 所投档线与参考年份/批次口径不同，其位次余量仅供参考。
           </text>
           <text class="fo-note">顺序仅反映往年投档位次的相对关系，不构成录取承诺。</text>
         </view>
-        <text class="small">打印时会自动隐藏按钮并切换为浅色排版；浏览器「另存为 PDF」即可得到文件。</text>
-        <text class="small">本表仅为学习参考：院校池不等于录取承诺，正式填报请以各省考试院与院校招生网为准。</text>
+
+        <view class="disclaimer">
+          <app-icon name="shield" color="#6f7683" :size="26"></app-icon>
+          <text class="disclaimer-t">本表仅为学习参考：院校池不等于录取承诺，正式填报请以各省考试院与院校招生网为准。</text>
+        </view>
       </view>
     </view>
     <wd-toast></wd-toast>
@@ -163,7 +280,7 @@
 import { computed, ref, watch } from "vue";
 import { onLoad, onShow } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
-import { themeVars } from "@/utils/theme.js";
+import { themeVars, levelColor, levelIcon } from "@/utils/theme.js";
 import { api } from "@/utils/api.js";
 import { PLAN_KEY, applyMajors, breachStats, breachStatus, buildFillOrderText, buildPlanText, collectMajors, diffSafePatch, fillOrder as buildFillOrder, fillStats, flattenPlan, formatTime, groupRows, selectBackstops } from "@/utils/plan.js";
 
@@ -181,6 +298,13 @@ const isEmpty = computed(() => !plan.value);
 const groups = computed(() => groupRows(rows.value));
 const stats = computed(() => fillStats(rows.value));
 const timeLabel = computed(() => formatTime(plan.value && plan.value.at));
+
+// 打印页眉：把「谁的表、什么条件、什么时候生成」印在纸上，脱离手机也能对上人
+const printMeta = computed(() => {
+  const p = plan.value;
+  if (!p) return "";
+  return `${p.province} · ${p.subject} · 位次 ${p.user_rank}${p.major ? " · 目标专业 " + p.major : ""} · ${timeLabel.value}`;
+});
 
 // S10-B：志愿个数上限相关派生量
 const modeLabel = computed(() => {
@@ -212,6 +336,18 @@ const capCls = computed(() => {
   if (filledCount.value < minSafe.value) return "low";
   return "ok";
 });
+// 上限状态用一句话说清，避免只靠颜色传达
+const capText = computed(() => {
+  if (capCls.value === "over") return "已超出";
+  if (capCls.value === "empty") return "尚未填写";
+  if (capCls.value === "low") return "偏少";
+  return "数量合理";
+});
+const capChipCls = computed(() => {
+  if (capCls.value === "over") return "xf-chip--reach";
+  if (capCls.value === "ok") return "xf-chip--safe";
+  return "xf-chip--est";
+});
 const capInfo = computed(() => (volLimit.value ? {
   volLimit: volLimit.value, adjust: adjust.value,
   filledCount: filledCount.value, levelCounts: levelCounts.value,
@@ -225,8 +361,6 @@ function foRowClass(it) {
 }
 
 // S4 验收点：保底安全网红灯数可见。
-// cls —— danger(有失守) / ok(全部核验且安全) / muted(无数据未核验)
-// text —— 红灯计数文案；desc —— 处置建议
 const breach = computed(() => {
   const s = breachStats(plan.value, rows.value);
   if (s.breach > 0) {
@@ -248,6 +382,21 @@ const breach = computed(() => {
     text: `保底未核验（${s.total} 所缺投档线）`,
     desc: "保底院校暂无院校级投档线，无法判定是否真能兜底；请以本省考试院/院校招生网公布的往年投档位次为准。",
   };
+});
+const breachTile = computed(() => {
+  if (breach.value.cls === "danger") return "xf-tile--danger";
+  if (breach.value.cls === "ok") return "xf-tile--safe";
+  return "";
+});
+const breachIcon = computed(() => {
+  if (breach.value.cls === "danger") return "alert";
+  if (breach.value.cls === "ok") return "shield";
+  return "info";
+});
+const breachColor = computed(() => {
+  if (breach.value.cls === "danger") return "#ff8787";
+  if (breach.value.cls === "ok") return "#5fd87f";
+  return "#8f96a2";
 });
 
 function rowBreach(r) {
@@ -293,8 +442,7 @@ function isNoRow(g) {
   return g.rows.length === 0;
 }
 
-// S10-B：各组「服从专业调剂」开关（仅院校专业组模式有意义；专业+院校模式无此选项）。
-// 状态落在本机草稿 plan.adjust 上，离开页面不丢。
+// S10-B：各组「服从专业调剂」开关（仅院校专业组模式有意义）。
 function toggleAdjust(level) {
   adjust.value = { ...adjust.value, [level]: !adjust.value[level] };
   if (plan.value) {
@@ -306,7 +454,6 @@ function toggleAdjust(level) {
 }
 
 // S10-B：组内专业排序——在同档（冲/稳/保）内上下移动某行，调整填报顺序显示与导出顺序。
-// 直接改 plan.tiers[].schools 的顺序后重新拍平，保证落盘与导出一致。
 function move(key, dir) {
   const p = plan.value;
   if (!p || !Array.isArray(p.tiers)) return;
@@ -360,8 +507,6 @@ function goCompass() {
 }
 
 // S5-C 保底失守一键补位：拉取更低层次、用户位次可稳够的兜底院校并入「保」档。
-// 候选筛选交给纯函数 selectBackstops（只挑门槛位次比用户更靠后、不会再次失守的院校），
-// 对比与并入交给 diffSafePatch（内部走 appendSafeSchools，在副本上补位）。
 async function patchSafe() {
   if (patching.value || !plan.value) return;
   patching.value = true;
@@ -375,7 +520,6 @@ async function patchSafe() {
       toast.show("暂无可补位的更低层次兜底院校（可能该省缺院校投档线）");
       return;
     }
-    // S7-E：补位前后对比——用户真正关心的是「失守有没有被填平」，不只是加了几所
     const d = diffSafePatch(plan.value, picks);
     if (!d.added.length) {
       toast.show("候选兜底院校都已在志愿表里，无需重复补位");
@@ -405,111 +549,154 @@ function print() {
 </script>
 
 <style scoped>
-.page { padding: 24rpx 24rpx 60rpx; }
-.hero { padding: 16rpx 8rpx 24rpx; }
-.h1 { font-size: 40rpx; font-weight: 700; color: #ffd24d; }
-.sub { display: block; margin-top: 10rpx; font-size: 24rpx; color: #8a909c; line-height: 1.6; }
+.page { padding: 24rpx 24rpx 80rpx; min-height: 100vh; background: var(--xf-bg); }
 
-.section { margin-bottom: 24rpx; }
-.small { font-size: 21rpx; color: #6b7280; display: block; margin-top: 10rpx; line-height: 1.6; }
-.actions { display: flex; flex-direction: column; gap: 16rpx; margin-top: 18rpx; }
+.print-head { display: none; }
 
-.meta-card { border: 1px solid #22262e; border-radius: 16rpx; padding: 20rpx; }
-.meta-line { display: block; font-size: 24rpx; color: #c7ccd4; line-height: 1.8; }
+.section { margin-bottom: 22rpx; }
+.actions { display: flex; flex-direction: column; gap: 14rpx; margin-top: 16rpx; }
 
-.safe-net { border-radius: 16rpx; padding: 20rpx; border: 1px solid #22262e; }
-.safe-net.danger { border-color: #e5484d; background: rgba(229, 72, 77, 0.12); }
-.safe-net.ok { border-color: #2f7d4f; background: rgba(95, 216, 127, 0.08); }
-.safe-net.muted { border-color: #3a3f48; background: rgba(138, 144, 156, 0.06); }
-.safe-head { display: flex; align-items: center; }
-.safe-dot { width: 18rpx; height: 18rpx; border-radius: 50%; margin-right: 12rpx; flex: 0 0 auto; }
-.safe-dot.danger { background: #e5484d; box-shadow: 0 0 10rpx 2rpx rgba(229, 72, 77, 0.6); animation: blink 1.2s infinite; }
-.safe-dot.ok { background: #5fd87f; }
-.safe-dot.muted { background: #6b7280; }
-.safe-title { font-size: 26rpx; font-weight: 600; color: #c7ccd4; margin-right: auto; }
-.safe-count { font-size: 26rpx; font-weight: 700; }
-.safe-count.danger { color: #ff6b6b; }
-.safe-count.ok { color: #5fd87f; }
-.safe-count.muted { color: #8a909c; }
-.safe-desc { display: block; margin-top: 10rpx; font-size: 21rpx; color: #9aa0aa; line-height: 1.6; }
-.safe-patch { margin-top: 16rpx; }
-/* S7-E 补位前后对比 */
-.patch-diff { margin-top: 16rpx; padding: 14rpx 16rpx; border-radius: 12rpx; background: rgba(95, 216, 127, 0.06); border: 1px solid #2f7d4f; }
-.patch-title { display: block; font-size: 23rpx; font-weight: 600; color: #c7ccd4; margin-bottom: 6rpx; }
-.patch-line { display: block; font-size: 21rpx; color: #9aa0aa; line-height: 1.6; }
-.patch-good { color: #5fd87f; }
-.patch-line.warn { color: #ff8787; }
-.patch-line.muted { color: #8a909c; }
-@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
-/* S8-D 填报顺序；S9-B 跨年/跨批次可比性标注 */
-.fill-order { margin-top: 16rpx; padding: 14rpx 16rpx; border-radius: 12rpx; background: rgba(255, 255, 255, 0.04); border: 1px solid #3a4048; }
-.fo-title { display: block; font-size: 23rpx; font-weight: 600; color: #c7ccd4; }
-.fo-ref { display: flex; align-items: center; gap: 10rpx; margin: 6rpx 0 8rpx; }
-.fo-ref-tag { font-size: 19rpx; color: #6db3f2; background: rgba(109, 179, 242, 0.12); border-radius: 6rpx; padding: 2rpx 10rpx; }
-.fo-ref-text { font-size: 20rpx; color: #aeb6c2; }
-.fo-basis { display: block; font-size: 20rpx; color: #8a909c; line-height: 1.6; margin: 6rpx 0 10rpx; }
-.fo-row { display: flex; align-items: flex-start; padding: 6rpx 0; }
-.fo-row-warn { background: rgba(240, 173, 78, 0.06); border-radius: 8rpx; }
-.fo-seq { width: 44rpx; font-size: 21rpx; color: #9aa0aa; }
-.fo-main { flex: 1; }
-.fo-name { display: block; font-size: 22rpx; color: #e5e7eb; }
-.fo-meta { display: block; font-size: 19rpx; color: #8a909c; margin-top: 2rpx; }
-.fo-warn { display: inline-block; font-size: 18rpx; color: #f0ad4e; background: rgba(240, 173, 78, 0.12); border-radius: 6rpx; padding: 1rpx 8rpx; margin-top: 4rpx; }
-.fo-note { display: block; font-size: 19rpx; color: #8a909c; line-height: 1.6; margin-top: 8rpx; }
-.fo-note.warn { color: #f0ad4e; }
+/* 空状态 */
+.empty-wrap { margin-top: 12rpx; }
+.empty-card { padding-bottom: 12rpx; }
 
-.row-breach { font-size: 18rpx; color: #fff; background: #e5484d; border-radius: 6rpx; padding: 1rpx 8rpx; margin-left: 10rpx; vertical-align: middle; }
-.row-breach-tip { display: block; font-size: 19rpx; color: #ff8787; margin-top: 3rpx; line-height: 1.5; }
+/* 条件卡 */
+.meta-card { padding: 18rpx 22rpx; }
+.meta-row { display: flex; align-items: center; gap: 12rpx; min-height: 44rpx; }
+.meta-line { flex: 1; font-size: 24rpx; color: var(--xf-text-2); line-height: 1.6; }
+.meta-time { font-size: 20rpx; color: var(--xf-text-4); }
 
+/* 志愿上限 */
+.cap-card { padding: 22rpx; }
+.cap--over { border-color: rgba(229, 72, 77, 0.5); }
+.cap-head { display: flex; align-items: center; gap: 16rpx; }
+.cap-num-wrap { display: flex; align-items: baseline; gap: 4rpx; }
+.cap-num { font-size: 52rpx; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.cap-num.ok { color: var(--xf-safe); }
+.cap-num.low { color: var(--xf-reach); }
+.cap-num.over { color: var(--xf-danger-text); }
+.cap-num.empty { color: var(--xf-text-3); }
+.cap-den { font-size: 24rpx; color: var(--xf-text-4); }
+.cap-head-body { flex: 1; min-width: 0; }
+.cap-title { display: block; font-size: 25rpx; font-weight: 600; color: var(--xf-text); }
+.cap-sub { display: block; margin-top: 2rpx; font-size: 20rpx; color: var(--xf-text-4); }
+
+/* 分段进度条：每 5% 一格，比纯色条更容易估出比例 */
+.cap-bar {
+  height: 16rpx; margin: 18rpx 0 12rpx; border-radius: 8rpx; overflow: hidden;
+  background: repeating-linear-gradient(90deg, var(--xf-surface-3) 0 5%, var(--xf-bg) 5% 5.6%);
+}
+.cap-fill { height: 100%; border-radius: 8rpx; transition: width 260ms var(--xf-ease); }
+.cap-fill.ok { background: linear-gradient(90deg, #3f9f5c, var(--xf-safe)); }
+.cap-fill.low { background: linear-gradient(90deg, #b07a26, var(--xf-reach)); }
+.cap-fill.over { background: linear-gradient(90deg, #a33135, var(--xf-danger)); }
+.cap-fill.empty { background: transparent; }
+
+.cap-levels { display: flex; align-items: center; gap: 12rpx; flex-wrap: wrap; }
+.cap-lvl { font-size: 20rpx; padding: 3rpx 12rpx; border-radius: 6rpx; background: rgba(255, 255, 255, 0.04); }
+.cap-lvl.reach { color: var(--xf-reach); }
+.cap-lvl.match { color: var(--xf-match); }
+.cap-lvl.safe { color: var(--xf-safe); }
+.cap-suggest { font-size: 20rpx; color: var(--xf-text-4); }
+.cap-note { display: block; margin-top: 10rpx; font-size: 19rpx; color: var(--xf-text-4); line-height: 1.6; }
+
+/* 保底安全网 */
+.safe-net { padding: 20rpx; }
+.safe-net.danger { border-color: rgba(229, 72, 77, 0.5); background: rgba(229, 72, 77, 0.07); }
+.safe-net.ok { border-color: rgba(95, 216, 127, 0.36); background: rgba(95, 216, 127, 0.05); }
+.safe-head { display: flex; align-items: center; gap: 14rpx; }
+.safe-head-body { flex: 1; min-width: 0; }
+.safe-title { display: block; font-size: 24rpx; color: var(--xf-text-3); }
+.safe-count { display: block; margin-top: 2rpx; font-size: 28rpx; font-weight: 700; }
+.safe-count.danger { color: var(--xf-danger-text); }
+.safe-count.ok { color: var(--xf-safe); }
+.safe-count.muted { color: var(--xf-text-3); }
+.safe-desc { display: block; margin-top: 12rpx; font-size: 21rpx; color: var(--xf-text-3); line-height: 1.7; }
+
+.patch-diff { margin-top: 16rpx; padding: 16rpx; border-radius: var(--xf-r-sm); background: rgba(95, 216, 127, 0.06); border: 1rpx solid rgba(95, 216, 127, 0.3); }
+.patch-title { display: block; font-size: 23rpx; font-weight: 600; color: var(--xf-text-2); margin-bottom: 6rpx; }
+.patch-line { display: block; font-size: 21rpx; color: var(--xf-text-3); line-height: 1.7; }
+.patch-good { color: var(--xf-safe); }
+.patch-line.warn { color: var(--xf-danger-text); }
+.patch-line.muted { color: var(--xf-text-4); }
+
+/* 档位分组 */
 .grp { margin-bottom: 22rpx; }
-.grp-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10rpx; }
-.grp-title { font-size: 28rpx; font-weight: 600; }
-.grp-title.reach { color: #f0ad4e; }
-.grp-title.match { color: #6db3f2; }
-.grp-title.safe { color: #5fd87f; }
-.grp-sub { font-size: 20rpx; color: #6b7280; }
+.grp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8rpx; }
+.grp-head-left { display: flex; align-items: center; gap: 10rpx; }
+.grp-title { font-size: 27rpx; font-weight: 700; }
+.grp-title.reach { color: var(--xf-reach); }
+.grp-title.match { color: var(--xf-match); }
+.grp-title.safe { color: var(--xf-safe); }
+.grp-count { font-size: 20rpx; color: var(--xf-text-4); background: rgba(255, 255, 255, 0.05); border-radius: 6rpx; padding: 1rpx 10rpx; }
+.grp-sub { font-size: 19rpx; color: var(--xf-text-4); }
+.grp-empty { display: block; font-size: 21rpx; color: var(--xf-text-4); padding: 12rpx 0; line-height: 1.6; }
 
-.row { display: flex; align-items: center; justify-content: space-between; padding: 14rpx 0; border-bottom: 1px solid #1c2027; }
-.row-left { display: flex; align-items: center; }
-.row-idx { width: 44rpx; font-size: 22rpx; color: #6b7280; }
-.row-info { display: flex; flex-direction: column; }
-.row-name { font-size: 25rpx; color: #c7ccd4; }
-.row-meta { font-size: 20rpx; color: #6b7280; margin-top: 2rpx; }
-.row-major { width: 260rpx; font-size: 22rpx; color: #c7ccd4; border: 1px solid #2a2e37; border-radius: 8rpx; padding: 6rpx 12rpx; }
+/* 行 */
+.row { display: flex; align-items: center; gap: 10rpx; padding: 16rpx 0; border-bottom: 1rpx solid var(--xf-line-soft); }
+.row-idx { width: 40rpx; font-size: 21rpx; color: var(--xf-text-4); font-variant-numeric: tabular-nums; }
+.row-info { flex: 1; min-width: 0; }
+.row-name-line { display: flex; align-items: center; gap: 8rpx; }
+.row-name { font-size: 25rpx; color: var(--xf-text); font-weight: 600; }
+.row-meta { display: block; font-size: 20rpx; color: var(--xf-text-4); margin-top: 3rpx; }
+.row-breach { font-size: 18rpx; color: #fff; background: var(--xf-danger); border-radius: 5rpx; padding: 1rpx 7rpx; }
+.row-breach-tip { display: block; font-size: 19rpx; color: var(--xf-danger-text); margin-top: 4rpx; line-height: 1.5; }
+.row-right { display: flex; align-items: center; gap: 8rpx; }
+.row-major { width: 210rpx; font-size: 22rpx; color: var(--xf-text-2); border: 1rpx solid var(--xf-line); border-radius: var(--xf-r-sm); padding: 8rpx 12rpx; min-height: 56rpx; }
+.row-actions { display: flex; flex-direction: column; gap: 2rpx; }
+.row-move { width: 56rpx; height: 44rpx; display: flex; align-items: center; justify-content: center; border-radius: 8rpx; }
+.row-move:active { background: rgba(255, 210, 77, 0.14); }
 
-/* S10-B：志愿个数上限卡片 */
-.vol-cap { border: 1px solid #22262e; border-radius: 16rpx; padding: 20rpx; }
-.vc-title { display: block; font-size: 26rpx; font-weight: 600; color: #ffd24d; }
-.vc-sub { display: block; margin-top: 4rpx; font-size: 21rpx; color: #9aa0aa; }
-.vc-bar { height: 14rpx; border-radius: 8rpx; background: #1c2027; margin: 14rpx 0 8rpx; overflow: hidden; }
-.vc-fill { height: 100%; border-radius: 8rpx; transition: width 0.2s; }
-.vc-fill.ok { background: #5fd87f; }
-.vc-fill.low { background: #f0ad4e; }
-.vc-fill.over { background: #e5484d; }
-.vc-fill.empty { background: #3a4048; }
-.vc-count { display: block; font-size: 22rpx; color: #c7ccd4; }
-.vc-warn { color: #ff8787; }
-.vc-ok { color: #5fd87f; }
-.vc-muted { color: #8a909c; }
-.vc-suggest { display: block; margin-top: 8rpx; font-size: 20rpx; color: #6db3f2; }
-.vc-levels { display: flex; gap: 16rpx; margin-top: 8rpx; }
-.vc-lvl { font-size: 20rpx; color: #aeb6c2; background: rgba(255,255,255,0.04); border-radius: 6rpx; padding: 2rpx 12rpx; }
-.vc-note { display: block; margin-top: 8rpx; font-size: 19rpx; color: #6b7280; line-height: 1.5; }
-/* S10-B：组内专业排序 + 服从调剂 */
-.grp-adjust { display: flex; align-items: center; gap: 10rpx; margin-left: auto; }
-.adj-label { font-size: 20rpx; color: #9aa0aa; }
-.adj-switch { min-width: 48rpx; height: 36rpx; border-radius: 18rpx; display: flex; align-items: center; justify-content: center; font-size: 18rpx; }
-.adj-switch.on { background: rgba(95,216,127,0.18); color: #5fd87f; border: 1px solid #2f7d4f; }
-.adj-switch.off { background: rgba(229,72,77,0.14); color: #ff8787; border: 1px solid #7d2f2f; }
-.row-right { display: flex; align-items: center; gap: 12rpx; }
-.row-actions { display: flex; flex-direction: column; }
-.row-move { font-size: 26rpx; color: #9aa0aa; line-height: 1.1; padding: 2rpx 4rpx; }
-.row-move:active { color: #ffd24d; }
+/* 服从调剂开关 */
+.grp-adjust { display: flex; align-items: center; gap: 10rpx; min-height: 64rpx; padding-left: 12rpx; }
+.adj-label { font-size: 20rpx; color: var(--xf-text-3); }
+.adj-switch { min-width: 56rpx; height: 38rpx; padding: 0 6rpx; border-radius: 19rpx; display: flex; align-items: center; justify-content: center; font-size: 18rpx; }
+.adj-switch.on { background: rgba(95, 216, 127, 0.18); color: var(--xf-safe); border: 1rpx solid rgba(95, 216, 127, 0.5); }
+.adj-switch.off { background: rgba(229, 72, 77, 0.14); color: var(--xf-danger-text); border: 1rpx solid rgba(229, 72, 77, 0.42); }
 
+.fill-stat { display: block; font-size: 21rpx; color: var(--xf-text-4); margin-bottom: 12rpx; }
+
+/* 填报顺序 */
+.fill-order { margin-top: 18rpx; padding: 18rpx; border-radius: var(--xf-r-sm); background: var(--xf-surface); border: 1rpx solid var(--xf-line); }
+.fo-title { display: block; font-size: 24rpx; font-weight: 600; color: var(--xf-text-2); }
+.fo-ref { display: flex; align-items: center; gap: 10rpx; margin: 8rpx 0; }
+.fo-ref-tag { font-size: 19rpx; color: var(--xf-real); background: rgba(109, 179, 242, 0.12); border-radius: 6rpx; padding: 2rpx 10rpx; }
+.fo-ref-text { font-size: 20rpx; color: var(--xf-text-3); }
+.fo-basis { display: block; font-size: 20rpx; color: var(--xf-text-4); line-height: 1.6; margin: 6rpx 0 10rpx; }
+.fo-row { display: flex; align-items: flex-start; padding: 7rpx 0; }
+.fo-row-warn { background: rgba(240, 173, 78, 0.07); border-radius: 8rpx; }
+.fo-seq { width: 44rpx; font-size: 21rpx; color: var(--xf-text-4); font-variant-numeric: tabular-nums; }
+.fo-main { flex: 1; }
+.fo-name { display: block; font-size: 22rpx; color: var(--xf-text-2); }
+.fo-meta { display: block; font-size: 19rpx; color: var(--xf-text-4); margin-top: 2rpx; }
+.fo-warn { display: inline-block; font-size: 18rpx; color: var(--xf-reach); background: rgba(240, 173, 78, 0.12); border-radius: 6rpx; padding: 1rpx 8rpx; margin-top: 4rpx; }
+.fo-note { display: block; font-size: 19rpx; color: var(--xf-text-4); line-height: 1.6; margin-top: 8rpx; }
+.fo-note.warn { color: var(--xf-reach); }
+
+.disclaimer { display: flex; align-items: flex-start; gap: 10rpx; margin-top: 22rpx; }
+.disclaimer-t { flex: 1; font-size: 20rpx; color: var(--xf-text-4); line-height: 1.7; }
+
+/* ---------------- 打印：A4 浅色版式 ---------------- */
 @media print {
-  .no-print { display: none; }
-  .page { background: #ffffff; }
-  .h1, .grp-title, .row-name, .meta-line { color: #111111; }
-  .sub, .small, .row-meta, .grp-sub, .row-idx { color: #555555; }
+  .no-print { display: none !important; }
+  .page { padding: 0; background: #ffffff; }
+  .print-head { display: block; margin-bottom: 18rpx; padding-bottom: 10rpx; border-bottom: 2px solid #111; }
+  .print-title { display: block; font-size: 20pt; font-weight: 700; color: #111; }
+  .print-meta { display: block; margin-top: 4rpx; font-size: 9pt; color: #444; }
+
+  .xf-card, .cap-card, .safe-net, .fill-order {
+    background: #fff !important; border: 1px solid #bbb !important;
+    border-radius: 0 !important; box-shadow: none !important;
+    break-inside: avoid; page-break-inside: avoid;
+  }
+  .meta-line, .cap-title, .cap-num, .safe-count, .grp-title,
+  .row-name, .fo-title, .fo-name { color: #111 !important; }
+  .meta-time, .cap-sub, .cap-note, .cap-suggest, .safe-desc, .row-meta,
+  .row-idx, .fo-meta, .fo-basis, .fo-note, .disclaimer-t, .grp-count { color: #555 !important; }
+  .row { border-bottom: 1px solid #ddd; break-inside: avoid; page-break-inside: avoid; }
+  .row-major { border: none !important; border-bottom: 1px solid #999 !important; border-radius: 0 !important; width: 150px; }
+  .grp { break-inside: avoid-page; }
+  .cap-bar { height: 6px; }
+  @page { size: A4; margin: 14mm 12mm; }
 }
 </style>

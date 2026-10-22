@@ -6,7 +6,14 @@
         <text class="sub">选一个专业，看以你的位次够不够得着、落在冲 / 稳 / 保哪一档；下方还能做跨年等位分换算。</text>
       </view>
 
-      <view class="section">
+      <!-- 分段导航：把三种用法拆开，一次只做一件事（吸顶，滚动时不丢） -->
+      <view class="segbar">
+        <view class="segbar-item" :class="{ on: tab === 'one' }" @click="tab = 'one'">查专业</view>
+        <view class="segbar-item" :class="{ on: tab === 'eq' }" @click="tab = 'eq'">等位分</view>
+        <view class="segbar-item" :class="{ on: tab === 'batch' }" @click="switchBatch">批量核验</view>
+      </view>
+
+      <view v-if="tab === 'one'" class="section">
         <view class="section-head">
           <text class="h3">输入你的条件</text>
           <wd-tag type="primary" plain>31 省 · 2868 所院校</wd-tag>
@@ -25,10 +32,17 @@
           <wd-button plain block @click="goRecommend">查看院校推荐（冲/稳/保 院校池）</wd-button>
         </view>
         <text v-if="err" class="err">{{ err }}</text>
+
+        <!-- 骨架屏：核验在算的时候给出结构，而不是干等 -->
+        <view v-if="loading" class="skel-card">
+          <view class="xf-skel xf-skel-line xf-skel-line--w40"></view>
+          <view class="xf-skel xf-skel-line"></view>
+          <view class="xf-skel xf-skel-line xf-skel-line--w70"></view>
+        </view>
       </view>
 
       <!-- C2 等位分换算：跨年换算分数/位次 -->
-      <view class="section">
+      <view v-if="tab === 'eq'" class="section">
         <view class="section-head">
           <text class="h3">等位分换算（跨年）</text>
           <wd-tag type="primary" plain>C2</wd-tag>
@@ -76,7 +90,7 @@
       </view>
 
       <!-- 批量核验：P1→P2 打通 -->
-      <view class="section" v-if="batchMode">
+      <view class="section" v-if="tab === 'batch' && batchMode">
         <view class="section-head">
           <text class="h3">批量核验（画布推荐方向）</text>
           <wd-tag type="primary" plain>一次算完</wd-tag>
@@ -95,7 +109,7 @@
         <text v-if="batchErr" class="err">{{ batchErr }}</text>
       </view>
 
-      <view class="section" v-if="batch">
+      <view class="section" v-if="tab === 'batch' && batch">
         <view class="section-head">
           <text class="h3">批量核验结果</text>
           <text class="bk-sub">{{ batch.province }} · {{ batch.subject }} · 位次 {{ batch.user_rank }}</text>
@@ -128,7 +142,7 @@
         <text class="small">点击任一专业可展开完整核验详情（定性观点 / 偏见校正 / 各批次门槛 / 建议动作）。</text>
       </view>
 
-      <view class="section" v-if="res">
+      <view class="section" v-if="tab === 'one' && res">
         <view class="section-head">
           <text class="h3">{{ res.major }}</text>
           <wd-tag :type="viewTagType" plain>{{ res.view_label }}</wd-tag>
@@ -307,6 +321,17 @@ const res = ref(null);
 const err = ref("");
 const loading = ref(false);
 const schoolOpen = ref("");
+// P3-C：分段导航（一次只做一件事）。one=查专业 / eq=等位分 / batch=批量核验
+const tab = ref("one");
+function switchBatch() {
+  tab.value = "batch";
+  // 没有候选时给一批可选专业，避免进到空页
+  if (!candidates.value.length) {
+    candidates.value = (canvasPicks.value.length ? canvasPicks.value : MAJORS.map((m) => m.name)).slice(0, 20);
+    if (!selected.value.length) selected.value = candidates.value.slice();
+    batchMode.value = true;
+  }
+}
 
 // —— 批量核验（P1→P2 打通）——
 const batchMode = ref(false);
@@ -501,6 +526,7 @@ function toggle(name) {
 function importFromCanvas() {
   if (!loadCanvas()) { toast.show("本机暂无画布结果，请先完成诊断"); return; }
   batchMode.value = true;
+  tab.value = "batch";
   candidates.value = canvasPicks.value.slice(0, 20);
   selected.value = candidates.value.slice();
   runBatch();
@@ -519,6 +545,7 @@ async function runBatch() {
   }
   batchErr.value = "";
   batchLoading.value = true;
+  tab.value = "batch";
   try {
     batch.value = await api.verifyBatch(p.province, p.subject, Number(p.user_rank), selected.value);
   } catch (e) {
@@ -531,6 +558,7 @@ async function runBatch() {
 // 从批量结果里点开某一专业的完整详情
 async function openOne(name) {
   p.major_name = name;
+  tab.value = "one";
   await run();
 }
 
@@ -546,6 +574,7 @@ onLoad((q) => {
     if (q.major_name) p.major_name = q.major_name;
     if (q.batch === "1" || q.batch === 1) {
       batchMode.value = true;
+      tab.value = "batch";
       candidates.value = (canvasPicks.value.length ? canvasPicks.value : MAJORS.map((m) => m.name)).slice(0, 20);
       selected.value = candidates.value.slice();
       if (p.province && p.subject && p.user_rank) runBatch();
@@ -562,6 +591,7 @@ onShow(() => {
   if (pending) {
     try { uni.removeStorageSync("zhiyuan_pending_batch"); } catch (e) {}
     batchMode.value = true;
+    tab.value = "batch";
     candidates.value = (canvasPicks.value.length ? canvasPicks.value : MAJORS.map((m) => m.name)).slice(0, 20);
     selected.value = candidates.value.slice();
     if (p.province && p.subject && p.user_rank) runBatch();
@@ -618,10 +648,30 @@ async function run() {
 </script>
 
 <style scoped>
-.page { padding: 24rpx 24rpx 60rpx; }
-.hero { padding: 16rpx 8rpx 20rpx; }
-.h1 { font-size: 40rpx; font-weight: 700; color: #ffd24d; }
-.sub { display: block; margin-top: 10rpx; font-size: 24rpx; color: #8a909c; line-height: 1.6; }
+.page { padding: 24rpx 24rpx 80rpx; min-height: 100vh; background: var(--xf-bg); }
+.hero { padding: 16rpx 8rpx 16rpx; }
+.h1 { font-size: 40rpx; font-weight: 700; color: var(--xf-gold); }
+.sub { display: block; margin-top: 10rpx; font-size: 24rpx; color: var(--xf-text-3); line-height: 1.6; }
+
+/* P3-C 分段导航：吸顶，滚动时不丢「我在哪一段」 */
+.segbar {
+  position: sticky; top: 0; z-index: 30;
+  display: flex; gap: 8rpx;
+  margin: 0 -24rpx 20rpx; padding: 12rpx 24rpx;
+  background: rgba(15, 17, 21, 0.95);
+  border-bottom: 1rpx solid var(--xf-line);
+  backdrop-filter: blur(8px);
+}
+.segbar-item {
+  flex: 1; text-align: center; padding: 14rpx 0; min-height: 76rpx;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 25rpx; color: var(--xf-text-3);
+  border-radius: var(--xf-r-sm); border: 1rpx solid transparent;
+}
+.segbar-item.on {
+  color: var(--xf-gold); font-weight: 600;
+  background: rgba(255, 210, 77, 0.12); border-color: rgba(255, 210, 77, 0.4);
+}
 
 .section { margin-bottom: 24rpx; }
 .section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14rpx; }
@@ -730,4 +780,12 @@ async function run() {
 .msg { background: #1c1f26; border-radius: 12rpx; padding: 16rpx; }
 .sg { font-size: 23rpx; color: #c7ccd4; line-height: 1.8; }
 .err { display: block; font-size: 22rpx; color: #ff6b6b; margin-top: 12rpx; line-height: 1.5; }
+
+/* P3-C 可读性收口：本页最小的几类文字统一上调，避免「字太小看不清」 */
+.small { font-size: 22rpx; color: #98a0ac; line-height: 1.7; }
+.warn-text { color: #f0ad4e; }
+.align-basis { font-size: 21rpx; color: #98a0ac; }
+.brow-meta { font-size: 22rpx; color: #98a0ac; }
+.anchor-t, .anchor-v { font-size: 23rpx; }
+.skel-card { margin-top: 20rpx; }
 </style>
