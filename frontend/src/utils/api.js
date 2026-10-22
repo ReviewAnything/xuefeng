@@ -1,3 +1,5 @@
+import { resolveDemo } from "./demoData.js";
+
 // 后端 API 封装：调用 Python FastAPI 后端（P2 数据层）。
 //
 // 后端地址三处来源，优先级从高到低：
@@ -13,7 +15,20 @@ export function resolveBase() {
 
 const API_BASE = resolveBase();
 
-function request(method, path, data) {
+// 演示模式开关（存端侧）。开启后优先走离线样例数据，无需后端。
+const DEMO_KEY = "zhiyuan_demo_on";
+export function isDemo() {
+  try { return !!uni.getStorageSync(DEMO_KEY); } catch (e) { return false; }
+}
+export function setDemo(on) {
+  try { uni.setStorageSync(DEMO_KEY, on ? 1 : 0); } catch (e) { /* ignore */ }
+}
+
+// 用户友好的「服务未连接」提示，替换原先泄漏的 uvicorn 开发报错。
+const OFFLINE_MSG = "数据服务未连接，可在「我的」开启演示模式先体验完整流程";
+
+// 低层网络请求：成功解析、HTTP 错误抛 detail、网络不可达抛 OFFLINE_MSG。
+function rawRequest(method, path, data) {
   return new Promise((resolve, reject) => {
     uni.request({
       url: API_BASE + path,
@@ -22,15 +37,27 @@ function request(method, path, data) {
       header: { "Content-Type": "application/json" },
       success: (res) => {
         if (res.statusCode >= 200 && res.statusCode < 300) resolve(res.data);
-        else reject(new Error((res.data && res.data.detail) || "请求失败"));
+        else reject(new Error((res.data && res.data.detail) || "服务返回错误（" + res.statusCode + "）"));
       },
-      fail: (err) => reject(err),
+      fail: () => reject(new Error(OFFLINE_MSG)),
     });
   });
 }
 
+// 统一入口：演示模式优先；否则走真实后端；任何失败都返回友好报错。
+async function request(method, path, data) {
+  if (isDemo()) {
+    const d = resolveDemo(method, path, data);
+    if (d !== undefined) return d;
+    throw new Error("演示模式暂未覆盖该功能，请连接后端后使用");
+  }
+  return rawRequest(method, path, data);
+}
+
 export const api = {
   base: API_BASE,
+  isDemo,
+  setDemo,
   health: () => request("GET", "/api/health"),
   search: (province, subject, user_rank, limit = 20) =>
     request("GET", `/api/admission/search`, { province, subject, user_rank, limit }),

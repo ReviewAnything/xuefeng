@@ -91,12 +91,13 @@
 
 <script setup>
 import { computed, reactive, ref } from "vue";
-import { onLoad } from "@dcloudio/uni-app";
+import { onLoad, onShow } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
 import { MAJORS } from "@/utils/content.js";
 import { api } from "@/utils/api.js";
 import { PLAN_KEY, buildPlan } from "@/utils/plan.js";
 import { themeVars } from "@/utils/theme.js";
+import { applyProfile, saveFromForm } from "@/utils/profile.js";
 
 const toast = useToast();
 
@@ -119,16 +120,23 @@ const hasResult = computed(() => {
 const hasDraft = computed(() => !!uni.getStorageSync(PLAN_KEY));
 const sourceLabel = computed(() => {
   const ds = result.value ? result.value.data_source : "";
-  if (ds === "official_overlay") return "官方省控线覆盖层（11 省）+ 估算基线";
+  if (ds === "demo") return "演示数据（示意，非真实录取信息）";
+  if (ds === "official_overlay") return "31 省官方省控线（2022–2026）+ 估算基线";
   if (ds === "real") return "gaokao-advisor 估算基线";
   return "参数化样例";
 });
 
 onLoad((q) => {
-  if (!q) return;
-  if (q.province) f.province = decodeURIComponent(q.province);
-  if (q.subject) f.subject = decodeURIComponent(q.subject);
-  if (q.user_rank) f.user_rank = decodeURIComponent(q.user_rank);
+  // 优先带入全局档案（「我能上哪」已写入），再允许外链参数覆盖
+  Object.assign(f, applyProfile(f));
+  if (q && q.province) f.province = decodeURIComponent(q.province);
+  if (q && q.subject) f.subject = decodeURIComponent(q.subject);
+  if (q && q.user_rank) f.user_rank = decodeURIComponent(q.user_rank);
+});
+
+// tab 页再次进入时同步档案（从「我能上哪 / 诊断」switchTab 过来，条件已在 profile 里）
+onShow(() => {
+  Object.assign(f, applyProfile(f));
 });
 
 function levelType(level) {
@@ -181,8 +189,10 @@ async function run() {
     if (f.major !== NO_MAJOR) params.major_name = f.major;
     result.value = await api.recommendSchools(params);
     savePlan();
+    // 把条件写入全局档案，便于「志愿表 / 查专业」自动带齐
+    saveFromForm(f);
   } catch (e) {
-    err.value = "后端未连接（请先启动 Python 后端 uvicorn main:app --port 8000）：" + (e.message || e);
+    err.value = e && e.message ? e.message : "数据服务未连接，可在「我的」开启演示模式先体验";
   } finally {
     loading.value = false;
   }
@@ -195,12 +205,12 @@ function savePlan() {
 }
 
 function goPlan() {
-  uni.navigateTo({ url: "/pages/plan/plan" });
+  uni.switchTab({ url: "/pages/plan/plan" });
 }
 
 // S5-D：直接打开已有志愿表草稿（不覆盖、不重新生成）
 function openPlan() {
-  uni.navigateTo({ url: "/pages/plan/plan" });
+  uni.switchTab({ url: "/pages/plan/plan" });
 }
 
 // 点击院校 → 查看该校「院校专业组」结构（按当前选科）

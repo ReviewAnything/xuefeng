@@ -1,8 +1,15 @@
 <script>
+// 应用启动：静默探测后端可用性（不弹窗、不打断），结果存端侧供各页判断是否提示「演示模式」。
+import { api } from "@/utils/api.js";
 export default {
   onLaunch() {
-    // 应用启动：可在端侧做本地存储迁移等
-    console.log("志愿决策助手 v2 启动");
+    if (api.isDemo()) {
+      try { uni.setStorageSync("zhiyuan_backend_ok", false); } catch (e) {}
+      return;
+    }
+    api.health()
+      .then(() => { try { uni.setStorageSync("zhiyuan_backend_ok", true); } catch (e) {} })
+      .catch(() => { try { uni.setStorageSync("zhiyuan_backend_ok", false); } catch (e) {} });
   },
 };
 </script>

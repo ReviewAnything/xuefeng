@@ -100,7 +100,7 @@ async function search() {
     candidates.value = r.items || [];
     if (!candidates.value.length) toast.show("没有匹配的院校，换个关键词试试");
   } catch (e) {
-    err.value = "后端未连接（请先启动 uvicorn main:app --port 8000）：" + (e.message || e);
+    err.value = (e && e.message) ? e.message : "数据服务未连接，可在「我的」开启演示模式先体验";
   } finally {
     loadingList.value = false;
   }

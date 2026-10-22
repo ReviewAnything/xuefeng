@@ -80,7 +80,7 @@
         </wd-button>
 
         <view v-if="search" class="verify-box">
-          <text class="dsrc">数据源：{{ search.data_source === "official_overlay" ? "11 省官方省控线 + 其余估算" : (search.data_source === "real" ? "真实录取记录（估算）" : "参数化样例（演示）") }}</text>
+          <text class="dsrc">数据源：{{ search.data_source === "official_overlay" ? "31 省官方省控线 + 其余估算" : (search.data_source === "real" ? "真实录取记录（估算）" : "参数化样例（演示）") }}</text>
           <view class="tier-group" v-for="g in groups" :key="g.key">
             <text class="tg-title" :class="g.key">{{ g.title }}</text>
             <view class="tg-items">
@@ -111,6 +111,7 @@ import { QUESTIONS, MAJORS } from "@/utils/content.js";
 import { buildCanvas } from "@/utils/engine.js";
 import { api } from "@/utils/api.js";
 import { themeVars } from "@/utils/theme.js";
+import { setProfile } from "@/utils/profile.js";
 
 const toast = useToast();
 const questions = QUESTIONS;
@@ -173,12 +174,14 @@ function persistPicks() {
   });
 }
 
-// 一键把诊断画布里的专业带入「核验」页（观点×数据交叉核验）
+// 一键把诊断画布里的专业带入「查专业」页（观点×数据交叉核验）
+// 条件写入全局档案；「查专业」是 tab 页，用 switchTab 跳转，专业名经 profile.major 带入。
 function goVerify(name) {
   if (!requireConditions()) return;
   persistPicks();
-  const q = `province=${encodeURIComponent(form.province)}&subject=${encodeURIComponent(form.subject)}&user_rank=${encodeURIComponent(rankInput.value)}&major_name=${encodeURIComponent(name)}`;
-  uni.navigateTo({ url: `/pages/verify/verify?${q}` });
+  setProfile({ province: form.province, subject: form.subject, rank: rankInput.value, major: name });
+  try { uni.removeStorageSync("zhiyuan_pending_batch"); } catch (e) {}
+  uni.switchTab({ url: "/pages/verify/verify" });
 }
 
 // 批量：把画布全部推荐方向带入核验页，一次算完 一致/需谨慎/冲突
@@ -189,15 +192,17 @@ function goVerifyBatch() {
     return;
   }
   persistPicks();
-  const q = `province=${encodeURIComponent(form.province)}&subject=${encodeURIComponent(form.subject)}&user_rank=${encodeURIComponent(rankInput.value)}&batch=1`;
-  uni.navigateTo({ url: `/pages/verify/verify?${q}` });
+  setProfile({ province: form.province, subject: form.subject, rank: rankInput.value, major: "" });
+  // 批量标记存端侧，由「查专业」页 onShow 读取并自动开跑
+  try { uni.setStorageSync("zhiyuan_pending_batch", 1); } catch (e) {}
+  uni.switchTab({ url: "/pages/verify/verify" });
 }
 
-// 带着省份/科类/位次进入「院校推荐」页，看 冲/稳/保 三个档位的院校池
+// 带着省份/科类/位次进入「院校池」页，看 冲/稳/保 三个档位的院校池
 function goRecommend() {
   if (!requireConditions()) return;
-  const q = `province=${encodeURIComponent(form.province)}&subject=${encodeURIComponent(form.subject)}&user_rank=${encodeURIComponent(rankInput.value)}`;
-  uni.navigateTo({ url: `/pages/recommend/recommend?${q}` });
+  setProfile({ province: form.province, subject: form.subject, rank: rankInput.value, major: "" });
+  uni.switchTab({ url: "/pages/recommend/recommend" });
 }
 
 // 进入「院校专业组」页，按当前选科查看专业组结构
@@ -212,7 +217,7 @@ async function enrich() {
   try {
     search.value = await api.search(form.province, form.subject, Number(rankInput.value));
   } catch (e) {
-    searchErr.value = "后端未连接（请先启动 Python 后端 uvicorn main:app --port 8000）：" + (e.message || e);
+    searchErr.value = (e && e.message) ? e.message : "数据服务未连接，可在「我的」开启演示模式先体验";
   } finally {
     loading.value = false;
   }

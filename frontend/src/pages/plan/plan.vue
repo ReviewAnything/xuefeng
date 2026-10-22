@@ -161,7 +161,7 @@
 
 <script setup>
 import { computed, ref, watch } from "vue";
-import { onLoad } from "@dcloudio/uni-app";
+import { onLoad, onShow } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
 import { themeVars } from "@/utils/theme.js";
 import { api } from "@/utils/api.js";
@@ -254,7 +254,7 @@ function rowBreach(r) {
   return breachStatus(plan.value && plan.value.user_rank, r);
 }
 
-onLoad(() => {
+function loadPlanFromStorage() {
   const p = uni.getStorageSync(PLAN_KEY);
   if (!p) return;
   plan.value = p;
@@ -267,7 +267,11 @@ onLoad(() => {
       .then((r) => { volLimit.value = r; })
       .catch(() => { /* 上限数据缺失时静默降级，仅不显示上限卡片 */ });
   }
-});
+}
+
+onLoad(loadPlanFromStorage);
+// tab 页：从「我能上哪 / 院校池」switchTab 过来时草稿可能已更新，重新载入
+onShow(loadPlanFromStorage);
 
 // 拟报专业改动即写入本机草稿（仅本地存储，不上传）
 watch(rows, () => {
@@ -349,9 +353,7 @@ function copyFillOrder() {
 }
 
 function goRecommend() {
-  const p = plan.value;
-  const q = p ? `province=${encodeURIComponent(p.province)}&subject=${encodeURIComponent(p.subject)}&user_rank=${encodeURIComponent(p.user_rank)}` : "";
-  uni.navigateTo({ url: q ? "/pages/recommend/recommend?" + q : "/pages/recommend/recommend" });
+  uni.switchTab({ url: "/pages/recommend/recommend" });
 }
 function goCompass() {
   uni.navigateTo({ url: "/pages/compass/compass" });

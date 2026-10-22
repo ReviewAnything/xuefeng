@@ -2,8 +2,8 @@
   <wd-config-provider theme="dark" :theme-vars="themeVars">
     <view class="page">
       <view class="hero">
-        <text class="h1">观点 × 数据 交叉核验</text>
-        <text class="sub">P2 核心：把定性观点与后端定量录取数据做一致性校验，强化偏见校正。</text>
+        <text class="h1">查专业 · 你能上哪档</text>
+        <text class="sub">选一个专业，看以你的位次够不够得着、落在冲 / 稳 / 保哪一档；下方还能做跨年等位分换算。</text>
       </view>
 
       <view class="section">
@@ -288,11 +288,12 @@
 
 <script setup>
 import { computed, reactive, ref, watch } from "vue";
-import { onLoad } from "@dcloudio/uni-app";
+import { onLoad, onShow } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
 import { MAJORS } from "@/utils/content.js";
 import { api } from "@/utils/api.js";
 import { themeVars } from "@/utils/theme.js";
+import { applyProfile, setProfile } from "@/utils/profile.js";
 
 const toast = useToast();
 
@@ -331,7 +332,7 @@ const eqHint = computed(() => {
   if (years.value.length === 1) {
     return `该省/科类目前只有 ${years.value[0].year} 年有可用锚点（${dsLabel(years.value[0].data_source)}），暂无法跨年换算。`;
   }
-  if (!years.value.length) return "该省/科类暂无可用锚点（后端未连接或数据未覆盖），无法跨年换算。";
+  if (!years.value.length) return "该省/科类暂无可用锚点（数据服务未连接或未覆盖），无法跨年换算。";
   return "";
 });
 const deltaLabel = computed(() => {
@@ -396,7 +397,7 @@ async function runEquiv() {
   try {
     eqRes.value = await api.equivConvert(params);
   } catch (e) {
-    eqErr.value = "换算失败（后端未连接？）：" + (e.message || e);
+    eqErr.value = (e && e.message) ? e.message : "数据服务未连接，可在「我的」开启演示模式先体验";
   } finally {
     eqLoading.value = false;
   }
@@ -423,7 +424,7 @@ const unknownLabel = computed(() => {
 const sourceLabel = computed(() => {
   if (!res.value) return "";
   return res.value.data_source === "official_overlay"
-    ? "11 省官方省控线 + 其余估算（以考试院为准）"
+    ? "31 省官方省控线（2022–2026）+ 其余估算（以考试院为准）"
     : res.value.data_source === "real"
       ? "真实录取记录（估算）"
       : "参数化样例（演示）";
@@ -521,7 +522,7 @@ async function runBatch() {
   try {
     batch.value = await api.verifyBatch(p.province, p.subject, Number(p.user_rank), selected.value);
   } catch (e) {
-    batchErr.value = "后端未连接（请先启动 Python 后端 uvicorn main:app --port 8000）：" + (e.message || e);
+    batchErr.value = (e && e.message) ? e.message : "数据服务未连接，可在「我的」开启演示模式先体验";
   } finally {
     batchLoading.value = false;
   }
@@ -536,6 +537,8 @@ async function openOne(name) {
 // 支持从「诊断画布」一键带入（省份/科类/位次/专业，或 batch=1 进入批量模式）
 onLoad((q) => {
   loadCanvas();
+  // 优先带入全局档案（「我能上哪」已写入），外链参数再覆盖
+  Object.assign(p, applyProfile(p));
   if (q) {
     if (q.province) p.province = q.province;
     if (q.subject) p.subject = q.subject;
@@ -550,14 +553,29 @@ onLoad((q) => {
   }
 });
 
-// 带着省份/科类/位次进入「院校推荐」页
+// tab 页进入时同步全局档案（从诊断页 switchTab 过来时，条件写在 profile 里）；
+// 并处理「批量核验」端侧标记：自动勾选画布方向并开跑。
+onShow(() => {
+  Object.assign(p, applyProfile(p));
+  let pending = 0;
+  try { pending = uni.getStorageSync("zhiyuan_pending_batch"); } catch (e) {}
+  if (pending) {
+    try { uni.removeStorageSync("zhiyuan_pending_batch"); } catch (e) {}
+    batchMode.value = true;
+    candidates.value = (canvasPicks.value.length ? canvasPicks.value : MAJORS.map((m) => m.name)).slice(0, 20);
+    selected.value = candidates.value.slice();
+    if (p.province && p.subject && p.user_rank) runBatch();
+  }
+});
+
+// 带着省份/科类/位次进入「院校推荐」页（条件写入全局档案，tab 间 switchTab 跳转）
 function goRecommend() {
   if (!p.province || !p.subject || !p.user_rank) {
     toast.show("请先填写省份 / 科类 / 位次");
     return;
   }
-  const q = `province=${encodeURIComponent(p.province)}&subject=${encodeURIComponent(p.subject)}&user_rank=${encodeURIComponent(p.user_rank)}`;
-  uni.navigateTo({ url: `/pages/recommend/recommend?${q}` });
+  setProfile({ province: p.province, subject: p.subject, rank: p.user_rank, major: p.major_name });
+  uni.switchTab({ url: "/pages/recommend/recommend" });
 }
 
 // S2：原始数据点击可达——跳应用内 web-view 承载真实源（GitHub 原始 JSON / 观点出处）
@@ -592,7 +610,7 @@ async function run() {
       major_name: p.major_name,
     });
   } catch (e) {
-    err.value = "后端未连接（请先启动 Python 后端 uvicorn main:app --port 8000）：" + (e.message || e);
+    err.value = (e && e.message) ? e.message : "数据服务未连接，可在「我的」开启演示模式先体验";
   } finally {
     loading.value = false;
   }

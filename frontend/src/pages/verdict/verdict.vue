@@ -27,9 +27,13 @@
 
       <!-- 结论：一句判断，然后是三个动作 -->
       <view v-else class="res">
+        <view v-if="offlineHint" class="offline-tip">{{ offlineHint }}</view>
         <view class="topbar">
           <text class="cond">{{ r.province }} · {{ r.subject }} · {{ r.user_rank }} 名</text>
-          <text class="lk" @click="reset">改条件</text>
+          <view class="topbar-right">
+            <text :class="['cred', 'cred-' + credibility.cls]">{{ credibility.label }}</text>
+            <text class="lk" @click="reset">改条件</text>
+          </view>
         </view>
 
         <text class="headline">{{ r.headline }}</text>
@@ -104,6 +108,7 @@ import { useToast } from "wot-design-uni";
 import { api } from "@/utils/api.js";
 import { PLAN_KEY, buildPlan } from "@/utils/plan.js";
 import { themeVars } from "@/utils/theme.js";
+import { applyProfile, saveFromForm } from "@/utils/profile.js";
 
 const toast = useToast();
 
@@ -121,6 +126,22 @@ const making = ref(false);
 
 // S5-D：本机是否存在志愿表草稿（决定结论页是否展示常驻入口 + 红点）
 const hasDraft = computed(() => !!uni.getStorageSync(PLAN_KEY));
+
+// P2 信任呈现：把「数据能不能信」放在最显眼处（绿=官方 / 蓝=真实抓取非官方 / 灰=估算 / 黄=演示）
+const credibility = computed(() => {
+  const ds = r.value && r.value.data_source;
+  if (ds === "demo") return { label: "演示数据", cls: "demo" };
+  if (ds === "official" || ds === "official_overlay") return { label: "官方数据", cls: "official" };
+  if (ds === "real") return { label: "真实抓取", cls: "real" };
+  return { label: "估算数据", cls: "est" };
+});
+// 后端未连接且未开演示时的非打断提示（来自 App 启动健康检查）
+const offlineHint = computed(() => {
+  if (api.isDemo()) return "";
+  let ok = true;
+  try { ok = !!uni.getStorageSync("zhiyuan_backend_ok"); } catch (e) {}
+  return ok ? "" : "数据服务未连接，可在「我的」开启演示模式先体验";
+});
 
 // 尺子按「专科门槛」做满量程：左边是门槛更硬的档，右边是你的保底空间
 const RULER = ["985", "211", "普通二本", "专科"];
@@ -147,8 +168,8 @@ const ruler = computed(() => {
 });
 
 onLoad((q) => {
-  const saved = uni.getStorageSync(KEY);
-  if (saved) Object.assign(f, saved);
+  // 先带入全局档案（省份/科类/位次/专业），避免每页重填
+  Object.assign(f, applyProfile(f));
   if (q && q.province) f.province = decodeURIComponent(q.province);
   if (q && q.subject) f.subject = decodeURIComponent(q.subject);
   if (q && q.user_rank) f.rank = decodeURIComponent(q.user_rank);
@@ -171,8 +192,10 @@ async function run() {
   try {
     r.value = await api.verdict(f.province, f.subject, rank);
     uni.setStorageSync(KEY, { ...f });
+    // 出结论即写入全局档案，后续「院校池 / 查专业 / 志愿表」自动带齐条件
+    saveFromForm(f);
   } catch (e) {
-    err.value = "没连上服务，重试一次";
+    err.value = e && e.message ? e.message : "没连上服务，重试一次";
   } finally {
     loading.value = false;
   }
@@ -194,29 +217,27 @@ async function goPlan() {
     });
     const p = buildPlan(rec);
     if (p) uni.setStorageSync(PLAN_KEY, p);
-    uni.navigateTo({ url: "/pages/plan/plan" });
+    uni.switchTab({ url: "/pages/plan/plan" });
   } catch (e) {
-    toast.show("没连上服务，重试一次");
+    toast.show(e && e.message ? e.message : "没连上服务，重试一次");
   } finally {
     making.value = false;
   }
 }
 
 function goRecommend() {
-  uni.navigateTo({
-    url: `/pages/recommend/recommend?province=${encodeURIComponent(f.province)}&subject=${encodeURIComponent(f.subject)}&user_rank=${encodeURIComponent(f.rank)}`,
-  });
+  // 条件已写入全局档案，tab 间用 switchTab 跳转（不再带 query）
+  uni.switchTab({ url: "/pages/recommend/recommend" });
 }
 
 // S3 下钻：带着条件进核验页（批量模式），「你能上哪档 → 哪些专业值得读」复用 verify 引擎
 function goVerify() {
-  const q = `province=${encodeURIComponent(f.province)}&subject=${encodeURIComponent(f.subject)}&user_rank=${encodeURIComponent(f.rank)}&batch=1`;
-  uni.navigateTo({ url: `/pages/verify/verify?${q}` });
+  uni.switchTab({ url: "/pages/verify/verify" });
 }
 
 // S5-D：直接打开已有志愿表草稿（不覆盖、不重新生成）
 function openPlan() {
-  uni.navigateTo({ url: "/pages/plan/plan" });
+  uni.switchTab({ url: "/pages/plan/plan" });
 }
 
 function goDiagnose() {
@@ -242,6 +263,13 @@ function goCompass() {
 /* 结论 */
 .res { padding-top: 12rpx; }
 .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28rpx; }
+.topbar-right { display: flex; align-items: center; gap: 16rpx; }
+.cred { font-size: 20rpx; padding: 3rpx 12rpx; border-radius: 999rpx; border: 1px solid transparent; }
+.cred-official { color: #5fd87f; border-color: #2f7d4f; background: rgba(95, 216, 127, 0.08); }
+.cred-real { color: #6db3f2; border-color: #2f5a8f; background: rgba(109, 179, 242, 0.08); }
+.cred-est { color: #c7ccd4; border-color: #3a3f48; background: rgba(138, 144, 156, 0.08); }
+.cred-demo { color: #f0ad4e; border-color: #7d5a1a; background: rgba(240, 173, 78, 0.1); }
+.offline-tip { font-size: 22rpx; color: #f0ad4e; background: rgba(240, 173, 78, 0.1); border: 1px solid #5a4a1a; border-radius: 12rpx; padding: 14rpx 18rpx; margin-bottom: 20rpx; line-height: 1.6; }
 .cond { font-size: 22rpx; color: #8a909c; letter-spacing: 1rpx; }
 
 .headline {
@@ -297,10 +325,10 @@ function goCompass() {
 .band-v { font-size: 26rpx; color: #d5d9e0; font-variant-numeric: tabular-nums; }
 
 .facts { margin-top: 32rpx; }
-.fact { display: block; font-size: 21rpx; color: #6b7280; line-height: 1.8; }
+.fact { display: block; font-size: 22rpx; color: #828a96; line-height: 1.8; }
 
 .actions { display: flex; flex-direction: column; gap: 16rpx; margin-top: 44rpx; }
-.basis { display: block; margin-top: 28rpx; font-size: 19rpx; color: #4b515b; line-height: 1.6; }
+.basis { display: block; margin-top: 28rpx; font-size: 20rpx; color: #5b626d; line-height: 1.7; }
 
 /* S5-D 志愿表草稿常驻入口 */
 .draft-row { display: flex; align-items: center; margin-top: 22rpx; padding: 16rpx 18rpx; border: 1px dashed #3a3f48; border-radius: 12rpx; background: rgba(95, 216, 127, 0.05); }
