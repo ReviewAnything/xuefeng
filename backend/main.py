@@ -1,4 +1,4 @@
-"""志愿决策助手 · Python 后端。
+"""懂分帝 · Python 后端。
 
 FastAPI 应用，提供：
   - GET  /api/health            健康检查 + 数据源
@@ -54,7 +54,7 @@ from routers import admin as admin_api
 APP_VERSION = C.APP_VERSION
 
 app = FastAPI(
-    title="志愿决策助手 · 后端",
+    title="懂分帝 · 后端",
     description="就业确定性优先 + 开源资源 + P2 观点×数据交叉核验 API + 管理端",
     version=APP_VERSION,
 )
@@ -111,7 +111,7 @@ if os.path.isdir(_ADMIN_DIR) and not DISABLE_ADMIN:
 @app.get("/", include_in_schema=False)
 def root():
     if DISABLE_ADMIN:
-        return {"app": "志愿决策助手 · 公开 API", "docs": "/docs", "health": "/api/health"}
+        return {"app": "懂分帝 · 公开 API", "docs": "/docs", "health": "/api/health"}
     return RedirectResponse("/admin")
 
 

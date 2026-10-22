@@ -1,4 +1,4 @@
-/* 志愿决策助手 · 管理端控制台（Vue 3 + Element Plus，免构建） */
+/* 懂分帝 · 管理端控制台（Vue 3 + Element Plus，免构建） */
 const { createApp, ref, reactive, computed, onMounted, watch } = Vue;
 const { ElMessage, ElMessageBox } = ElementPlus;
 

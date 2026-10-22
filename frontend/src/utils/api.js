@@ -1,16 +1,22 @@
 import { resolveDemo } from "./demoData.js";
+import { API_BASE as CONFIG_API_BASE } from "../config.js";
 
 // 后端 API 封装：调用 Python FastAPI 后端（P2 数据层）。
 //
-// 后端地址三处来源，优先级从高到低：
-//   1. window.__XUEFENG_API__ —— 部署后可在静态页里改（不用重新构建）
-//   2. import.meta.env.VITE_API_BASE —— 构建期注入（GitHub Pages / 各环境 CI 用）
-//   3. http://localhost:8000 —— 本地开发默认
-// 生产/小程序请改为你的后端域名（需 https + 小程序后台配置域名）。
+// 地址来源（优先级从高到低）：
+//   1. 运行时覆盖（仅 H5）：window.__XUEFENG_API__ —— 部署后改静态页即可，无需重新构建
+//   2. .env.* 注入的 VITE_API_BASE（开发/生产各一套，见 frontend/.env.*，含端口）
+//   3. config.js 内置兜底
+// 生产/小程序请改 .env.production 的 VITE_API_BASE 为你的 https 域名（并配置小程序合法域名）。
+// 解析后端基地址（含端口）。每次调用实时读取，优先级从高到低：
+//   1. 运行时覆盖（仅 H5）：window.__XUEFENG_API__ —— 部署后改静态页即可，无需重新构建
+//   2. .env.* 注入的 VITE_API_BASE（开发/生产各一套，见 frontend/.env.*）
+//   3. config.js 内置兜底（开发 localhost:8000 / 生产占位域名）
+// 实时读取是为了让测试/调试能运行时注入不同地址，而非模块加载时固化。
 export function resolveBase() {
   if (typeof window !== "undefined" && window.__XUEFENG_API__) return window.__XUEFENG_API__;
   const env = typeof import.meta !== "undefined" && import.meta.env ? import.meta.env.VITE_API_BASE : "";
-  return env || "http://localhost:8000";
+  return (env && String(env).trim()) || CONFIG_API_BASE;
 }
 
 const API_BASE = resolveBase();

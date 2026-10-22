@@ -169,7 +169,7 @@
         <view class="xf-card">
           <wd-collapse v-model="open">
             <wd-collapse-item title="这是什么" name="what">
-              <text class="p">一个把「普通家庭 + 就业导向」的务实决策框架，与开源社区资源、真实录取数据结合的<text class="strong">志愿决策助手</text>。它输出决策框架而非录取结论，并内置偏见校正层。</text>
+              <text class="p">一个把「普通家庭 + 就业导向」的务实决策框架，与开源社区资源、真实录取数据结合的<text class="strong">懂分帝</text>。它输出决策框架而非录取结论，并内置偏见校正层。</text>
             </wd-collapse-item>
             <wd-collapse-item title="技术与数据规模" name="arch">
               <text class="p kv">前端 · uni-app (Vue3)，H5 / 小程序 / App</text>

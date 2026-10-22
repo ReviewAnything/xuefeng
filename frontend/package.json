@@ -1,7 +1,7 @@
 {
   "name": "zhiyuan-app",
   "version": "2.1.0",
-  "description": "志愿决策助手 · uni-app(Vue3) + wot-design-uni 跨端前端 + Python 后端（P2 观点×数据交叉核验 + 数据落库 + 管理端）",
+  "description": "懂分帝 · uni-app(Vue3) + wot-design-uni 跨端前端 + Python 后端（P2 观点×数据交叉核验 + 数据落库 + 管理端）",
   "type": "module",
   "scripts": {
     "dev:h5": "uni",
@@ -10,6 +10,7 @@
     "build:mp-weixin": "uni build -p mp-weixin",
     "dev:app": "uni -p app",
     "build:app": "uni build -p app",
+    "build": "npm run build:mp-weixin",
     "test:engine": "node tests/engine.test.mjs",
     "test:template": "node tests/template.test.mjs",
     "test:plan": "node tests/plan.test.mjs",

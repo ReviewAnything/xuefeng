@@ -1,7 +1,7 @@
 {
-  "name": "志愿决策助手",
+  "name": "懂分帝",
   "appid": "",
-  "description": "就业确定性优先 + 开源资源 + 观点×数据交叉核验的志愿决策助手",
+  "description": "就业确定性优先 + 开源资源 + 观点×数据交叉核验的懂分帝",
   "versionName": "2.0.0",
   "versionCode": 200,
   "transformPx": false,
@@ -22,7 +22,7 @@
   "h5": {
     "router": { "mode": "hash", "base": "./" },
     "darkmode": false,
-    "title": "志愿决策助手",
+    "title": "懂分帝",
     "devServer": { "port": 5173, "https": false }
   },
   "vueVersion": "3"

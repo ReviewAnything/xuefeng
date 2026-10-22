@@ -1,6 +1,6 @@
-# 志愿决策助手 v2 · 跨端应用（uni-app + Python）
+# 懂分帝 v2 · 跨端应用（uni-app + Python）
 
-以「就业确定性优先（普通家庭 + 就业导向）」为方法论，与开源社区资源结合的**志愿决策助手**；张雪峰公开观点为观点来源之一（社区整理，非品牌背书）。
+以「就业确定性优先（普通家庭 + 就业导向）」为方法论，与开源社区资源结合的**懂分帝**（产品已正式命名，首发平台为微信小程序）；张雪峰公开观点为观点来源之一（社区整理，非品牌背书）。
 v2 在 v1 纯前端 PWA 基础上做了三件事：
 
 1. **架构重构**：前端用 **uni-app (Vue3)** 实现一套代码跨 H5 / 微信小程序 / App；后端引入 **Python FastAPI** 承载数据层。
@@ -8,6 +8,17 @@ v2 在 v1 纯前端 PWA 基础上做了三件事：
 3. **数据落库 + 运营管理端**：2868 所院校与 31 省录取基线落 SQLite（可切 PostgreSQL），提供 `/admin` 数据看板、数据浏览、同步与导出。
 
 > 内容来源：公开观点（社区整理）+ 开源资源核实 + 各省考试院公开数据。**仅供学习参考，正式填报以各省考试院官方数据为准。**
+
+## 首发与发布
+
+- **首发平台：微信小程序**。`npm run build`（即 `build:mp-weixin`）产出 `dist/build/mp-weixin`，用微信开发者工具导入即可预览 / 上传。
+- 上线前两项必填：
+  1. `frontend/src/manifest.json` 的 `mp-weixin.appid` 从 `touristappid` 换成你自己的小程序 AppID。
+  2. `frontend/.env.production` 的 `VITE_API_BASE` 换成你的 https 后端域名，并在**微信公众平台 → 开发 → 开发管理 → 开发设置 → 服务器域名**的 request 合法域名中加入该域名（否则真机请求会被拦截）。
+- 开发期 `npm run dev:mp-weixin`：`mp-weixin.setting.urlCheck` 已设为 `false`，可暂不校验域名先联调。
+- H5 公开站点仍可用 `npm run build:h5` 构建（部署见 docs/deployment.md）。
+
+> 环境配置（开发 / 生产）统一在 `frontend/.env.*` 与 `frontend/src/config.js`，后端地址、端口、超时不再写死在业务代码里。
 
 ---
 

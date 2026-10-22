@@ -111,7 +111,7 @@ import { QUESTIONS, MAJORS } from "@/utils/content.js";
 import { buildCanvas } from "@/utils/engine.js";
 import { api } from "@/utils/api.js";
 import { themeVars } from "@/utils/theme.js";
-import { setProfile } from "@/utils/profile.js";
+import { getProfile, setProfile } from "@/utils/profile.js";
 
 const toast = useToast();
 const questions = QUESTIONS;
@@ -131,16 +131,24 @@ const groups = [
 QUESTIONS.forEach((q) => (form[q.id] = ""));
 
 onLoad(() => {
-  const saved = uni.getStorageSync("zhiyuan_profile_v2");
-  if (saved) {
-    Object.assign(form, saved);
-    rankInput.value = saved._rank || "";
+  const saved = uni.getStorageSync("zhiyuan_profile_v2") || {};
+  Object.assign(form, saved);
+  rankInput.value = saved._rank || "";
+  // 从全局档案带入省份/科类/位次：用户在「我的」页只填一次，
+  // 八连问不再要求重复填写（自身 zhiyuan_profile_v2 已有时以自身为准）。
+  const gp = getProfile();
+  if (gp.province && !form.province) form.province = gp.province;
+  if (gp.subject && !form.subject) form.subject = gp.subject;
+  if (gp.rank && !rankInput.value) rankInput.value = gp.rank;
+  if (form.province && form.subject && rankInput.value) {
     canvas.value = buildCanvas(form, MAJORS);
   }
 });
 
 function run() {
   uni.setStorageSync("zhiyuan_profile_v2", { ...form, _rank: rankInput.value });
+  // 同步省份/科类/位次回全局档案，保证「我的 / 我能上哪 / 院校池」等页共享同一份条件
+  setProfile({ province: form.province, subject: form.subject, rank: rankInput.value, major: "" });
   canvas.value = buildCanvas(form, MAJORS);
   toast.show("已生成决策画布");
 }
