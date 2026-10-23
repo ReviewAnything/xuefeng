@@ -80,6 +80,33 @@ const mod = await import('../src/config.js');
 eq(typeof mod.API_BASE, 'string', '纯 Node 下 API_BASE 可解析');
 eq(mod.API_BASE.length > 0, true, 'API_BASE 非空');
 
+console.log('\n▎纯 Node 测试契约（api.js / config.js / demoData.js）');
+// 这三个文件被 tests/plan.test.mjs、tests/engine.test.mjs 通过【相对路径】直接 import，
+// 因此必须保持 .js 扩展名 + 相对导入；一旦改成 .ts 或用 @/ 别名，纯 Node 测试将无法解析。
+const NODE_CONTRACT = [
+  { file: 'src/utils/api.js', importers: 'tests/plan.test.mjs' },
+  { file: 'src/utils/demoData.js', importers: 'tests/plan.test.mjs' },
+  { file: 'src/config.js', importers: 'tests/plan.test.mjs / tests/engine.test.mjs' },
+];
+for (const { file, importers } of NODE_CONTRACT) {
+  const abs = path.join(ROOT, file);
+  eq(fs.existsSync(abs), true, `${file} 存在`);
+  eq(fs.existsSync(abs.replace(/\.js$/, '.ts')), false,
+    `${file} 未被改成 .ts（纯 Node 测试靠相对路径解析，importers: ${importers}）`);
+  const code = stripComments(fs.readFileSync(abs, 'utf8'));
+  eq(/from\s*["']@\//.test(code) || /import\s*["']@\//.test(code), false,
+    `${file} 内部仅用相对导入（禁止 @/ 别名，否则纯 Node 测试解析失败）`);
+}
+
+console.log('\n▎content.js 懒加载不变量（P1 分包瘦身）');
+// 234KB 的 @shared JSON 必须【动态 import()】懒加载，绝不能静态 import 打进主包初始体积。
+const contentCode = stripComments(fs.readFileSync(path.join(SRC, 'utils/content.js'), 'utf8'));
+eq(/export\s+(async\s+)?function\s+ensureContent/.test(contentCode), true,
+  'content.js 导出 ensureContent() 懒加载入口');
+eq(/import\s*\(/.test(contentCode), true, 'content.js 使用动态 import() 拉取 @shared JSON');
+eq(/from\s*["']@shared\//.test(contentCode) || /import\s*["']@shared\//.test(contentCode), false,
+  'content.js 不静态 import @shared（否则 234KB 进主包初始体积）');
+
 console.log('\n=====================');
 console.log(`结果：${pass} 通过 / ${fail} 失败`);
 console.log('=====================');
