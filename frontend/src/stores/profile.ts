@@ -1,9 +1,9 @@
 // 全局档案 Store（P2 Pinia 迁移）
 // ---------------------------------------------------------------------------
-// 底层持久化仍走 utils/profile.js（端侧存储），Store 仅做响应式状态 + 动作封装。
-// 采用「新旧并存」渐进策略：页面可逐步从 `@/utils/profile.js` 切到此处，旧代码暂不删。
+// 底层持久化仍走 utils/profile（端侧存储），Store 仅做响应式状态 + 动作封装。
+// 采用「新旧并存」渐进策略：页面可逐步从 `@/utils/profile` 切到此处，旧代码暂不删。
 import { defineStore } from "pinia";
-import { getProfile, setProfile } from "@/utils/profile.js";
+import { getProfile, setProfile } from "@/utils/profile";
 import type { Profile, Province, Subject } from "@/types";
 
 export const useProfileStore = defineStore("profile", {

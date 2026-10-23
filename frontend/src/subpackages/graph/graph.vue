@@ -199,7 +199,7 @@ import { ref, computed, reactive } from "vue";
 import { onLoad } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
 import { CATS, VIEW_LABEL, ensureContent } from "@/utils/content.js";
-import { themeVars } from "@/utils/theme.js";
+import { themeVars } from "@/utils/theme";
 
 const toast = useToast();
 

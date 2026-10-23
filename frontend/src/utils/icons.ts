@@ -9,13 +9,13 @@
 // 再 base64 成 data URI 交给 <image> —— H5 / 小程序都认 data URI，且不留外链。
 //
 // 用法：
-//   import { iconSrc, hasIcon } from "@/utils/icons.js";
+//   import { iconSrc, hasIcon } from "@/utils/icons";
 //   iconSrc("target", "#ffd24d")            // → "data:image/svg+xml;base64,..."
 //   <app-icon name="target" color="#ffd24d" :size="36" />
 
 // 图标表：键名即语义名，值是 24×24 内的 SVG 图元串。
 // 约定：只用 stroke 描边（fill="none"），需要实心点的地方显式写 fill="__C__"。
-const PATHS = {
+const PATHS: Record<string, string> = {
   // —— 导航/任务 ——
   target:
     '<circle cx="12" cy="12" r="8.2"/><circle cx="12" cy="12" r="3.6"/>' +
@@ -87,7 +87,7 @@ const PATHS = {
 };
 
 // 语义别名：让页面按「含义」取图标，而不是背图标名（换风格只改这里）
-export const ICON_ALIAS = {
+export const ICON_ALIAS: Record<string, string> = {
   home: "target",
   reach: "trending-up",
   match: "equals",
@@ -101,12 +101,12 @@ export const ICON_ALIAS = {
   compass: "compass",
 };
 
-export function hasIcon(name) {
+export function hasIcon(name: string) {
   const k = ICON_ALIAS[name] || name;
   return !!PATHS[k];
 }
 
-function b64(str) {
+function b64(str: string) {
   const T = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   let out = "";
   for (let i = 0; i < str.length; i += 3) {
@@ -123,7 +123,7 @@ function b64(str) {
   return out;
 }
 
-const CACHE = new Map();
+const CACHE = new Map<string, string>();
 
 /**
  * 生成可直接喂给 <image :src> 的 data URI。
@@ -131,7 +131,7 @@ const CACHE = new Map();
  * @param {string} color 描边色（#rrggbb 或 rgba()）
  * @param {number} width 线宽（默认 1.7，24×24 坐标系内）
  */
-export function iconSvg(name, color, width) {
+export function iconSvg(name: string, color?: string, width?: number) {
   const key = ICON_ALIAS[name] || name;
   const inner = PATHS[key];
   if (!inner) return "";
@@ -145,7 +145,7 @@ export function iconSvg(name, color, width) {
   );
 }
 
-export function iconSrc(name, color, width) {
+export function iconSrc(name: string, color?: string, width?: number) {
   const key = (ICON_ALIAS[name] || name) + "|" + (color || "#e6e8ec") + "|" + (width || 1.7);
   const hit = CACHE.get(key);
   if (hit) return hit;

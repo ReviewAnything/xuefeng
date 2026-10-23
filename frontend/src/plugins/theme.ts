@@ -1,5 +1,5 @@
 // 应用级插件：启动时初始化主题（P2 Pinia 迁移）
-import { initTheme } from "@/utils/theme.js";
+import { initTheme } from "@/utils/theme";
 
 export default {
   install() {

@@ -7,7 +7,7 @@
 // 之所以内部用 <image> 而不是内联 <svg>：小程序端不支持模板里直接写 svg 标签，
 // data URI 交给 image 是唯一 H5/小程序/App 三端都稳的渲染方式。
 import { computed } from "vue";
-import { iconSrc } from "@/utils/icons.js";
+import { iconSrc } from "@/utils/icons";
 
 const props = defineProps({
   name: { type: String, required: true },

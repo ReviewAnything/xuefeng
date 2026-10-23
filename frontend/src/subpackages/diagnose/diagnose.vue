@@ -110,8 +110,8 @@ import { useToast } from "wot-design-uni";
 import { QUESTIONS, MAJORS, ensureContent } from "@/utils/content.js";
 import { buildCanvas } from "@/utils/engine.js";
 import { api } from "@/utils/api.js";
-import { themeVars } from "@/utils/theme.js";
-import { getProfile, setProfile } from "@/utils/profile.js";
+import { themeVars } from "@/utils/theme";
+import { getProfile, setProfile } from "@/utils/profile";
 
 const toast = useToast();
 const questions = ref([]);

@@ -158,7 +158,7 @@
 import { ref, computed, onMounted } from "vue";
 import { api } from "@/utils/api.js";
 import { useToast } from "wot-design-uni";
-import { themeVars } from "@/utils/theme.js";
+import { themeVars } from "@/utils/theme";
 
 const toast = useToast();
 

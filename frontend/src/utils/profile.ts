@@ -14,7 +14,7 @@ export function getProfile() {
   }
 }
 
-export function setProfile(p) {
+export function setProfile(p: any) {
   try {
     uni.setStorageSync(KEY, {
       province: (p && p.province) || "",
@@ -28,9 +28,9 @@ export function setProfile(p) {
 }
 
 // 把已存档案回填到表单（只填有值的字段），让任意页打开即带齐条件。
-export function applyProfile(form, fields = ["province", "subject", "rank", "major"]) {
+export function applyProfile(form: any, fields = ["province", "subject", "rank", "major"]) {
   const p = getProfile();
-  const out = {};
+  const out: any = {};
   fields.forEach((f) => {
     if (p[f]) out[f] = p[f];
   });
@@ -38,7 +38,7 @@ export function applyProfile(form, fields = ["province", "subject", "rank", "maj
 }
 
 // 把当前表单写入档案（位次转字符串统一存储）。
-export function saveFromForm(form) {
+export function saveFromForm(form: any) {
   setProfile({
     province: form.province,
     subject: form.subject,

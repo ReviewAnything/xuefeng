@@ -1,6 +1,6 @@
 // 主题 Store（P2 Pinia 迁移）
 import { defineStore } from "pinia";
-import { themeState, applyTheme, setTheme } from "@/utils/theme.js";
+import { themeState, applyTheme, setTheme } from "@/utils/theme";
 import type { ThemeId } from "@/types";
 
 export const useThemeStore = defineStore("theme", {

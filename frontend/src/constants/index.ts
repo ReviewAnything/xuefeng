@@ -1,6 +1,6 @@
 // 全局常量（P3 目录重构，对齐伯乐 constants/）
 // ---------------------------------------------------------------------------
-// 从 utils/profile.js 平滑迁移而来：profile.js 保留重导出以兼容既有 `@/utils/profile.js` 引用。
+// 从 utils/profile 平滑迁移而来：profile.js 保留重导出以兼容既有 `@/utils/profile` 引用。
 import type { Province, Subject, ThemeId } from "@/types";
 
 /** 省份与科类选项（与后端省份口径一致，共 31 省） */

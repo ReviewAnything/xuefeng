@@ -306,8 +306,8 @@ import { onLoad, onShow } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
 import { MAJORS, ensureContent } from "@/utils/content.js";
 import { api } from "@/utils/api.js";
-import { themeVars } from "@/utils/theme.js";
-import { applyProfile, setProfile } from "@/utils/profile.js";
+import { themeVars } from "@/utils/theme";
+import { applyProfile, setProfile } from "@/utils/profile";
 
 const toast = useToast();
 

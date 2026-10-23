@@ -70,7 +70,7 @@ import { ref } from "vue";
 import { onLoad } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
 import { api } from "@/utils/api.js";
-import { themeVars } from "@/utils/theme.js";
+import { themeVars } from "@/utils/theme";
 
 const toast = useToast();
 

@@ -163,8 +163,8 @@ import { useToast } from "wot-design-uni";
 import { MAJORS, ensureContent } from "@/utils/content.js";
 import { api } from "@/utils/api.js";
 import { PLAN_KEY, buildPlan } from "@/utils/plan.js";
-import { themeVars, credMeta, levelColor, levelIcon } from "@/utils/theme.js";
-import { applyProfile, saveFromForm } from "@/utils/profile.js";
+import { themeVars, credMeta, levelColor, levelIcon } from "@/utils/theme";
+import { applyProfile, saveFromForm } from "@/utils/profile";
 
 const toast = useToast();
 

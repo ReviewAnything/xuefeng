@@ -1,7 +1,7 @@
 <script>
 // 应用启动：静默探测后端可用性（不弹窗、不打断），结果存端侧供各页判断是否提示「演示模式」。
 import { api } from "@/utils/api.js";
-import { initTheme } from "@/utils/theme.js";
+import { initTheme } from "@/utils/theme";
 export default {
   onLaunch() {
     // 在页面渲染前把主题变量铺到 <html>，避免明暗切换首帧闪烁

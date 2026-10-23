@@ -2,7 +2,7 @@ import { createSSRApp } from "vue";
 import { createPinia } from "pinia";
 import App from "./App.vue";
 import themePlugin from "./plugins/theme";
-import { themeState } from "./utils/theme.js";
+import { themeState } from "./utils/theme";
 
 export function createApp() {
   const app = createSSRApp(App);

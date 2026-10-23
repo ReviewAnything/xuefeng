@@ -242,9 +242,9 @@ import { ref, computed } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
 import { APP_VERSION, DATA_DATE, CONTENT_SOURCE, RESOURCES, RES_CATS, MAJORS, SCHOOLS, ensureContent } from "@/utils/content.js";
-import { themeVars, THEMES, setTheme } from "@/utils/theme.js";
+import { themeVars, THEMES, setTheme } from "@/utils/theme";
 import { api } from "@/utils/api.js";
-import { PROFILE_OPTIONS, getProfile, setProfile } from "@/utils/profile.js";
+import { PROFILE_OPTIONS, getProfile, setProfile } from "@/utils/profile";
 
 const version = ref("");
 const date = ref("");

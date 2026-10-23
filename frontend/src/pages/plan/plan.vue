@@ -280,7 +280,7 @@
 import { computed, ref, watch } from "vue";
 import { onLoad, onShow } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
-import { themeVars, levelColor, levelIcon } from "@/utils/theme.js";
+import { themeVars, levelColor, levelIcon } from "@/utils/theme";
 import { api } from "@/utils/api.js";
 import { PLAN_KEY, applyMajors, breachStats, breachStatus, buildFillOrderText, buildPlanText, collectMajors, diffSafePatch, fillOrder as buildFillOrder, fillStats, flattenPlan, formatTime, groupRows, selectBackstops } from "@/utils/plan.js";
 

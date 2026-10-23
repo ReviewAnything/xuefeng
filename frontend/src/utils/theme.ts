@@ -125,7 +125,7 @@ export const THEME_IDS = THEMES.map((t) => t.id);
 export const DEFAULT_THEME = "dark";
 const STORAGE_KEY = "zhiyuan_theme";
 
-function themeById(id) {
+function themeById(id: string) {
   return THEMES.find((t) => t.id === id) || THEMES[0];
 }
 
@@ -143,7 +143,7 @@ const STATUS = {
   radiusNormal: "12rpx",
 };
 
-function buildWotVars(t) {
+function buildWotVars(t: any) {
   const accent = t.vars["--xf-gold"];
   const base = { colorTheme: accent, colorYellow: accent, ...STATUS };
   if (t.mode === "light") {
@@ -209,13 +209,13 @@ export const themeVars = reactive(buildWotVars(THEMES[0]));
 
 let _active = DEFAULT_THEME;
 
-function buildStyle(t) {
+function buildStyle(t: any) {
   return Object.entries(t.vars)
     .map(([k, v]) => `${k}:${v}`)
     .join(";");
 }
 
-export function applyTheme(id) {
+export function applyTheme(id: string) {
   const t = themeById(id);
   _active = id;
   themeState.id = id;
@@ -227,7 +227,7 @@ export function applyTheme(id) {
   // #ifdef H5
   try {
     const root = document.documentElement;
-    Object.entries(t.vars).forEach(([k, v]) => root.style.setProperty(k, v));
+    Object.entries(t.vars).forEach(([k, v]) => root.style.setProperty(k, v as string));
     root.setAttribute("data-theme", id);
   } catch (e) {}
   // #endif
@@ -245,7 +245,7 @@ export function initTheme() {
   applyTheme(themeById(id).id);
 }
 
-export function setTheme(id) {
+export function setTheme(id: string) {
   if (!THEME_IDS.includes(id)) return;
   applyTheme(id);
 }
@@ -290,7 +290,7 @@ export const tokens = {
 };
 
 // 档位 → 语义色（冲/稳/保 全站统一，跟随当前主题）
-export function levelColor(level) {
+export function levelColor(level: string) {
   const c = themeById(_active).vars;
   if (level === "冲") return c["--xf-reach"];
   if (level === "稳") return c["--xf-match"];
@@ -299,7 +299,7 @@ export function levelColor(level) {
 }
 
 // 档位 → 图标名（icons.js 语义别名）
-export function levelIcon(level) {
+export function levelIcon(level: string) {
   if (level === "冲") return "reach";
   if (level === "稳") return "match";
   if (level === "保") return "safe";
@@ -307,7 +307,7 @@ export function levelIcon(level) {
 }
 
 // 数据来源 → 可信度展示（徽章文案 + 色 + 图标），跟随当前主题
-export function credMeta(dataSource) {
+export function credMeta(dataSource: string) {
   const c = themeById(_active).vars;
   const ds = String(dataSource || "");
   if (ds === "demo") {
