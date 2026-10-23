@@ -392,89 +392,89 @@ onLoad(async () => {
 <style scoped>
 .page { padding: 24rpx 24rpx 60rpx; }
 .hero { padding: 16rpx 8rpx 20rpx; }
-.h1 { font-size: 40rpx; font-weight: 700; color: #ffd24d; }
-.sub { display: block; margin-top: 10rpx; font-size: 24rpx; color: #8a909c; line-height: 1.6; }
+.h1 { font-size: 40rpx; font-weight: 700; color: var(--xf-gold); }
+.sub { display: block; margin-top: 10rpx; font-size: 24rpx; color: var(--xf-text-3); line-height: 1.6; }
 
 .seg { display: flex; gap: 12rpx; margin-bottom: 18rpx; }
 .seg-item {
   flex: 1; text-align: center; padding: 16rpx 0; border-radius: 999rpx;
-  background: #16191f; border: 1px solid #23262e;
+  background: var(--xf-surface); border: 1px solid var(--xf-line);
 }
 .seg-item.on { background: #2a2413; border-color: #6b5a1c; }
-.seg-text { font-size: 26rpx; color: #8a909c; }
-.seg-item.on .seg-text { color: #ffd24d; font-weight: 600; }
+.seg-text { font-size: 26rpx; color: var(--xf-text-3); }
+.seg-item.on .seg-text { color: var(--xf-gold); font-weight: 600; }
 
 .filters { white-space: nowrap; margin: 18rpx 0 14rpx; }
 .chips { display: inline-flex; gap: 12rpx; padding: 2rpx 2rpx 6rpx; }
-.count { font-size: 22rpx; color: #6b7280; margin: 6rpx 0 14rpx; }
+.count { font-size: 22rpx; color: var(--xf-text-4); margin: 6rpx 0 14rpx; }
 .grid { display: flex; flex-direction: column; gap: 20rpx; }
-.empty { margin-top: 40rpx; text-align: center; font-size: 24rpx; color: #6b7280; }
+.empty { margin-top: 40rpx; text-align: center; font-size: 24rpx; color: var(--xf-text-4); }
 
 /* 专业卡（沿用原专业图谱样式） */
-.mcard { background: #16191f; border: 1px solid #23262e; border-radius: 16rpx; padding: 22rpx; }
+.mcard { background: var(--xf-surface); border: 1px solid var(--xf-line); border-radius: 16rpx; padding: 22rpx; }
 .mhead { display: flex; justify-content: space-between; align-items: center; gap: 12rpx; }
-.mname { font-size: 28rpx; font-weight: 600; color: #e6e8ec; }
-.mcat { display: block; font-size: 21rpx; color: #6b7280; margin-top: 6rpx; }
+.mname { font-size: 28rpx; font-weight: 600; color: var(--xf-text); }
+.mcat { display: block; font-size: 21rpx; color: var(--xf-text-4); margin-top: 6rpx; }
 .mbody { margin-top: 14rpx; }
-.k { font-size: 23rpx; color: #ffd24d; }
-.t { font-size: 23rpx; color: #c7ccd4; line-height: 1.7; }
+.k { font-size: 23rpx; color: var(--xf-gold); }
+.t { font-size: 23rpx; color: var(--xf-text-2); line-height: 1.7; }
 .tags { display: flex; flex-wrap: wrap; gap: 10rpx; margin: 14rpx 0; }
-.bias { background: #12151a; border-radius: 12rpx; padding: 14rpx; }
+.bias { background: var(--xf-bg); border-radius: 12rpx; padding: 14rpx; }
 .src { display: flex; justify-content: space-between; margin-top: 14rpx; gap: 12rpx; }
-.src-y { font-size: 20rpx; color: #8a909c; }
-.src-n { font-size: 20rpx; color: #6b7280; flex: 1; text-align: right; }
+.src-y { font-size: 20rpx; color: var(--xf-text-3); }
+.src-n { font-size: 20rpx; color: var(--xf-text-4); flex: 1; text-align: right; }
 .verify {
   display: flex; justify-content: space-between; align-items: center; gap: 12rpx;
-  margin-top: 14rpx; padding-top: 14rpx; border-top: 1px solid #23262e;
-  font-size: 21rpx; color: #6db3f2;
+  margin-top: 14rpx; padding-top: 14rpx; border-top: 1px solid var(--xf-line);
+  font-size: 21rpx; color: var(--xf-match);
 }
-.copy { color: #ffd24d; }
+.copy { color: var(--xf-gold); }
 
 /* 学校图谱 */
-.panel { background: #16191f; border: 1px solid #23262e; border-radius: 16rpx; padding: 22rpx; margin-bottom: 20rpx; }
+.panel { background: var(--xf-surface); border: 1px solid var(--xf-line); border-radius: 16rpx; padding: 22rpx; margin-bottom: 20rpx; }
 .panel.warn { border-color: #5a4a1a; background: #1b1811; }
 .panel-h { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; margin-bottom: 12rpx; }
-.h3 { font-size: 28rpx; font-weight: 600; color: #e6e8ec; }
-.rel { font-size: 20rpx; color: #6b7280; }
-.p { display: block; font-size: 23rpx; color: #c7ccd4; line-height: 1.7; }
-.p.dim { color: #8a909c; font-size: 21rpx; margin-top: 8rpx; }
+.h3 { font-size: 28rpx; font-weight: 600; color: var(--xf-text); }
+.rel { font-size: 20rpx; color: var(--xf-text-4); }
+.p { display: block; font-size: 23rpx; color: var(--xf-text-2); line-height: 1.7; }
+.p.dim { color: var(--xf-text-3); font-size: 21rpx; margin-top: 8rpx; }
 
-.tier { padding: 16rpx 0; border-top: 1px solid #23262e; }
+.tier { padding: 16rpx 0; border-top: 1px solid var(--xf-line); }
 .tier:first-of-type { border-top: none; }
 .tier-top { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; }
-.tier-name { font-size: 26rpx; font-weight: 600; color: #e6e8ec; }
+.tier-name { font-size: 26rpx; font-weight: 600; color: var(--xf-text); }
 .tier-tags { display: flex; gap: 8rpx; }
-.tier-desc { display: block; margin-top: 8rpx; font-size: 22rpx; color: #9aa0aa; line-height: 1.65; }
-.tier-note { display: block; margin-top: 6rpx; font-size: 20rpx; color: #6b7280; line-height: 1.6; }
-.tier-count { display: block; margin-top: 8rpx; font-size: 22rpx; color: #ffd24d; }
+.tier-desc { display: block; margin-top: 8rpx; font-size: 22rpx; color: var(--xf-est); line-height: 1.65; }
+.tier-note { display: block; margin-top: 6rpx; font-size: 20rpx; color: var(--xf-text-4); line-height: 1.6; }
+.tier-count { display: block; margin-top: 8rpx; font-size: 22rpx; color: var(--xf-gold); }
 
-.tag { font-size: 19rpx; padding: 3rpx 10rpx; border-radius: 999rpx; border: 1px solid #2a2e37; color: #8a909c; }
-.tag-official { color: #5fd87f; border-color: #274a33; }
-.tag-league { color: #6db3f2; border-color: #24405c; }
-.tag-folk { color: #f0ad4e; border-color: #55411d; }
-.tag-warn { color: #ff6b6b; border-color: #5c2626; }
+.tag { font-size: 19rpx; padding: 3rpx 10rpx; border-radius: 999rpx; border: 1px solid var(--xf-line); color: var(--xf-text-3); }
+.tag-official { color: var(--xf-safe); border-color: #274a33; }
+.tag-league { color: var(--xf-match); border-color: #24405c; }
+.tag-folk { color: var(--xf-reach); border-color: #55411d; }
+.tag-warn { color: var(--xf-danger); border-color: #5c2626; }
 
-.scard { background: #16191f; border: 1px solid #23262e; border-radius: 16rpx; padding: 20rpx; }
+.scard { background: var(--xf-surface); border: 1px solid var(--xf-line); border-radius: 16rpx; padding: 20rpx; }
 .shead { display: flex; align-items: baseline; justify-content: space-between; gap: 12rpx; }
-.sname { font-size: 27rpx; font-weight: 600; color: #e6e8ec; }
-.sloc { font-size: 21rpx; color: #6b7280; }
+.sname { font-size: 27rpx; font-weight: 600; color: var(--xf-text); }
+.sloc { font-size: 21rpx; color: var(--xf-text-4); }
 .stags { display: flex; flex-wrap: wrap; gap: 8rpx; margin: 12rpx 0; }
 .stag { font-size: 19rpx; padding: 3rpx 10rpx; border-radius: 999rpx; }
-.stag-tier { background: #2a2413; color: #ffd24d; }
-.stag-league { background: #16222e; color: #6db3f2; }
-.smeta { font-size: 21rpx; color: #6b7280; }
+.stag-tier { background: #2a2413; color: var(--xf-gold); }
+.stag-league { background: #16222e; color: var(--xf-match); }
+.smeta { font-size: 21rpx; color: var(--xf-text-4); }
 
 .acts { display: flex; flex-wrap: wrap; gap: 12rpx; margin-top: 14rpx; }
 
 /* 术语图谱 */
-.tcard { background: #16191f; border: 1px solid #23262e; border-radius: 16rpx; padding: 22rpx; }
-.aka { display: block; margin-top: 8rpx; font-size: 21rpx; color: #6db3f2; }
-.sys { margin-top: 14rpx; padding-top: 14rpx; border-top: 1px solid #23262e; }
-.sys .sys-body { display: block; margin-top: 10rpx; font-size: 21rpx; color: #9aa0aa; line-height: 1.7; }
+.tcard { background: var(--xf-surface); border: 1px solid var(--xf-line); border-radius: 16rpx; padding: 22rpx; }
+.aka { display: block; margin-top: 8rpx; font-size: 21rpx; color: var(--xf-match); }
+.sys { margin-top: 14rpx; padding-top: 14rpx; border-top: 1px solid var(--xf-line); }
+.sys .sys-body { display: block; margin-top: 10rpx; font-size: 21rpx; color: var(--xf-est); line-height: 1.7; }
 .ecard {
-  background: #16191f; border: 1px solid #23262e; border-radius: 16rpx;
+  background: var(--xf-surface); border: 1px solid var(--xf-line); border-radius: 16rpx;
   padding: 18rpx 20rpx; display: flex; flex-direction: column; gap: 8rpx;
 }
-.eterm { font-size: 25rpx; font-weight: 600; color: #e6e8ec; }
-.erel { font-size: 21rpx; color: #ffd24d; line-height: 1.6; }
+.eterm { font-size: 25rpx; font-weight: 600; color: var(--xf-text); }
+.erel { font-size: 21rpx; color: var(--xf-gold); line-height: 1.6; }
 </style>

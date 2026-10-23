@@ -3,7 +3,7 @@
     <view class="page">
       <view class="xf-hero">
         <view class="xf-tile xf-tile--gold">
-          <app-icon name="calendar" color="#ffd24d" :size="36"></app-icon>
+          <app-icon name="calendar" color="var(--xf-gold)" :size="36"></app-icon>
         </view>
         <view class="xf-hero-body">
           <text class="xf-h1">历年省控线</text>
@@ -26,17 +26,17 @@
       <!-- 模式 -->
       <view class="seg sm">
         <view class="seg-item" :class="{ on: mode === 'single' }" @click="setMode('single')">
-          <app-icon name="school" :color="mode === 'single' ? '#ffd24d' : '#8f96a2'" :size="26"></app-icon>
+          <app-icon name="school" :color="mode === 'single' ? 'var(--xf-gold)' : 'var(--xf-text-3)'" :size="26"></app-icon>
           <text class="seg-text">单省明细</text>
         </view>
         <view class="seg-item" :class="{ on: mode === 'cross' }" @click="setMode('cross')">
-          <app-icon name="chart" :color="mode === 'cross' ? '#ffd24d' : '#8f96a2'" :size="26"></app-icon>
+          <app-icon name="chart" :color="mode === 'cross' ? 'var(--xf-gold)' : 'var(--xf-text-3)'" :size="26"></app-icon>
           <text class="seg-text">跨省对比</text>
         </view>
       </view>
 
       <view v-if="err" class="err">
-        <app-icon name="alert" color="#ff8787" :size="26"></app-icon>
+        <app-icon name="alert" color="var(--xf-danger-text)" :size="26"></app-icon>
         <text class="err-t">{{ err }}</text>
       </view>
 
@@ -50,7 +50,7 @@
 
         <view v-if="subjectKeys.length === 0" class="xf-card">
           <view class="xf-empty">
-            <app-icon name="info" color="#4b515b" :size="56"></app-icon>
+            <app-icon name="info" color="var(--xf-text-4)" :size="56"></app-icon>
             <text class="xf-empty-title">该年暂无 {{ province }} 的省控线</text>
             <text class="xf-empty-desc">换一个年份或省份看看；其余年份仍有数据。</text>
           </view>
@@ -91,9 +91,9 @@
         </view>
 
         <view v-if="sourceUrl" class="source-row" @click="open(sourceUrl)">
-          <app-icon name="external" color="#6db3f2" :size="26"></app-icon>
+          <app-icon name="external" color="var(--xf-match)" :size="26"></app-icon>
           <text class="source-t">{{ year }} 年官方来源（阳光高考）</text>
-          <app-icon name="chevron-right" color="#6f7683" :size="24"></app-icon>
+          <app-icon name="chevron-right" color="var(--xf-text-4)" :size="24"></app-icon>
         </view>
       </block>
 
@@ -113,13 +113,13 @@
         </view>
 
         <view class="notice">
-          <app-icon name="info" color="#8f96a2" :size="26"></app-icon>
+          <app-icon name="info" color="var(--xf-text-3)" :size="26"></app-icon>
           <text class="notice-t">各省已统一为「物理类 / 历史类」，批次口径相近（一本线在部分省实为特殊类型招生控制线）。分数不可直接横比选校——各省试卷与考生结构不同。</text>
         </view>
 
         <view v-if="crossRows.length === 0" class="xf-card">
           <view class="xf-empty">
-            <app-icon name="info" color="#4b515b" :size="56"></app-icon>
+            <app-icon name="info" color="var(--xf-text-4)" :size="56"></app-icon>
             <text class="xf-empty-title">该科类 / 档位暂无省份数据</text>
             <text class="xf-empty-desc">换一个档位，或切到「单省明细」看该省全部档位。</text>
           </view>
@@ -142,9 +142,9 @@
         </view>
 
         <view v-if="sourceUrl" class="source-row" @click="open(sourceUrl)">
-          <app-icon name="external" color="#6db3f2" :size="26"></app-icon>
+          <app-icon name="external" color="var(--xf-match)" :size="26"></app-icon>
           <text class="source-t">{{ year }} 年官方来源（阳光高考）</text>
-          <app-icon name="chevron-right" color="#6f7683" :size="24"></app-icon>
+          <app-icon name="chevron-right" color="var(--xf-text-4)" :size="24"></app-icon>
         </view>
       </block>
 
@@ -157,6 +157,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { api } from "@/utils/api";
+import { getProfile } from "@/utils/profile";
 import { useToast } from "wot-design-uni";
 import { themeVars } from "@/utils/theme";
 
@@ -376,7 +377,16 @@ function open(u: any) {
 }
 
 onMounted(async () => {
+  // 从全局档案带入省份/科类：用户在「我的」页填过就不再默认「河南/物理类」。
+  // 档案科类取值（物理类/历史类/综合未改革）与跨省模式的 subject 口径一致。
+  const gp = getProfile();
+  if (gp.province) province.value = gp.province;
+  if (gp.subject) crossSubject.value = gp.subject;
   await loadYears();
+  // 档案省份不在本年份数据集里时回落到默认，避免整页查无数据
+  if (provinces.value.length && !provinces.value.includes(province.value)) {
+    province.value = provinces.value.includes("河南") ? "河南" : provinces.value[0];
+  }
   if (mode.value === "single") await loadSingle();
   else await loadCross();
 });

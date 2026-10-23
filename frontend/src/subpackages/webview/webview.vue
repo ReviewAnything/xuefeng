@@ -26,5 +26,5 @@ onLoad((q) => {
 <style scoped>
 .wv-page { width: 100%; height: 100vh; }
 .wv-empty { display: flex; align-items: center; justify-content: center; height: 100vh; }
-.wv-t { color: #8a909c; font-size: 26rpx; }
+.wv-t { color: var(--xf-text-3); font-size: 26rpx; }
 </style>
