@@ -17,7 +17,8 @@
   "mp-weixin": {
     "appid": "touristappid",
     "setting": { "urlCheck": false, "es6": true },
-    "usingComponents": true
+    "usingComponents": true,
+    "optimization": { "subPackages": true }
   },
   "h5": {
     "router": { "mode": "hash", "base": "./" },

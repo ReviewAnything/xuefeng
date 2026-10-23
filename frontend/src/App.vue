@@ -74,6 +74,19 @@ export default {
   --xf-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
+/* #ifdef MP */
+/* 小程序端根节点兜底（2026-10-23）
+   WXSS 对 `:root` 的支持不如 H5 稳定；一旦 `:root` 未命中，
+   下面 `page{background:var(--xf-bg);color:var(--xf-text)}` 会整体解析失败，
+   于是根节点回落成「白底 + 黑字」——暗色内容里出现黑字、回弹时露白边。
+   内容区的 --xf-* 由各页 wd-config-provider 的 custom-style 注入（见下），
+   这里只兜 page 这一层的底色与继承文字色。 */
+page {
+  background: #0f1115;
+  color: #e9ebef;
+}
+/* #endif */
+
 page {
   background: var(--xf-bg);
   color: var(--xf-text);

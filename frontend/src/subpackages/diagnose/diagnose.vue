@@ -1,5 +1,5 @@
 <template>
-  <wd-config-provider :theme="$theme.mode" :theme-vars="themeVars" :style="$theme.style">
+  <wd-config-provider :theme="$theme.mode" :theme-vars="themeVars" :custom-style="$theme.style">
     <view class="page">
       <view class="hero">
         <text class="h1">自我诊断画布</text>
@@ -108,7 +108,7 @@ import { reactive, ref } from "vue";
 import { onLoad } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
 import { QUESTIONS, MAJORS, ensureContent } from "@/utils/content";
-import { buildCanvas } from "@/utils/engine";
+import { buildCanvas } from "./engine";
 import { api } from "@/utils/api";
 import { themeVars } from "@/utils/theme";
 import { getProfile, setProfile } from "@/utils/profile";
