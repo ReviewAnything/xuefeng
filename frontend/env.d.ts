@@ -1,7 +1,7 @@
-// 全局类型声明（渐进式 TS 第一阶段）
+// 全局类型声明（全量 TS 阶段）
 // ---------------------------------------------------------------------------
-// __APP_ENV__ 由 vite.config.js 经 Vite `define` 在【编译期】注入为普通对象字面量，
-// 应用代码只读它（绝不自行读取 import.meta / process）。详见 vite.config.js 顶部注释。
+// __APP_ENV__ 由 vite.config.ts 经 Vite `define` 在【编译期】注入为普通对象字面量，
+// 应用代码只读它（绝不自行读取 import.meta / process）。详见 vite.config.ts 顶部注释。
 declare const __APP_ENV__: Record<string, string>;
 
 // 让 TypeScript 认识 .vue 单文件组件
@@ -11,16 +11,9 @@ declare module "*.vue" {
   export default component;
 }
 
-// @shared 别名指向仓库根 shared/ 下的单一数据源 JSON（与 Python 后端共用）
-declare module "@shared/content.json" {
-  const value: any;
-  export default value;
-}
-declare module "@shared/school_graph.json" {
-  const value: any;
-  export default value;
-}
-declare module "@shared/domain_glossary.json" {
+// 内容数据 JSON 置于项目内 src/shared/，由 `npm run sync:shared` 从根 shared/ 同步。
+// 小程序编译器只认项目内目录，故不在此声明外部 @shared 别名。
+declare module "*.json" {
   const value: any;
   export default value;
 }

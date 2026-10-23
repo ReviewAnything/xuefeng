@@ -7,7 +7,7 @@
   </view>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from "vue";
 import { onLoad } from "@dcloudio/uni-app";
 
@@ -16,7 +16,7 @@ onLoad((q) => {
   if (q && q.src) {
     try {
       src.value = decodeURIComponent(q.src);
-    } catch (e) {
+    } catch (e: any) {
       src.value = q.src;
     }
   }

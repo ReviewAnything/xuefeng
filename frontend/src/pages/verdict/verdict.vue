@@ -224,12 +224,12 @@
   </wd-config-provider>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, reactive, ref } from "vue";
 import { onLoad } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
-import { api } from "@/utils/api.js";
-import { PLAN_KEY, buildPlan } from "@/utils/plan.js";
+import { api } from "@/utils/api";
+import { PLAN_KEY, buildPlan } from "@/utils/plan";
 import { themeVars, credMeta, levelColor, levelIcon } from "@/utils/theme";
 import { applyProfile, saveFromForm } from "@/utils/profile";
 
@@ -261,7 +261,7 @@ const cred = computed(() => credMeta(r.value && r.value.data_source));
 const offlineHint = computed(() => {
   if (api.isDemo()) return "";
   let ok = true;
-  try { ok = !!uni.getStorageSync("zhiyuan_backend_ok"); } catch (e) {}
+  try { ok = !!uni.getStorageSync("zhiyuan_backend_ok"); } catch (e: any) {}
   return ok ? "" : "数据服务未连接，可在「我的」开启演示模式先体验";
 });
 
@@ -273,7 +273,7 @@ const ruler = computed(() => {
   const gs = RULER.map((t) => r.value.gates.find((g) => g.tier === t)).filter(Boolean);
   if (!gs.length) return { zones: [], rows: [], me: 0 };
   const full = gs[gs.length - 1].min_rank;
-  const zones = [];
+  const zones: any[] = [];
   let prev = 0;
   gs.forEach((g) => {
     zones.push({
@@ -291,7 +291,7 @@ const ruler = computed(() => {
   return { zones, rows, me: Math.min(100, (r.value.user_rank / full) * 100) };
 });
 
-function shortLabel(label) {
+function shortLabel(label: any) {
   return String(label || "").replace("普通", "");
 }
 
@@ -301,13 +301,13 @@ const STANCE_TONES = [
   { icon: "trending-up", tone: "reach", color: "#f0ad4e" },
   { icon: "shield", tone: "safe", color: "#5fd87f" },
 ];
-function stanceTone(i) { return (STANCE_TONES[i] || STANCE_TONES[0]).tone; }
-function stanceIcon(i) { return (STANCE_TONES[i] || STANCE_TONES[0]).icon; }
-function stanceColor(i) { return (STANCE_TONES[i] || STANCE_TONES[0]).color; }
+function stanceTone(i: any) { return (STANCE_TONES[i] || STANCE_TONES[0]).tone; }
+function stanceIcon(i: any) { return (STANCE_TONES[i] || STANCE_TONES[0]).icon; }
+function stanceColor(i: any) { return (STANCE_TONES[i] || STANCE_TONES[0]).color; }
 
 onLoad((q) => {
   // 首启引导：没看过就弹一次（看过的人不再打扰）
-  try { showIntro.value = !uni.getStorageSync(INTRO_KEY); } catch (e) { showIntro.value = false; }
+  try { showIntro.value = !uni.getStorageSync(INTRO_KEY); } catch (e: any) { showIntro.value = false; }
   // 先带入全局档案（省份/科类/位次/专业），避免每页重填
   Object.assign(f, applyProfile(f));
   if (q && q.province) f.province = decodeURIComponent(q.province);
@@ -322,7 +322,7 @@ onLoad((q) => {
 
 function closeIntro() {
   showIntro.value = false;
-  try { uni.setStorageSync(INTRO_KEY, 1); } catch (e) { /* 存储失败不阻断 */ }
+  try { uni.setStorageSync(INTRO_KEY, 1); } catch (e: any) { /* 存储失败不阻断 */ }
 }
 
 async function run() {
@@ -342,7 +342,7 @@ async function run() {
     uni.setStorageSync(KEY, { ...f });
     // 出结论即写入全局档案，后续「院校池 / 查专业 / 志愿表」自动带齐条件
     saveFromForm(f);
-  } catch (e) {
+  } catch (e: any) {
     err.value = e && e.message ? e.message : "没连上服务，重试一次";
   } finally {
     loading.value = false;
@@ -366,7 +366,7 @@ async function goPlan() {
     const p = buildPlan(rec);
     if (p) uni.setStorageSync(PLAN_KEY, p);
     uni.switchTab({ url: "/pages/plan/plan" });
-  } catch (e) {
+  } catch (e: any) {
     toast.show(e && e.message ? e.message : "没连上服务，重试一次");
   } finally {
     making.value = false;

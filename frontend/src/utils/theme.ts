@@ -145,7 +145,7 @@ const STATUS = {
 
 function buildWotVars(t: any) {
   const accent = t.vars["--xf-gold"];
-  const base = { colorTheme: accent, colorYellow: accent, ...STATUS };
+  const base = { colorTheme: accent, ...STATUS };
   if (t.mode === "light") {
     return {
       ...base,

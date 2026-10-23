@@ -5,7 +5,7 @@ import {
   pickMajors,
   buildBiasWarn,
   buildCanvas,
-} from "../src/utils/engine.js";
+} from "../src/utils/engine.ts";
 
 let pass = 0,
   fail = 0;

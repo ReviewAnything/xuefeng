@@ -1,4 +1,4 @@
-// 决策引擎：纯函数，无 uni / 浏览器依赖，可在 Node 下单测（frontend/tests/engine.test.mjs）。
+// 决策引擎：纯函数，无 uni / 浏览器依赖，可在 Node / tsx 下单测（frontend/tests/engine.test.mjs）。
 // 输入用户画像 d 与专业列表 majors，输出决策画布（框架，非定论）。
 
 export const VIEW_LABEL = { recommend: "推荐", caution: "慎选", avoid: "避坑" };
@@ -7,7 +7,7 @@ export const VIEW_LABEL = { recommend: "推荐", caution: "慎选", avoid: "避�
 // 历史类考生报不了。早期只按 cat 过滤，会把它们当「体制内」推荐给历史类，口径自相矛盾。
 const PHYSICS_ONLY = ["定向士官", "军校"];
 
-export function buildStrategy(tier) {
+export function buildStrategy(tier: string): string {
   if (tier === "冲刺985")
     return "<b>985层面学校牌子够硬</b>：可适度追好专业；若只能进985冷门天坑，优先考虑转专业/考研换方向，而非死磕专业。";
   if (tier === "211线附近")
@@ -17,7 +17,7 @@ export function buildStrategy(tier) {
   return "<b>专科/高职：一技之长优先。</b>选护理、口腔医技、机电一体化、现代殡葬等能吃饭的方向。";
 }
 
-export function pickMajors(d, majors) {
+export function pickMajors(d: any, majors: any[]): any[] {
   let pool = majors.filter((m) => m.view !== "avoid");
   if (d.subject === "历史类")
     pool = pool
@@ -45,13 +45,13 @@ export function pickMajors(d, majors) {
   return pool.slice(0, 8);
 }
 
-export function buildBiasWarn(d) {
+export function buildBiasWarn(d: any): string {
   if (d.familyBg === "资源型(有人脉/可试错)")
     return "你家庭容错率较高，就业确定性优先的'普通家庭求稳'框架对你约束较弱，可更重视兴趣与长期主义。";
   return "你处于本框架（就业确定性优先）的核心适用人群（普通/寒门），但请记住：<b>兴趣不是第一标准，但也不该被完全牺牲</b>；国家也需要基础学科人才。";
 }
 
-export function buildCanvas(d, majors) {
+export function buildCanvas(d: any, majors: any[]): any {
   const strategy = buildStrategy(d.tier || "普通一本/二本");
   const picks = pickMajors(d, majors).map((m) => ({ name: m.name, view: m.view }));
   const biasWarn = buildBiasWarn(d);

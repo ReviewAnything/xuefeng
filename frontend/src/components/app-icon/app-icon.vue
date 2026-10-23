@@ -2,7 +2,7 @@
   <image class="app-icon" :src="src" :style="box" mode="aspectFit"></image>
 </template>
 
-<script setup>
+<script setup lang="ts">
 // 统一图标出口（P3-A）：easycom 自动注册为 <app-icon>，无需 import。
 // 之所以内部用 <image> 而不是内联 <svg>：小程序端不支持模板里直接写 svg 标签，
 // data URI 交给 image 是唯一 H5/小程序/App 三端都稳的渲染方式。

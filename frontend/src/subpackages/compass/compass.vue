@@ -154,19 +154,19 @@
   </wd-config-provider>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
-import { api } from "@/utils/api.js";
+import { api } from "@/utils/api";
 import { useToast } from "wot-design-uni";
 import { themeVars } from "@/utils/theme";
 
 const toast = useToast();
 
-const years = ref([]);
-const yearInfo = ref({});
+const years = ref<any[]>([]);
+const yearInfo = ref<Record<string, any>>({});
 const year = ref(2026);
 const mode = ref("single");
-const provinces = ref([]);
+const provinces = ref<any[]>([]);
 const province = ref("河南");
 
 const loading = ref(false);
@@ -184,30 +184,30 @@ const sourceUrl = computed(() => (yearInfo.value[String(year.value)] || {}).sour
 const latestYear = computed(() => (years.value.length ? years.value[0] : 0));
 
 const subjectKeys = computed(() => (provData.value ? Object.keys(provData.value) : []));
-function tiersOf(subj) {
+function tiersOf(subj: any) {
   return provData.value && provData.value[subj] ? Object.keys(provData.value[subj]) : [];
 }
-function cellOf(subj, tier) {
+function cellOf(subj: any, tier: any) {
   const arr = provData.value && provData.value[subj] && provData.value[subj][tier];
   if (!arr) return null;
   return arr.find((p) => p.year === year.value) || null;
 }
-function lineOf(subj, tier) {
+function lineOf(subj: any, tier: any) {
   const c = cellOf(subj, tier);
   return c ? c.line : "";
 }
-function scoreOf(subj, tier) {
+function scoreOf(subj: any, tier: any) {
   const c = cellOf(subj, tier);
   return c ? c.score : "—";
 }
 
-function sortedPoints(subj, tier) {
+function sortedPoints(subj: any, tier: any) {
   const arr = provData.value && provData.value[subj] && provData.value[subj][tier];
   if (!arr || !arr.length) return [];
   return arr.slice().sort((a, b) => a.year - b.year);
 }
 
-function trendBars(subj, tier) {
+function trendBars(subj: any, tier: any) {
   const arr = sortedPoints(subj, tier);
   if (!arr.length) return [];
   const scores = arr.map((p) => p.score);
@@ -221,7 +221,7 @@ function trendBars(subj, tier) {
 }
 
 // 五年区间：一眼看出这档线的波动范围
-function rangeText(subj, tier) {
+function rangeText(subj: any, tier: any) {
   const arr = sortedPoints(subj, tier);
   if (!arr.length) return "—";
   const scores = arr.map((p) => p.score);
@@ -229,19 +229,19 @@ function rangeText(subj, tier) {
 }
 
 // 同比：较上一年变化，向上为红（分数涨），向下为绿
-function deltaValue(subj, tier) {
+function deltaValue(subj: any, tier: any) {
   const arr = sortedPoints(subj, tier);
   const idx = arr.findIndex((p) => p.year === year.value);
   if (idx <= 0) return null;
   return arr[idx].score - arr[idx - 1].score;
 }
-function deltaText(subj, tier) {
+function deltaText(subj: any, tier: any) {
   const d = deltaValue(subj, tier);
   if (d === null) return "无上年可比";
   if (d === 0) return "与上年持平";
   return (d > 0 ? "↑ " : "↓ ") + Math.abs(d) + " 分";
 }
-function deltaCls(subj, tier) {
+function deltaCls(subj: any, tier: any) {
   const d = deltaValue(subj, tier);
   if (d === null || d === 0) return "flat";
   return d > 0 ? "up" : "down";
@@ -266,7 +266,7 @@ const tierOptions = computed(() => {
 const crossRows = computed(() => {
   const d = crossAll.value;
   if (!d) return [];
-  const out = [];
+  const out: any[] = [];
   for (const [prov, subjMap] of Object.entries(d)) {
     const sm = subjMap[crossSubject.value];
     if (!sm) continue;
@@ -282,7 +282,7 @@ const crossMax = computed(() => {
   const rows = crossRows.value;
   return rows.length ? Math.max(...rows.map((r) => r.score)) : 1;
 });
-function barWidth(score) {
+function barWidth(score: any) {
   const mx = crossMax.value || 1;
   return Math.max(6, Math.round((score / mx) * 100));
 }
@@ -297,7 +297,7 @@ async function loadYears() {
     provinces.value =
       (r.by_year && r.by_year[String(latest)] && r.by_year[String(latest)].provinces) || [];
     if (!year.value || !ys.includes(year.value)) year.value = latest;
-  } catch (e) {
+  } catch (e: any) {
     err.value = "加载年份失败：" + (e.message || e);
   }
 }
@@ -309,7 +309,7 @@ async function loadSingle() {
   try {
     const ys = years.value.length ? years.value : [year.value];
     const res = await Promise.all(ys.map((y) => api.controlLines(y, province.value)));
-    const merged = {};
+    const merged: Record<string, any> = {};
     res.forEach((r, i) => {
       const y = ys[i];
       const subjMap = (r.data && r.data[province.value]) || {};
@@ -322,7 +322,7 @@ async function loadSingle() {
       }
     });
     provData.value = merged;
-  } catch (e) {
+  } catch (e: any) {
     err.value = "加载省控线失败：" + (e.message || e);
     provData.value = null;
   } finally {
@@ -340,7 +340,7 @@ async function loadCross() {
     if (subs.length && !subs.includes(crossSubject.value)) crossSubject.value = subs[0];
     const tiers = tierOptions.value;
     if (tiers.length && !tiers.includes(crossTier.value)) crossTier.value = tiers[0];
-  } catch (e) {
+  } catch (e: any) {
     err.value = "加载跨省数据失败：" + (e.message || e);
     crossAll.value = null;
   } finally {
@@ -348,21 +348,21 @@ async function loadCross() {
   }
 }
 
-function setYear(y) {
+function setYear(y: any) {
   year.value = y;
   if (mode.value === "cross") loadCross();
 }
-function setMode(m) {
+function setMode(m: any) {
   if (mode.value === m) return;
   mode.value = m;
   if (m === "single") loadSingle();
   else loadCross();
 }
-function setProvince(p) {
+function setProvince(p: any) {
   province.value = p;
   loadSingle();
 }
-function open(u) {
+function open(u: any) {
   if (!u) {
     toast.show("暂无来源链接");
     return;

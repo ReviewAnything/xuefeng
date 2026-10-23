@@ -65,11 +65,11 @@
   </wd-config-provider>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from "vue";
 import { onLoad } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
-import { api } from "@/utils/api.js";
+import { api } from "@/utils/api";
 import { themeVars } from "@/utils/theme";
 
 const toast = useToast();
@@ -77,7 +77,7 @@ const toast = useToast();
 const subjects = ["物理类", "历史类", "综合/未改革"];
 const subject = ref("物理类");
 const q = ref("");
-const candidates = ref([]);
+const candidates = ref<any[]>([]);
 const result = ref(null);
 const err = ref("");
 const loadingList = ref(false);
@@ -99,21 +99,21 @@ async function search() {
     const r = await api.majorGroupUniversities(params);
     candidates.value = r.items || [];
     if (!candidates.value.length) toast.show("没有匹配的院校，换个关键词试试");
-  } catch (e) {
+  } catch (e: any) {
     err.value = (e && e.message) ? e.message : "数据服务未连接，可在「我的」开启演示模式先体验";
   } finally {
     loadingList.value = false;
   }
 }
 
-async function pick(u) {
+async function pick(u: any) {
   err.value = "";
   loadingList.value = true;
   try {
     result.value = await api.majorGroups(u.name, subject.value);
     candidates.value = [];
     q.value = u.name;
-  } catch (e) {
+  } catch (e: any) {
     err.value = "查询失败：" + (e.message || e);
   } finally {
     loadingList.value = false;

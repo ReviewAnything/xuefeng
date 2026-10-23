@@ -194,25 +194,25 @@
   </wd-config-provider>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, reactive } from "vue";
 import { onLoad } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
-import { CATS, VIEW_LABEL, ensureContent } from "@/utils/content.js";
+import { CATS, VIEW_LABEL, ensureContent } from "@/utils/content";
 import { themeVars } from "@/utils/theme";
 
 const toast = useToast();
 
 // P1 分包瘦身：SCHOOL_GRAPH / GLOSSARY / MAJORS 等大体积数据按需懒加载（见 onLoad），
 // 不进主包初始体积。以下用 ref 承接，确保 ensureContent() 后响应式刷新（computed 依赖这些 ref）。
-const meta = ref({});
-const tiers = ref([]);
-const leagues = ref([]);
-const allSchools = ref([]);
-const MAJORS_DATA = ref([]);
-const glossaryNodes = ref([]);
-const glossaryEdges = ref([]);
-const termCatData = ref([]);
+const meta = ref<Record<string, any>>({});
+const tiers = ref<any[]>([]);
+const leagues = ref<any[]>([]);
+const allSchools = ref<any[]>([]);
+const MAJORS_DATA = ref<any[]>([]);
+const glossaryNodes = ref<any[]>([]);
+const glossaryEdges = ref<any[]>([]);
+const termCatData = ref<any[]>([]);
 
 const segs = [
   { key: "major", name: "专业图谱" },
@@ -232,11 +232,11 @@ const majors = computed(() =>
       (!kw.value || (m.name + m.tags.join("") + m.reason).includes(kw.value))
   )
 );
-function setCat(c) { cur.value = c; }
-function vlabel(v) { return VIEW_LABEL[v]; }
-function tagType(v) { return { recommend: "success", caution: "warning", avoid: "danger" }[v] || "default"; }
-function shortVerify(s) { return s.length > 32 ? s.slice(0, 32) + "…" : s; }
-function copyVerify(s) {
+function setCat(c: any) { cur.value = c; }
+function vlabel(v: any) { return VIEW_LABEL[v]; }
+function tagType(v: any) { return { recommend: "success", caution: "warning", avoid: "danger" }[v] || "default"; }
+function shortVerify(s: any) { return s.length > 32 ? s.slice(0, 32) + "…" : s; }
+function copyVerify(s: any) {
   uni.setClipboardData({
     data: s,
     success: () => toast.show("核验口径已复制"),
@@ -249,7 +249,7 @@ const curProv = ref("全部省份");
 const skw = ref("");
 
 const groupIndex = computed(() => {
-  const map = {};
+  const map: Record<string, any> = {};
   tiers.value.forEach((t) => { map[t.key] = { ...t, kind: "tier" }; });
   leagues.value.forEach((l) => { map[l.key] = { ...l, kind: "league" }; });
   return map;
@@ -272,22 +272,22 @@ const schools = computed(() =>
   )
 );
 const provinces = computed(() => {
-  const set = [];
+  const set: any[] = [];
   schools.value.forEach((s) => { if (s.province && set.indexOf(s.province) < 0) set.push(s.province); });
   return ["全部省份", ...set.sort()];
 });
 
-function pick(key) {
+function pick(key: any) {
   curGroup.value = key;
   curProv.value = "全部省份";
 }
-function natClass(nature) {
+function natClass(nature: any) {
   if (nature === "官方工程" || nature === "官方口径") return "official";
   if (nature === "高校联盟") return "league";
   return "folk";
 }
-function groupNames(s) {
-  const out = [];
+function groupNames(s: any) {
+  const out: any[] = [];
   ["985", "211", "dfc"].forEach((k) => {
     if (s.groups.indexOf(k) >= 0) {
       const t = groupIndex.value[k];
@@ -299,7 +299,7 @@ function groupNames(s) {
   });
   return out;
 }
-function open(u) {
+function open(u: any) {
   // #ifdef H5
   window.open(u, "_blank");
   // #endif
@@ -317,9 +317,9 @@ const termSegs = [
   { key: "terms", name: "术语" },
   { key: "edges", name: "关系网络" },
 ];
-const openSys = reactive({});
+const openSys = reactive<Record<string, any>>({});
 const termIndex = computed(() => {
-  const m = {};
+  const m: Record<string, any> = {};
   glossaryNodes.value.forEach((n) => { m[n.id] = n; });
   return m;
 });
@@ -346,11 +346,11 @@ const filteredEdges = computed(() =>
     return true;
   })
 );
-function toggleSys(id) { openSys[id] = !openSys[id]; }
-function sysText(sys) {
+function toggleSys(id: any) { openSys[id] = !openSys[id]; }
+function sysText(sys: any) {
   if (!sys) return "";
-  const parts = [];
-  const push = (k, v) => { if (v != null) parts.push(k + "：" + (Array.isArray(v) ? v.join("、") : v)); };
+  const parts: any[] = [];
+  const push = (k: any, v: any) => { if (v != null) parts.push(k + "：" + (Array.isArray(v) ? v.join("、") : v)); };
   push("表", sys.tables);
   push("文件", sys.files);
   push("字段", sys.fields);
@@ -366,8 +366,8 @@ function sysText(sys) {
   if (sys.note) parts.push("注：" + sys.note);
   return parts.join("；");
 }
-function termName(id) { const n = termIndex.value[id]; return n ? n.term : id; }
-function jumpTo(id) {
+function termName(id: any) { const n = termIndex.value[id]; return n ? n.term : id; }
+function jumpTo(id: any) {
   curTermCat.value = "全部";
   tkw.value = termName(id);
   termView.value = "terms";

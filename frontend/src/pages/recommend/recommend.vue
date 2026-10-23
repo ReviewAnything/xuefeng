@@ -156,13 +156,13 @@
   </wd-config-provider>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, reactive, ref } from "vue";
 import { onLoad, onShow } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
-import { MAJORS, ensureContent } from "@/utils/content.js";
-import { api } from "@/utils/api.js";
-import { PLAN_KEY, buildPlan } from "@/utils/plan.js";
+import { MAJORS, ensureContent } from "@/utils/content";
+import { api } from "@/utils/api";
+import { PLAN_KEY, buildPlan } from "@/utils/plan";
 import { themeVars, credMeta, levelColor, levelIcon } from "@/utils/theme";
 import { applyProfile, saveFromForm } from "@/utils/profile";
 
@@ -171,7 +171,7 @@ const toast = useToast();
 const provinces = ["北京", "天津", "河北", "山西", "内蒙古", "辽宁", "吉林", "黑龙江", "上海", "江苏", "浙江", "安徽", "福建", "江西", "山东", "河南", "湖北", "湖南", "广东", "广西", "海南", "重庆", "四川", "贵州", "云南", "西藏", "陕西", "甘肃", "青海", "宁夏", "新疆"];
 const subjects = ["物理类", "历史类", "综合/未改革"];
 const NO_MAJOR = "不限（用省份基线）";
-const majorOptions = ref([]);
+const majorOptions = ref<any[]>([]);
 
 const f = reactive({ province: "", subject: "", user_rank: "", major: NO_MAJOR });
 const result = ref(null);
@@ -187,7 +187,7 @@ const hasResult = computed(() => {
 const cred = computed(() => credMeta(result.value && result.value.data_source));
 
 // 档位 → CSS 色条/芯片后缀（冲/稳/保/其它）
-function stripCls(level) {
+function stripCls(level: any) {
   if (level === "冲") return "reach";
   if (level === "稳") return "match";
   if (level === "保") return "safe";
@@ -220,16 +220,16 @@ onShow(() => {
 });
 
 // 模板里不写复合表达式（Vue in-DOM 编译器对 && 支持不稳），统一抽成方法
-function hasSchools(t) {
+function hasSchools(t: any) {
   return !!(t && t.schools && t.schools.length);
 }
-function noLine(t) {
+function noLine(t: any) {
   return hasSchools(t) && !t.school_line_hits;
 }
-function isShared(t) {
+function isShared(t: any) {
   return !hasSchools(t) && !!t.pool_shared_with;
 }
-function isEmptyTier(t) {
+function isEmptyTier(t: any) {
   return !hasSchools(t) && !t.pool_shared_with;
 }
 
@@ -252,7 +252,7 @@ async function run() {
     savePlan();
     // 把条件写入全局档案，便于「志愿表 / 查专业」自动带齐
     saveFromForm(f);
-  } catch (e) {
+  } catch (e: any) {
     err.value = e && e.message ? e.message : "数据服务未连接，可在「我的」开启演示模式先体验";
   } finally {
     loading.value = false;
@@ -281,7 +281,7 @@ function openPlan() {
 }
 
 // 点击院校 → 查看该校「院校专业组」结构（按当前选科）
-function goGroups(s) {
+function goGroups(s: any) {
   const subj = result.value ? result.value.subject : f.subject;
   const q = `university=${encodeURIComponent(s.name)}&subject=${encodeURIComponent(subj)}`;
   uni.navigateTo({ url: `/subpackages/majorGroup/majorGroup?${q}` });

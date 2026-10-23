@@ -17,8 +17,8 @@ import {
   diffSafePatch,
   fillOrder,
   buildFillOrderText,
-} from "../src/utils/plan.js";
-import { resolveBase } from "../src/utils/api.js";
+} from "../src/utils/plan.ts";
+import { resolveBase } from "../src/utils/api.ts";
 
 let pass = 0,
   fail = 0;

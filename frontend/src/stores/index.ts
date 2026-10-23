@@ -1,2 +1,2 @@
-export { useProfileStore } from "./profile";
-export { useThemeStore } from "./theme";
+export { useProfileStore } from "./profile.ts";
+export { useThemeStore } from "./theme.ts";

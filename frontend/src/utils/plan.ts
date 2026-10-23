@@ -1,4 +1,4 @@
-// 志愿表草稿的纯函数层：与页面解耦，便于零依赖单测（Node 内直接跑）。
+// 志愿表草稿的纯函数层：与页面解耦，便于零依赖单测（Node / tsx 内直接跑）。
 // 页面只负责渲染与交互，数据变换都在这里。
 
 export const PLAN_KEY = "zhiyuan_plan_v1";
@@ -9,11 +9,48 @@ export const LEVELS = [
   { key: "保", title: "保（兜底）" },
 ];
 
+interface PlanTier {
+  tier: string;
+  level: string;
+  min_score?: number | null;
+  min_rank?: number | null;
+  data_source?: string;
+  source_year?: number | null;
+  carried?: boolean;
+  pool_shared_with?: string | null;
+  schools?: any[];
+  [k: string]: any;
+}
+
+interface RecInput {
+  province: string;
+  subject: string;
+  user_rank: number | string;
+  major?: string;
+  tiers?: PlanTier[];
+  [k: string]: any;
+}
+
+interface PlanRow {
+  key: string;
+  level: string;
+  tier: string;
+  name: string;
+  province: string;
+  major: string;
+  line: number | null;
+  line_rank: number | null;
+  line_year: number | null;
+  batch: string;
+  data_source: string;
+  [k: string]: any;
+}
+
 /**
  * 院校推荐接口返回 → 落盘的志愿表结构（推荐页与结论页共用）。
  * 校线字段必须原样带过来，否则志愿表里的「去年最低」永远是空的。
  */
-export function buildPlan(rec) {
+export function buildPlan(rec: RecInput): any {
   if (!rec || !Array.isArray(rec.tiers)) return null;
   return {
     province: rec.province,
@@ -30,7 +67,7 @@ export function buildPlan(rec) {
       source_year: t.source_year,
       carried: t.carried,
       pool_shared_with: t.pool_shared_with || null,
-      schools: (t.schools || []).map((s) => ({
+      schools: (t.schools || []).map((s: any) => ({
         name: s.name, province: s.province, nature: s.nature,
         min_score: s.min_score || null,
         min_rank: s.min_rank || null,
@@ -43,12 +80,12 @@ export function buildPlan(rec) {
 }
 
 /** 把院校推荐接口返回的 plan 拍平成表格行；「不可及」档直接丢弃。 */
-export function flattenPlan(plan) {
+export function flattenPlan(plan: any): PlanRow[] {
   if (!plan || !Array.isArray(plan.tiers)) return [];
-  const out = [];
-  plan.tiers.forEach((t) => {
+  const out: PlanRow[] = [];
+  plan.tiers.forEach((t: PlanTier) => {
     if (!t || t.level === "不可及") return;
-    (t.schools || []).forEach((s) => {
+    (t.schools || []).forEach((s: any) => {
       if (!s || !s.name) return;
       out.push({
         key: String(t.tier || "") + "-" + s.name,
@@ -70,8 +107,8 @@ export function flattenPlan(plan) {
 }
 
 /** 收集用户手填的「拟报专业」：{行 key: 专业名}，用于落盘后续填。 */
-export function collectMajors(rows) {
-  const out = {};
+export function collectMajors(rows: any[]): Record<string, string> {
+  const out: Record<string, string> = {};
   (Array.isArray(rows) ? rows : []).forEach((r) => {
     const v = (r.major || "").trim();
     if (v) out[r.key] = v;
@@ -80,7 +117,7 @@ export function collectMajors(rows) {
 }
 
 /** 把上次填写的拟报专业回填到行上（原地修改 rows）。 */
-export function applyMajors(rows, majors) {
+export function applyMajors(rows: any[], majors: Record<string, string> | null): any[] {
   if (!majors || typeof majors !== "object") return rows;
   (Array.isArray(rows) ? rows : []).forEach((r) => {
     if (majors[r.key]) r.major = majors[r.key];
@@ -89,7 +126,7 @@ export function applyMajors(rows, majors) {
 }
 
 /** 按 冲/稳/保 分组，保持固定顺序（缺失的档也保留空组，便于页面提示）。 */
-export function groupRows(rows) {
+export function groupRows(rows: any[]): Array<{ level: string; title: string; rows: any[] }> {
   const list = Array.isArray(rows) ? rows : [];
   return LEVELS.map((l) => ({
     level: l.key,
@@ -99,17 +136,17 @@ export function groupRows(rows) {
 }
 
 /** ISO 时间 → YYYY-MM-DD HH:mm（本地时区）；非法值返回 "-"。 */
-export function formatTime(iso) {
+export function formatTime(iso: string | number | Date | null): string {
   if (!iso) return "-";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "-";
-  const pad = (n) => (n < 10 ? "0" + n : "" + n);
+  const pad = (n: number) => (n < 10 ? "0" + n : "" + n);
   return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
     " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
 }
 
 /** 已填写的拟报专业数量 / 总行数，用于进度提示。 */
-export function fillStats(rows) {
+export function fillStats(rows: any[]): { filled: number; total: number } {
   const list = Array.isArray(rows) ? rows : [];
   const filled = list.filter((r) => (r.major || "").trim()).length;
   return { filled, total: list.length };
@@ -119,17 +156,13 @@ export function fillStats(rows) {
  * 保底档「失守」(breach) 判定（S4 验收点：志愿表红灯数可见）。
  *
  * 语义：位次数字越小越靠前。落到「保底」档的院校，其最低投档位次为 `line_rank`；
- * 若用户位次 `user_rank` > `line_rank`，说明用户比该校最低录取位次还靠后，
+ * 若用户位次 `user_rank` > `line_rank`，说明用户位次比该校最低录取位次还靠后，
  * 这所"保底"实际够不上 → 失守（红灯）。
  *
  * 只有带真实投档位次（`line_rank`）的保底行才有判定意义；缺数据一律视为
  * `unknown`，**绝不**把"没数据"误判成"安全"。
- *
- * @param {number|string} userRank 用户位次
- * @param {object} row 拍平后的行（含 level、line_rank）
- * @returns {'breach'|'safe'|'unknown'}
  */
-export function breachStatus(userRank, row) {
+export function breachStatus(userRank: number | string | null, row: any): "breach" | "safe" | "unknown" {
   if (!row || row.level !== "保") return "unknown";
   const lr = Number(row.line_rank);
   const ur = Number(userRank);
@@ -139,14 +172,8 @@ export function breachStatus(userRank, row) {
 
 /**
  * 保底档失守统计。
- * @param {object} plan 志愿表（取 plan.user_rank）
- * @param {Array} rows 拍平后的行
- * @returns {{breach:number, covered:number, total:number}}
- *   breach   —— 已失守（红灯）的保底院校数
- *   covered  —— 有真实投档位次、可判定的保底院校数
- *   total    —— 保底院校总数（含无投档线数据的）
  */
-export function breachStats(plan, rows) {
+export function breachStats(plan: any, rows: any[]): { breach: number; covered: number; total: number } {
   const safeRows = (Array.isArray(rows) ? rows : []).filter((r) => r && r.level === "保");
   let breach = 0, covered = 0;
   safeRows.forEach((r) => {
@@ -159,24 +186,15 @@ export function breachStats(plan, rows) {
 
 /**
  * 保底失守补位（S5-C）：把更低层次、用户位次可稳够的兜底院校并入「保」档，形成闭环。
- *
- * 调用方先用 plan 的省份/科类/位次拉取 recommend 结果，再从中筛出「用户位次优于其最低
- * 投档位次、且当前志愿表里没有」的院校传入本函数。被并入的院校 min_rank 必然 < user_rank，
- * 因此是真正更安全的兜底（不会再次失守）。
- *
  * 直接在原 plan 上改并返回；若原本没有「保」档，则新建一个「专科兜底」保底组。
- *
- * @param {object} plan 现有志愿表（含 tiers）
- * @param {Array} schools 候选兜底院校（来自 recommend，取 {name,province,nature,min_score,min_rank,line_year,data_source}）
- * @returns {object} 并入新院校后的 plan
  */
-export function appendSafeSchools(plan, schools) {
+export function appendSafeSchools(plan: any, schools: any[]): any {
   if (!plan || !Array.isArray(plan.tiers)) return plan;
-  const existing = new Set();
-  plan.tiers.forEach((t) => (t.schools || []).forEach((s) => s && s.name && existing.add(s.name)));
+  const existing = new Set<string>();
+  plan.tiers.forEach((t: PlanTier) => (t.schools || []).forEach((s: any) => s && s.name && existing.add(s.name)));
   const add = (Array.isArray(schools) ? schools : []).filter((s) => s && s.name && !existing.has(s.name));
   if (!add.length) return plan;
-  let safeTier = plan.tiers.find((t) => t.level === "保");
+  let safeTier = plan.tiers.find((t: PlanTier) => t.level === "保");
   if (!safeTier) {
     safeTier = {
       tier: "专科兜底", level: "保", min_score: null, min_rank: null,
@@ -204,21 +222,12 @@ export function appendSafeSchools(plan, schools) {
  * 数字越大门槛越低。因此「用户稳够」的条件是 **用户位次比它更靠前（数字更小）**：
  * ``min_rank > userRank``。此前写成 ``min_rank < userRank``，方向反了——补进来的
  * 全是够不上的学校，安全网看起来被补上了，实际没有（S7-E 的补位前后对比才发现）。
- * 本项目其它地方（``breachStatus``：``ur > lr`` 判失守）一直用同一个口径，此处统一。
- *
- * 门槛越宽（``min_rank`` 越大）越稳，排最前，最多 ``maxN`` 所。
- * 注意：本函数不负责按名字去重（那是 ``appendSafeSchools`` 的职责）。
- *
- * @param {object} rec recommend 接口返回（含 tiers[].schools[]）
- * @param {number} userRank 用户位次
- * @param {number} maxN 上限
- * @returns {Array} 候选院校（保留 min_rank 等字段）
  */
-export function selectBackstops(rec, userRank, maxN = 6) {
+export function selectBackstops(rec: any, userRank: number, maxN = 6): any[] {
   const ur = Number(userRank);
   if (!(ur > 0) || !rec || !Array.isArray(rec.tiers)) return [];
-  const out = [];
-  rec.tiers.forEach((t) => (t.schools || []).forEach((s) => {
+  const out: any[] = [];
+  rec.tiers.forEach((t: PlanTier) => (t.schools || []).forEach((s: any) => {
     const mr = Number(s.min_rank);
     if (mr > ur) out.push(s);   // 院校门槛位次比用户更靠后 → 用户稳够
   }));
@@ -229,14 +238,9 @@ export function selectBackstops(rec, userRank, maxN = 6) {
 /**
  * 补位前后对比（S7-E，纯函数）：一键补位不只是「加了几所」，用户真正想知道的是
  * **失守有没有被填平**——补位前几所够不上、补位后还剩几所、新兜底替谁接住了。
- *
  * 本函数在**副本**上执行 appendSafeSchools，因此不改变传入的 plan（可先预览再决定是否落盘）。
- *
- * @param {object} plan 现有志愿表（含 tiers 与 user_rank）
- * @param {Array} schools 候选兜底院校（同 appendSafeSchools）
- * @returns {object} { next, added, skipped, before, after, still_breach, text }
  */
-export function diffSafePatch(plan, schools) {
+export function diffSafePatch(plan: any, schools: any[]): any {
   const empty = { breach: 0, covered: 0, total: 0 };
   if (!plan || !Array.isArray(plan.tiers)) {
     return { next: plan, added: [], skipped: 0, before: empty, after: empty,
@@ -246,8 +250,8 @@ export function diffSafePatch(plan, schools) {
   const next = appendSafeSchools(JSON.parse(JSON.stringify(plan)), schools);
   const after = breachStats(next, flattenPlan(next));
 
-  const beforeNames = new Set();
-  plan.tiers.forEach((t) => (t.schools || []).forEach((s) => s && s.name && beforeNames.add(s.name)));
+  const beforeNames = new Set<string>();
+  plan.tiers.forEach((t: PlanTier) => (t.schools || []).forEach((s: any) => s && s.name && beforeNames.add(s.name)));
   const candidates = (Array.isArray(schools) ? schools : []).filter((s) => s && s.name);
   const added = candidates.filter((s) => !beforeNames.has(s.name));
   const skipped = candidates.length - added.length;
@@ -256,7 +260,6 @@ export function diffSafePatch(plan, schools) {
     .filter((r) => breachStatus(next.user_rank, r) === "breach")
     .map((r) => r.name);
 
-  // 「可稳够」比「总数」更能说明补位有没有真的接住：失守行仍在表里，补位不会把它变没
   const safe_before = Math.max(0, before.total - before.breach);
   const safe_after = Math.max(0, after.total - after.breach);
   const text = added.length
@@ -278,24 +281,15 @@ export function diffSafePatch(plan, schools) {
  *   3. 没有投档位次的行不参与余量排序，原序附在同档末尾，并明确标注「无数据」。
  *
  * 跨年 / 跨批次可比性（S9-B 新增，关键纠正）：
- *   位次余量成立的前提是「同一年、同一批次口径」。但校线库里混了不同年份（如 2024 官方
- *   985/211 入门投档 vs 2025 真实抓取）与不同批次（本科批 / 提前批 / 专项批）。直接相减
- *   会误导。因此：
- *   - 以「有投档位次的行里的最新年份」为参考年，以「占比最高的非空批次」为参考批次；
- *   - 与参考年/参考批次不一致的行仍参与排序（保留相对关系），但标记 comparable=false，
- *     余量标签与导出文本都显式注明「数据年份/批次不同，余量仅供参考」；
- *   - 排序时让「可比」的行排在「不可比」之前，避免拿跨年数据顶掉同口径数据。
- *
- * @param {object} plan 志愿表（取 user_rank）
- * @param {Array} rows 拍平后的行（含 level / name / tier / line_rank / line_year / batch / major）
- * @returns {{items:Array, basis:string, unknown_count:number, incomparable_count:number,
- *            reference_year:?number, reference_batch:string, cross_year:number, cross_batch:number}}
+ *   位次余量成立的前提是「同一年、同一批次口径」。以「有投档位次的行里的最新年份」为
+ *   参考年，以「占比最高的非空批次」为参考批次；与参考年/参考批次不一致的行仍参与排序
+ *   （保留相对关系），但标记 comparable=false，余量标签与导出文本都显式注明「数据年份/批次不同」。
  */
-export function fillOrder(plan, rows) {
+export function fillOrder(plan: any, rows: any[]): any {
   const ur = Number(plan && plan.user_rank) || 0;
   const list = (Array.isArray(rows) ? rows : []).filter((r) => r && r.name);
   const keys = LEVELS.map((l) => l.key);   // LEVELS 是 {key,title} 数组
-  const rankOf = (level) => {
+  const rankOf = (level: string) => {
     const i = keys.indexOf(level);
     return i < 0 ? keys.length : i;   // 未知档位（如「不可及」）排在最后
   };
@@ -307,8 +301,7 @@ export function fillOrder(plan, rows) {
   });
   const years = known.map((r) => Number(r.line_year)).filter((y) => y > 0);
   const reference_year = years.length ? Math.max(...years) : null;
-  // 参考批次：有非空批次的行里取众数（批次只在同省同科类内有可比意义）
-  const batchCounter = {};
+  const batchCounter: Record<string, number> = {};
   known.forEach((r) => {
     const b = (r.batch || "").trim();
     if (b) batchCounter[b] = (batchCounter[b] || 0) + 1;
@@ -337,13 +330,12 @@ export function fillOrder(plan, rows) {
       margin: has ? lr - ur : null,
     };
   });
-  // 排序：档位 → 可比优先 → 余量降序 → 原序
   decorated.sort((a, b) => {
     if (a.level_rank !== b.level_rank) return a.level_rank - b.level_rank;
     if (a.known !== b.known) return a.known ? -1 : 1;          // 有数据排前
     if (a.known && b.known) {
       if (a.comparable !== b.comparable) return a.comparable ? -1 : 1;  // 同口径优先
-      if (a.margin !== b.margin) return b.margin - a.margin;
+      if (a.margin !== b.margin) return (b.margin ?? 0) - (a.margin ?? 0);
     }
     return a.idx - b.idx;                                      // 其余保持原表顺序
   });
@@ -362,9 +354,10 @@ export function fillOrder(plan, rows) {
         ? `（批次「${r.batch}」与参考批次「${reference_batch}」不同）`
         : "";
       const tag = (year_tag + batch_tag) || "";
-      margin_label = (d.margin >= 0
-        ? `位次余量 +${d.margin}（可稳够）`
-        : `位次差 ${d.margin}（冲刺，门槛比你的位次靠前 ${Math.abs(d.margin)} 名）`) +
+      const dm = d.margin ?? 0;
+      margin_label = (dm >= 0
+        ? `位次余量 +${dm}（可稳够）`
+        : `位次差 ${dm}（冲刺，门槛比你的位次靠前 ${Math.abs(dm)} 名）`) +
         (tag ? `${tag}，余量仅供参考` : "");
     }
     return {
@@ -396,10 +389,10 @@ export function fillOrder(plan, rows) {
 }
 
 /** 填报顺序的纯文本清单（可直接照抄，含序号与档位）。 */
-export function buildFillOrderText(plan, order, timeLabel, cap) {
+export function buildFillOrderText(plan: any, order: any, timeLabel: string, cap: any): string {
   const p = plan || {};
   const o = order || { items: [], basis: "" };
-  const lines = [];
+  const lines: string[] = [];
   lines.push("志愿表填报顺序建议（学习参考，不承诺录取）");
   lines.push("省份：" + (p.province || "-") + " | 科类：" + (p.subject || "-") +
     " | 位次：" + (p.user_rank || "-"));
@@ -417,7 +410,7 @@ export function buildFillOrderText(plan, order, timeLabel, cap) {
   if (!o.items || !o.items.length) {
     lines.push("（志愿表为空，暂无顺序建议）");
   } else {
-    o.items.forEach((it) => {
+    o.items.forEach((it: any) => {
       lines.push(it.seq + ". [" + (it.level || "-") + "] " + it.name +
         (it.tier ? "（" + it.tier + "）" : "") +
         "  " + it.margin_label +
@@ -439,9 +432,9 @@ export function buildFillOrderText(plan, order, timeLabel, cap) {
 }
 
 /** 导出的纯文本志愿表（复制/打印共用）。 */
-export function buildPlanText(plan, groups, timeLabel, cap) {
+export function buildPlanText(plan: any, groups: any[], timeLabel: string, cap: any): string {
   const p = plan || {};
-  const lines = [];
+  const lines: string[] = [];
   lines.push("志愿表草稿（学习参考，非填报依据）");
   lines.push("省份：" + (p.province || "-") + " | 科类：" + (p.subject || "-") +
     " | 位次：" + (p.user_rank || "-"));
@@ -459,7 +452,7 @@ export function buildPlanText(plan, groups, timeLabel, cap) {
   (groups || []).forEach((g) => {
     lines.push("【" + g.title + "】");
     if (!g.rows.length) lines.push("（暂无）");
-    g.rows.forEach((r, i) => {
+    g.rows.forEach((r: any, i: number) => {
       const yearTag = r.line_year ? "（" + r.line_year + "）" : "";
       const batchTag = r.batch ? "「" + r.batch + "」" : "";
       const lineInfo = r.line

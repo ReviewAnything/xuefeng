@@ -1,7 +1,18 @@
 // 演示模式离线数据：无后端时也能跑通「我能上哪 → 院校池 → 志愿表 → 历年省控线」全流程。
 // 数据为按位次生成的示意值，仅用于体验界面，不代表真实录取信息。
 
-function rankTiers(rank) {
+interface DemoSchool {
+  name: string;
+  province: string;
+  city: string;
+  category: string;
+  nature: string;
+  min_score: number;
+  min_rank: number;
+  line_year: number;
+}
+
+function rankTiers(rank: number): Array<{ tier: string; label: string; min_rank: number }> {
   // 示意档位门槛（按百万级考生省份的大致量级，非真实数据）。
   // 位次越小越靠前：rank ≤ min_rank 即「够得着」该档。
   return [
@@ -13,11 +24,11 @@ function rankTiers(rank) {
   ];
 }
 
-function gateState(rank, min_rank) {
+function gateState(rank: number, min_rank: number): "open" | "closed" {
   return rank <= min_rank ? "open" : "closed";
 }
 
-function demoVerdict(province, subject, rank) {
+function demoVerdict(province: string, subject: string, rank: number) {
   const tiers = rankTiers(rank);
   const gates = tiers.map((t) => {
     const state = gateState(rank, t.min_rank);
@@ -66,7 +77,7 @@ function demoVerdict(province, subject, rank) {
   };
 }
 
-const SAMPLE_SCHOOLS = {
+const SAMPLE_SCHOOLS: Record<string, string[]> = {
   985: ["示例大学（985）", "示例理工（985）"],
   211: ["示例大学（211）", "示例师范（211）"],
   普通一本: ["示例财经大学", "示例工业大学"],
@@ -74,9 +85,9 @@ const SAMPLE_SCHOOLS = {
   专科: ["示例职业技术学院", "示例高等专科学校"],
 };
 
-function demoRecommend(province, subject, rank, major) {
+function demoRecommend(province: string, subject: string, rank: number, _major: unknown) {
   const tiers = rankTiers(rank);
-  const outTiers = [];
+  const outTiers: any[] = [];
   let reach = 0, match = 0, safe = 0, unreachable = 0;
   tiers.forEach((t, i) => {
     const state = gateState(rank, t.min_rank);
@@ -87,7 +98,7 @@ function demoRecommend(province, subject, rank, major) {
     if (open && level === "稳") match++;
     if (open && level === "保") safe++;
     const names = SAMPLE_SCHOOLS[t.tier] || [];
-    const schools = names.map((n, j) => ({
+    const schools: DemoSchool[] = names.map((n, j) => ({
       name: n,
       province,
       city: "示例市",
@@ -126,9 +137,9 @@ function demoRecommend(province, subject, rank, major) {
   };
 }
 
-function demoVolunteerLimit(province) {
+function demoVolunteerLimit(province: string) {
   // 通用示意配额（真实值见后端 volunteer_limits.json）。
-  const map = {
+  const map: Record<string, { undergrad: number; junior: number; mode: string }> = {
     河南: { undergrad: 48, junior: 48, mode: "院校专业组" },
     辽宁: { undergrad: 112, junior: 60, mode: "专业+院校" },
     广东: { undergrad: 45, junior: 45, mode: "院校专业组" },
@@ -138,13 +149,13 @@ function demoVolunteerLimit(province) {
   const base = map[province] || { undergrad: 40, junior: 40, mode: "专业+院校" };
   const reach = Math.max(6, Math.round(base.undergrad * 0.3));
   const match = Math.max(6, Math.round(base.undergrad * 0.45));
-  const safe = Math.max(6, base.undergrad - reach - match);
+  const safeN = Math.max(6, base.undergrad - reach - match);
   return {
     province,
     mode: base.mode,
     undergrad: base.undergrad,
     junior: base.junior,
-    split: { reach, match, safe },
+    split: { reach, match, safe: safeN },
     note: "演示模式：配额为示意值，正式以本省考试院公布为准。",
   };
 }
@@ -159,9 +170,9 @@ function demoControlLineYears() {
   ];
 }
 
-function demoControlLines(year, province) {
+function demoControlLines(year: number, province: string) {
   // 示意省控线（物理类 / 历史类 双档）。
-  const lines = {
+  const lines: Record<string, Record<string, number>> = {
     物理类: { 普通一本: 510, 普通二本: 430, 专科: 200 },
     历史类: { 普通一本: 530, 普通二本: 450, 专科: 200 },
     综合: { 普通一本: 520, 普通二本: 440, 专科: 200 },
@@ -172,7 +183,7 @@ function demoControlLines(year, province) {
   const rows = tiers.map((t, i) => ({
     tier: t,
     score: base[t],
-    subject: subject,
+    subject,
     year,
     source_url: "",
   }));
@@ -186,8 +197,8 @@ function demoControlLines(year, province) {
   };
 }
 
-export function resolveDemo(method, path, data) {
-  const d = data || {};
+export function resolveDemo(method: string, path: string, data?: unknown): unknown {
+  const d = (data || {}) as Record<string, any>;
   if (method === "GET" && path === "/api/verdict") {
     return demoVerdict(d.province, d.subject, Number(d.user_rank));
   }

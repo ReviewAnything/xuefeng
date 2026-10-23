@@ -60,53 +60,56 @@ for (const f of files) {
 }
 eq(hits.length, 0, hits.length === 0 ? '无 Node / 浏览器专有语义' : `发现违规：\n    - ${hits.join('\n    - ')}`);
 
-console.log('\n▎环境变量注入契约（vite.config.js）');
-const viteCfg = fs.readFileSync(path.join(ROOT, 'vite.config.js'), 'utf8');
+console.log('\n▎环境变量注入契约（vite.config.ts）');
+const viteCfg = fs.readFileSync(path.join(ROOT, 'vite.config.ts'), 'utf8');
 ok('存在配置文件');
 // 必须走 define 注入，而不是让应用代码自己去读 import.meta.env
-eq(/define\s*:/.test(viteCfg), true, 'vite.config.js 使用 define 注入构建期常量');
+eq(/define\s*:/.test(viteCfg), true, 'vite.config.ts 使用 define 注入构建期常量');
 eq(/__APP_ENV__/.test(viteCfg), true, '注入键为 __APP_ENV__');
 eq(/loadEnv/.test(viteCfg), true, '环境变量由 Node 侧 loadEnv 读取');
 // 配置文件自身也不该出现 import.meta（避免配置文件被一起处理时踩同样的坑）
-eq(/import\s*\.\s*meta/.test(stripComments(viteCfg)), false, 'vite.config.js 自身不使用 import.meta');
+eq(/import\s*\.\s*meta/.test(stripComments(viteCfg)), false, 'vite.config.ts 自身不使用 import.meta');
 
-console.log('\n▎config.js 消费方式');
-const cfg = fs.readFileSync(path.join(SRC, 'config.js'), 'utf8');
-eq(/__APP_ENV__/.test(cfg), true, 'config.js 从 __APP_ENV__ 取值');
-eq(/import\s*\.\s*meta/.test(stripComments(cfg)), false, 'config.js 不使用 import.meta');
-eq(/process\s*\.\s*env/.test(stripComments(cfg)), false, 'config.js 不使用 process.env');
-// config.js 在纯 Node 下必须可用（__APP_ENV__ 未定义时走兜底）
-const mod = await import('../src/config.js');
-eq(typeof mod.API_BASE, 'string', '纯 Node 下 API_BASE 可解析');
+console.log('\n▎config.ts 消费方式');
+const cfg = fs.readFileSync(path.join(SRC, 'config.ts'), 'utf8');
+eq(/__APP_ENV__/.test(cfg), true, 'config.ts 从 __APP_ENV__ 取值');
+eq(/import\s*\.\s*meta/.test(stripComments(cfg)), false, 'config.ts 不使用 import.meta');
+eq(/process\s*\.\s*env/.test(stripComments(cfg)), false, 'config.ts 不使用 process.env');
+// config.ts 在纯 tsx 下必须可用（__APP_ENV__ 未定义时走兜底）
+const mod = await import('../src/config.ts');
+eq(typeof mod.API_BASE, 'string', '纯 tsx 下 API_BASE 可解析');
 eq(mod.API_BASE.length > 0, true, 'API_BASE 非空');
 
-console.log('\n▎纯 Node 测试契约（api.js / config.js / demoData.js）');
-// 这三个文件被 tests/plan.test.mjs、tests/engine.test.mjs 通过【相对路径】直接 import，
-// 因此必须保持 .js 扩展名 + 相对导入；一旦改成 .ts 或用 @/ 别名，纯 Node 测试将无法解析。
-const NODE_CONTRACT = [
-  { file: 'src/utils/api.js', importers: 'tests/plan.test.mjs' },
-  { file: 'src/utils/demoData.js', importers: 'tests/plan.test.mjs' },
-  { file: 'src/config.js', importers: 'tests/plan.test.mjs / tests/engine.test.mjs' },
+console.log('\n▎tsx 测试契约（api / config / demoData 等 .ts）');
+// 这几个文件被 tests/plan.test.mjs、tests/engine.test.mjs 通过【相对路径】直接 import，
+// 经 tsx 解析（.ts 直跑，无需编译）。它们内部必须只用相对导入，不得出现 @/ 别名，
+// 否则 tsx 在无 vite 别名配置的纯 Node 环境下解析失败；同时不得夹带任何 Node 运行时语义。
+const TS_CONTRACT = [
+  { file: 'src/utils/api.ts', importers: 'tests/plan.test.mjs' },
+  { file: 'src/utils/demoData.ts', importers: 'tests/plan.test.mjs' },
+  { file: 'src/config.ts', importers: 'tests/plan.test.mjs / tests/engine.test.mjs' },
 ];
-for (const { file, importers } of NODE_CONTRACT) {
+for (const { file, importers } of TS_CONTRACT) {
   const abs = path.join(ROOT, file);
   eq(fs.existsSync(abs), true, `${file} 存在`);
-  eq(fs.existsSync(abs.replace(/\.js$/, '.ts')), false,
-    `${file} 未被改成 .ts（纯 Node 测试靠相对路径解析，importers: ${importers}）`);
+  eq(fs.existsSync(abs.replace(/\.ts$/, '.js')), false,
+    `${file} 已转为 .ts（importers: ${importers}）`);
   const code = stripComments(fs.readFileSync(abs, 'utf8'));
   eq(/from\s*["']@\//.test(code) || /import\s*["']@\//.test(code), false,
-    `${file} 内部仅用相对导入（禁止 @/ 别名，否则纯 Node 测试解析失败）`);
+    `${file} 内部仅用相对导入（禁止 @/ 别名，否则 tsx 纯 Node 环境解析失败）`);
+  eq(/import\s*\.\s*meta/.test(code), false, `${file} 不含 import.meta`);
+  eq(/process\s*\.\s*env/.test(code), false, `${file} 不含 process.env`);
 }
 
-console.log('\n▎content.js 懒加载不变量（P1 分包瘦身）');
-// 234KB 的 @shared JSON 必须【动态 import()】懒加载，绝不能静态 import 打进主包初始体积。
-const contentCode = stripComments(fs.readFileSync(path.join(SRC, 'utils/content.js'), 'utf8'));
+console.log('\n▎content.ts 懒加载不变量（P1 分包瘦身）');
+// 234KB 的 JSON 必须【动态 import()】懒加载，绝不能静态 import 打进主包初始体积。
+const contentCode = stripComments(fs.readFileSync(path.join(SRC, 'utils/content.ts'), 'utf8'));
 eq(/export\s+(async\s+)?function\s+ensureContent/.test(contentCode), true,
-  'content.js 导出 ensureContent() 懒加载入口');
+  'content.ts 导出 ensureContent() 懒加载入口');
 eq(/import\s*\(\s*["'](\.\.\/shared\/|@\/shared\/)/.test(contentCode), true,
-  'content.js 动态 import() 拉取 src 内（../shared 或 @/shared）JSON');
+  'content.ts 动态 import() 拉取 src 内（../shared 或 @/shared）JSON');
 eq(/from\s*["']@shared\//.test(contentCode) || /import\s*["']@shared\//.test(contentCode), false,
-  'content.js 不引用项目外 @shared 别名（外部目录小程序编译失败）');
+  'content.ts 不引用项目外 @shared 别名（外部目录小程序编译失败）');
 
 console.log('\n=====================');
 console.log(`结果：${pass} 通过 / ${fail} 失败`);

@@ -3,7 +3,7 @@
 //
 // ⚠️ 分包瘦身（P1 核心）：content 172KB + school_graph 48KB + glossary 13KB ≈ 234KB。
 // 这三个 JSON 若【静态 import】，会被打进小程序【主包】初始体积，逼近 2MB 上限
-// （tabBar 页能引入 content.js，而 tabBar 页不能进分包，所以静态引入必然堆在主包）。
+// （tabBar 页能引入 content，而 tabBar 页不能进分包，所以静态引入必然堆在主包）。
 //
 // 改为按需【动态 import()】：首次访问时由页面 onLoad 调用 ensureContent() 拉取并填入
 // 模块级缓存；各导出用 `export let` 声明，ensureContent() 拉取后原地赋值——利用 ESM
@@ -13,14 +13,14 @@
 //   页面【不得】在 <script setup> 顶层直接解构/读取这些导出（顶层执行早于异步加载）。
 //   必须在 onLoad / onShow 里先 `await ensureContent()`，再读取（并赋给 ref / 触发 computed）。
 
-let _cache = null;
-let _loading = null;
+let _cache: any = null;
+let _loading: Promise<any> | null = null;
 
-function pick(mod) {
+function pick(mod: any): any {
   return mod && mod.default !== undefined ? mod.default : mod;
 }
 
-function buildData(content, graph, glossary) {
+function buildData(content: any, graph: any, glossary: any) {
   const c = pick(content);
   const g = pick(graph);
   const gl = pick(glossary);
@@ -39,7 +39,7 @@ function buildData(content, graph, glossary) {
   };
 }
 
-export async function ensureContent() {
+export async function ensureContent(): Promise<any> {
   if (_cache) return _cache;
   if (_loading) return _loading;
   _loading = (async () => {
@@ -78,12 +78,12 @@ export const RES_CATS = [
 // JSON 派生导出（初始为空，ensureContent() 后填充）
 export let APP_VERSION = "";
 export let DATA_DATE = "";
-export let QUESTIONS = [];
-export let MAJORS = [];
-export let RESOURCES = [];
-export let SCHOOL_GRAPH = null;
-export let SCHOOL_TIERS = null;
-export let SCHOOL_LEAGUES = null;
-export let SCHOOLS = null;
-export let GLOSSARY = null;
-export let CONTENT_SOURCE = {};
+export let QUESTIONS: any[] = [];
+export let MAJORS: any[] = [];
+export let RESOURCES: any[] = [];
+export let SCHOOL_GRAPH: any = null;
+export let SCHOOL_TIERS: any = null;
+export let SCHOOL_LEAGUES: any = null;
+export let SCHOOLS: any = null;
+export let GLOSSARY: any = null;
+export let CONTENT_SOURCE: Record<string, unknown> = {};

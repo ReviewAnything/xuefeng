@@ -276,17 +276,17 @@
   </wd-config-provider>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { onLoad, onShow } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
 import { themeVars, levelColor, levelIcon } from "@/utils/theme";
-import { api } from "@/utils/api.js";
-import { PLAN_KEY, applyMajors, breachStats, breachStatus, buildFillOrderText, buildPlanText, collectMajors, diffSafePatch, fillOrder as buildFillOrder, fillStats, flattenPlan, formatTime, groupRows, selectBackstops } from "@/utils/plan.js";
+import { api } from "@/utils/api";
+import { PLAN_KEY, applyMajors, breachStats, breachStatus, buildFillOrderText, buildPlanText, collectMajors, diffSafePatch, fillOrder as buildFillOrder, fillStats, flattenPlan, formatTime, groupRows, selectBackstops } from "@/utils/plan";
 
 const toast = useToast();
 const plan = ref(null);
-const rows = ref([]);
+const rows = ref<any[]>([]);
 const patching = ref(false);
 const patchDiff = ref(null);   // S7-E 补位前后对比
 const showFillOrder = ref(false);   // S8-D 填报顺序展开开关
@@ -356,7 +356,7 @@ const capInfo = computed(() => (volLimit.value ? {
 // S8-D：按可及性排序的填报顺序（纯函数，随 rows 变动实时重算）
 const fillOrder = computed(() => buildFillOrder(plan.value, rows.value));
 // S9-B：跨年/跨批次的行底色高亮（避免在模板表达式里写 && 触发编译器告警）
-function foRowClass(it) {
+function foRowClass(it: any) {
   return it && it.has_line_data && !it.comparable ? "fo-row fo-row-warn" : "fo-row";
 }
 
@@ -399,7 +399,7 @@ const breachColor = computed(() => {
   return "#8f96a2";
 });
 
-function rowBreach(r) {
+function rowBreach(r: any) {
   return breachStatus(plan.value && plan.value.user_rank, r);
 }
 
@@ -427,34 +427,34 @@ watch(rows, () => {
   if (!plan.value) return;
   try {
     uni.setStorageSync(PLAN_KEY, { ...plan.value, majors: collectMajors(rows.value) });
-  } catch (e) {
+  } catch (e: any) {
     // 存储失败（配额/隐私模式）不应打断填写
   }
 }, { deep: true });
 
-function levelClass(level) {
+function levelClass(level: any) {
   if (level === "冲") return "reach";
   if (level === "稳") return "match";
   return "safe";
 }
 
-function isNoRow(g) {
+function isNoRow(g: any) {
   return g.rows.length === 0;
 }
 
 // S10-B：各组「服从专业调剂」开关（仅院校专业组模式有意义）。
-function toggleAdjust(level) {
+function toggleAdjust(level: any) {
   adjust.value = { ...adjust.value, [level]: !adjust.value[level] };
   if (plan.value) {
     plan.value.adjust = adjust.value;
     try {
       uni.setStorageSync(PLAN_KEY, { ...plan.value, majors: collectMajors(rows.value) });
-    } catch (e) { /* 存储失败不阻断 */ }
+    } catch (e: any) { /* 存储失败不阻断 */ }
   }
 }
 
 // S10-B：组内专业排序——在同档（冲/稳/保）内上下移动某行，调整填报顺序显示与导出顺序。
-function move(key, dir) {
+function move(key: any, dir: any) {
   const p = plan.value;
   if (!p || !Array.isArray(p.tiers)) return;
   for (const t of p.tiers) {
@@ -531,7 +531,7 @@ async function patchSafe() {
     rows.value = applyMajors(flattenPlan(next), next.majors || collectMajors(rows.value));
     uni.setStorageSync(PLAN_KEY, next);
     toast.show(d.text);
-  } catch (e) {
+  } catch (e: any) {
     toast.show("没连上服务，重试一次");
   } finally {
     patching.value = false;

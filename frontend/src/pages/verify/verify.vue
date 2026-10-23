@@ -300,12 +300,12 @@
   </wd-config-provider>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
 import { onLoad, onShow } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
-import { MAJORS, ensureContent } from "@/utils/content.js";
-import { api } from "@/utils/api.js";
+import { MAJORS, ensureContent } from "@/utils/content";
+import { api } from "@/utils/api";
 import { themeVars } from "@/utils/theme";
 import { applyProfile, setProfile } from "@/utils/profile";
 
@@ -314,7 +314,7 @@ const toast = useToast();
 // 全国 31 省（与 admission_real_baseline.json 覆盖一致）
 const provinces = ["北京", "天津", "河北", "山西", "内蒙古", "辽宁", "吉林", "黑龙江", "上海", "江苏", "浙江", "安徽", "福建", "江西", "山东", "河南", "湖北", "湖南", "广东", "广西", "海南", "重庆", "四川", "贵州", "云南", "西藏", "陕西", "甘肃", "青海", "宁夏", "新疆"];
 const subjects = ["物理类", "历史类", "综合/未改革"];
-const majorNames = ref([]);
+const majorNames = ref<any[]>([]);
 
 const p = reactive({ province: "", subject: "", user_rank: "", major_name: "" });
 const res = ref(null);
@@ -335,16 +335,16 @@ function switchBatch() {
 
 // —— 批量核验（P1→P2 打通）——
 const batchMode = ref(false);
-const candidates = ref([]);      // 可勾选的专业（画布推荐方向）
-const selected = ref([]);        // 已勾选
-const canvasPicks = ref([]);     // 端侧存储的画布结果（仅本机）
+const candidates = ref<any[]>([]);      // 可勾选的专业（画布推荐方向）
+const selected = ref<any[]>([]);        // 已勾选
+const canvasPicks = ref<any[]>([]);     // 端侧存储的画布结果（仅本机）
 const batch = ref(null);
 const batchErr = ref("");
 const batchLoading = ref(false);
 
 // —— C2 等位分换算 ——
 const eq = reactive({ year: "", target: "", score: "" });
-const years = ref([]);
+const years = ref<any[]>([]);
 const eqRes = ref(null);
 const eqErr = ref("");
 const eqLoading = ref(false);
@@ -372,7 +372,7 @@ const methodLabel = computed(() => {
   return m === "percentile" ? "按考生规模归一（percentile）" : "同位次等效分（rank）";
 });
 
-function dsLabel(ds) {
+function dsLabel(ds: any) {
   if (ds === "official") return "官方";
   if (ds === "official_table") return "一分一段表";
   if (ds === "estimated") return "估算";
@@ -380,7 +380,7 @@ function dsLabel(ds) {
 }
 
 // picker 的值是 "2024 · 官方" 这类标签，取前四位年份数字
-function yearOf(v) {
+function yearOf(v: any) {
   const m = String(v || "").match(/\d{4}/);
   return m ? Number(m[0]) : 0;
 }
@@ -394,7 +394,7 @@ async function loadYears() {
       eq.year = yearLabels.value[0];
       eq.target = yearLabels.value[1];
     }
-  } catch (e) {
+  } catch (e: any) {
     years.value = [];   // 后端未连接时静默，不打断主流程
   }
 }
@@ -421,7 +421,7 @@ async function runEquiv() {
   eqLoading.value = true;
   try {
     eqRes.value = await api.equivConvert(params);
-  } catch (e) {
+  } catch (e: any) {
     eqErr.value = (e && e.message) ? e.message : "数据服务未连接，可在「我的」开启演示模式先体验";
   } finally {
     eqLoading.value = false;
@@ -455,25 +455,25 @@ const sourceLabel = computed(() => {
       : "参数化样例（演示）";
 });
 
-function levelType(level) {
+function levelType(level: any) {
   return { 保: "success", 稳: "primary", 冲: "warning", 不可及: "default" }[level] || "default";
 }
 
 // 当前最易触及的批次高亮（抽成方法，避免模板内长表达式）
-function isBestTier(tier) {
+function isBestTier(tier: any) {
   const b = res.value && res.value.best_reachable;
   return !!(b && b.tier === tier);
 }
 
-function reachType(reach) {
+function reachType(reach: any) {
   return { out_of_reach: "danger", low: "warning", mid: "primary", high: "success" }[reach] || "default";
 }
 
-function alignType(alignment) {
+function alignType(alignment: any) {
   return { refuted: "danger", unverified: "warning", supported: "success" }[alignment] || "default";
 }
 
-function dataGradeLabel(ds) {
+function dataGradeLabel(ds: any) {
   if (ds === "official_overlay" || ds === "real") return "官方/真实";
   if (ds === "estimated") return "估算";
   return "样例";
@@ -516,7 +516,7 @@ function loadCanvas() {
   return false;
 }
 
-function toggle(name) {
+function toggle(name: any) {
   selected.value = selected.value.includes(name)
     ? selected.value.filter((n) => n !== name)
     : [...selected.value, name];
@@ -548,7 +548,7 @@ async function runBatch() {
   tab.value = "batch";
   try {
     batch.value = await api.verifyBatch(p.province, p.subject, Number(p.user_rank), selected.value);
-  } catch (e) {
+  } catch (e: any) {
     batchErr.value = (e && e.message) ? e.message : "数据服务未连接，可在「我的」开启演示模式先体验";
   } finally {
     batchLoading.value = false;
@@ -556,7 +556,7 @@ async function runBatch() {
 }
 
 // 从批量结果里点开某一专业的完整详情
-async function openOne(name) {
+async function openOne(name: any) {
   p.major_name = name;
   tab.value = "one";
   await run();
@@ -589,9 +589,9 @@ onLoad(async (q) => {
 onShow(() => {
   Object.assign(p, applyProfile(p));
   let pending = 0;
-  try { pending = uni.getStorageSync("zhiyuan_pending_batch"); } catch (e) {}
+  try { pending = uni.getStorageSync("zhiyuan_pending_batch"); } catch (e: any) {}
   if (pending) {
-    try { uni.removeStorageSync("zhiyuan_pending_batch"); } catch (e) {}
+    try { uni.removeStorageSync("zhiyuan_pending_batch"); } catch (e: any) {}
     batchMode.value = true;
     tab.value = "batch";
     candidates.value = (canvasPicks.value.length ? canvasPicks.value : MAJORS.map((m) => m.name)).slice(0, 20);
@@ -611,7 +611,7 @@ function goRecommend() {
 }
 
 // S2：原始数据点击可达——跳应用内 web-view 承载真实源（GitHub 原始 JSON / 观点出处）
-function openRaw(url) {
+function openRaw(url: any) {
   if (!url) {
     toast.show("该来源暂无可点击的原始链接");
     return;
@@ -641,7 +641,7 @@ async function run() {
       user_rank: Number(p.user_rank),
       major_name: p.major_name,
     });
-  } catch (e) {
+  } catch (e: any) {
     err.value = (e && e.message) ? e.message : "数据服务未连接，可在「我的」开启演示模式先体验";
   } finally {
     loading.value = false;

@@ -103,19 +103,19 @@
   </wd-config-provider>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { reactive, ref } from "vue";
 import { onLoad } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
-import { QUESTIONS, MAJORS, ensureContent } from "@/utils/content.js";
-import { buildCanvas } from "@/utils/engine.js";
-import { api } from "@/utils/api.js";
+import { QUESTIONS, MAJORS, ensureContent } from "@/utils/content";
+import { buildCanvas } from "@/utils/engine";
+import { api } from "@/utils/api";
 import { themeVars } from "@/utils/theme";
 import { getProfile, setProfile } from "@/utils/profile";
 
 const toast = useToast();
-const questions = ref([]);
-const form = reactive({});
+const questions = ref<any[]>([]);
+const form = reactive<Record<string, any>>({});
 const rankInput = ref("");
 const canvas = ref(null);
 const search = ref(null);
@@ -185,11 +185,11 @@ function persistPicks() {
 
 // 一键把诊断画布里的专业带入「查专业」页（观点×数据交叉核验）
 // 条件写入全局档案；「查专业」是 tab 页，用 switchTab 跳转，专业名经 profile.major 带入。
-function goVerify(name) {
+function goVerify(name: any) {
   if (!requireConditions()) return;
   persistPicks();
   setProfile({ province: form.province, subject: form.subject, rank: rankInput.value, major: name });
-  try { uni.removeStorageSync("zhiyuan_pending_batch"); } catch (e) {}
+  try { uni.removeStorageSync("zhiyuan_pending_batch"); } catch (e: any) {}
   uni.switchTab({ url: "/pages/verify/verify" });
 }
 
@@ -203,7 +203,7 @@ function goVerifyBatch() {
   persistPicks();
   setProfile({ province: form.province, subject: form.subject, rank: rankInput.value, major: "" });
   // 批量标记存端侧，由「查专业」页 onShow 读取并自动开跑
-  try { uni.setStorageSync("zhiyuan_pending_batch", 1); } catch (e) {}
+  try { uni.setStorageSync("zhiyuan_pending_batch", 1); } catch (e: any) {}
   uni.switchTab({ url: "/pages/verify/verify" });
 }
 
@@ -225,7 +225,7 @@ async function enrich() {
   searchErr.value = "";
   try {
     search.value = await api.search(form.province, form.subject, Number(rankInput.value));
-  } catch (e) {
+  } catch (e: any) {
     searchErr.value = (e && e.message) ? e.message : "数据服务未连接，可在「我的」开启演示模式先体验";
   } finally {
     loading.value = false;

@@ -237,13 +237,13 @@
   </wd-config-provider>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
-import { APP_VERSION, DATA_DATE, CONTENT_SOURCE, RESOURCES, RES_CATS, MAJORS, SCHOOLS, ensureContent } from "@/utils/content.js";
+import { APP_VERSION, DATA_DATE, CONTENT_SOURCE, RESOURCES, RES_CATS, MAJORS, SCHOOLS, ensureContent } from "@/utils/content";
 import { themeVars, THEMES, setTheme } from "@/utils/theme";
-import { api } from "@/utils/api.js";
+import { api } from "@/utils/api";
 import { PROFILE_OPTIONS, getProfile, setProfile } from "@/utils/profile";
 
 const version = ref("");
@@ -251,13 +251,13 @@ const date = ref("");
 const majorCount = ref(0);
 const schoolCount = ref(0);
 const open = ref("");
-const src = ref({});
+const src = ref<Record<string, any>>({});
 
 const toast = useToast();
 const provinces = PROFILE_OPTIONS.provinces;
 const subjects = PROFILE_OPTIONS.subjects;
 const NO_MAJOR = "不限（用省份基线）";
-const majorOptions = ref([]);
+const majorOptions = ref<any[]>([]);
 
 const pf = ref({ province: "", subject: "", rank: "", major: NO_MAJOR });
 const saving = ref(false);
@@ -334,7 +334,7 @@ function onDemo() {
   toast.show(on ? "已开启演示模式（内置样例数据）" : "已关闭演示模式（连接真实后端）");
 }
 
-function pick(id) {
+function pick(id: any) {
   setTheme(id);
   const t = THEMES.find((x) => x.id === id);
   toast.show("已切换至「" + (t ? t.name : id) + "」");
@@ -343,7 +343,7 @@ function pick(id) {
 /* 开源资源（原「资源」tab 已并入本页） */
 const resCats = RES_CATS;
 const cur = ref("all");
-const resources = ref([]);
+const resources = ref<any[]>([]);
 const list = computed(() => resources.value.filter((r) => cur.value === "all" || r.cat === cur.value));
 
 function goVerdict() {
@@ -359,7 +359,7 @@ function goDiagnose() {
 function goCompass() {
   uni.navigateTo({ url: "/subpackages/compass/compass" });
 }
-function openLink(u) {
+function openLink(u: any) {
   // #ifdef H5
   window.open(u, "_blank");
   // #endif
