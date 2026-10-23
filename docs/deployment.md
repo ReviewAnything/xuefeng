@@ -151,6 +151,29 @@ docker-compose / render.yaml 同样 `--host 0.0.0.0`。
 `127.0.0.1`——启动日志出现 `Uvicorn running on http://127.0.0.1:8000` 就是这种情况，
 改用 `python main.py` 或补 `--host 0.0.0.0` 即可。
 
+**自查三步（现象：localhost 能通、内网 IP 不通）：**
+
+```bash
+# ① 看 8000 端口实际监听地址
+lsof -nP -iTCP:8000 -sTCP:LISTEN
+#    显示 127.0.0.1:8000 → 只绑了本机（问题所在）
+#    显示 *:8000        → 绑了所有网卡（正确）
+
+# ② 修复启动方式（任选其一）
+cd backend && python main.py
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+```bash
+# ③ 本机浏览器先验证：访问 http://<内网IP>:8000/api/health
+#    本机通 → 后端已就绪，手机不通才是网络层问题（同 WiFi / 路由器 AP 隔离 /
+#    VPN / macOS 防火墙——系统设置 → 网络 → 防火墙放行 Python）
+#    本机不通 → 仍是绑定问题，回到 ①
+```
+
+> 判断依据：访问本机内网 IP 不经过物理网络，绑了 `0.0.0.0` 时本机必通。
+> 所以「localhost 通 + 内网 IP 不通」可以直接判定监听地址是 `127.0.0.1`。
+
 **③ CORS 只影响 H5 浏览器，与小程序无关。**
 `main.py` 默认白名单（localhost 的 5173/8000/8080）是给 H5 跨域用的；
 小程序 `wx.request` 不走浏览器同源策略，不受 CORS 约束。
