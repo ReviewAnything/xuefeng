@@ -1,4 +1,5 @@
-// 单一数据源：通过 @shared 别名引入 shared/*.json，与 Python 后端共用同一份内容。
+// 单一数据源：内容 JSON 放在 frontend 项目【内】的 src/shared/（由 `npm run sync:shared` 从根 shared/ 同步），
+// 与 Python 后端共用同一份内容。注意必须置于项目内——小程序编译器不认项目外目录。
 //
 // ⚠️ 分包瘦身（P1 核心）：content 172KB + school_graph 48KB + glossary 13KB ≈ 234KB。
 // 这三个 JSON 若【静态 import】，会被打进小程序【主包】初始体积，逼近 2MB 上限
@@ -43,9 +44,9 @@ export async function ensureContent() {
   if (_loading) return _loading;
   _loading = (async () => {
     const [content, graph, glossary] = await Promise.all([
-      import("@shared/content.json"),
-      import("@shared/school_graph.json"),
-      import("@shared/domain_glossary.json"),
+      import("../shared/content.json"),
+      import("../shared/school_graph.json"),
+      import("../shared/domain_glossary.json"),
     ]);
     _cache = buildData(content, graph, glossary);
     // 原地赋值，利用 ESM 实时绑定让既有导入方拿到新值

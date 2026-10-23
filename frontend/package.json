@@ -11,6 +11,7 @@
     "dev:app": "uni -p app",
     "build:app": "uni build -p app",
     "build": "npm run build:mp-weixin",
+    "sync:shared": "node scripts/sync-shared.mjs",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
     "typecheck:foundation": "tsc -p tsconfig.foundation.json",
     "test:engine": "node tests/engine.test.mjs",

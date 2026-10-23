@@ -28,9 +28,9 @@ export default defineConfig(({ mode }) => {
     plugins: [uni()],
     resolve: {
       alias: {
-        // 单一数据源：shared/ 与 Python 后端共用同一份内容
-        // 用 path.resolve 而非 import.meta.url，避免配置文件自身出现 import.meta
-        '@shared': path.resolve(ROOT, '../shared'),
+        // 注意：前端依赖的内容 JSON 必须放在 frontend 项目【内】（src/shared/），
+        // 不能用指向 ../shared 的外部别名——uni-app 小程序编译器的模块扫描在 mp 平台
+        // 不认项目外目录，会导致编译失败。数据同步见 `npm run sync:shared`。
         '@': path.resolve(ROOT, 'src'),
       },
     },

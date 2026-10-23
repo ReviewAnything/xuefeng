@@ -103,9 +103,10 @@ console.log('\n▎content.js 懒加载不变量（P1 分包瘦身）');
 const contentCode = stripComments(fs.readFileSync(path.join(SRC, 'utils/content.js'), 'utf8'));
 eq(/export\s+(async\s+)?function\s+ensureContent/.test(contentCode), true,
   'content.js 导出 ensureContent() 懒加载入口');
-eq(/import\s*\(/.test(contentCode), true, 'content.js 使用动态 import() 拉取 @shared JSON');
+eq(/import\s*\(\s*["'](\.\.\/shared\/|@\/shared\/)/.test(contentCode), true,
+  'content.js 动态 import() 拉取 src 内（../shared 或 @/shared）JSON');
 eq(/from\s*["']@shared\//.test(contentCode) || /import\s*["']@shared\//.test(contentCode), false,
-  'content.js 不静态 import @shared（否则 234KB 进主包初始体积）');
+  'content.js 不引用项目外 @shared 别名（外部目录小程序编译失败）');
 
 console.log('\n=====================');
 console.log(`结果：${pass} 通过 / ${fail} 失败`);
