@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>懂分帝 · 主题预览（暗夜金 / 晨曦白 / 墨青）</title>
+<style>
+  /* 三套主题变量（与 src/utils/theme.js 的 THEMES 完全一致） */
+  :root[data-theme="dark"]{
+    --xf-bg:#0f1115;--xf-surface:#16191f;--xf-surface-2:#1c2026;--xf-surface-3:#23262e;
+    --xf-line:#23262e;--xf-line-soft:#1c2027;
+    --xf-text:#e9ebef;--xf-text-2:#c2c8d0;--xf-text-3:#8f96a2;--xf-text-4:#6f7683;
+    --xf-gold:#ffd24d;--xf-gold-dim:#c9a53a;
+    --xf-reach:#f0ad4e;--xf-match:#6db3f2;--xf-safe:#5fd87f;--xf-danger:#e5484d;--xf-danger-text:#ff8787;
+    --xf-official:#5fd87f;--xf-real:#6db3f2;--xf-est:#9aa0aa;--xf-demo:#f0ad4e;
+    --xf-fill:rgba(255,255,255,0.05);
+  }
+  :root[data-theme="light"]{
+    --xf-bg:#f4f6f8;--xf-surface:#ffffff;--xf-surface-2:#eef1f4;--xf-surface-3:#e6eaef;
+    --xf-line:#e3e7ec;--xf-line-soft:#eef1f4;
+    --xf-text:#1f2329;--xf-text-2:#4b525b;--xf-text-3:#828a93;--xf-text-4:#aab0b8;
+    --xf-gold:#c8910a;--xf-gold-dim:#a8770a;
+    --xf-reach:#d9821a;--xf-match:#2f7ad1;--xf-safe:#1f9d57;--xf-danger:#d23b3b;--xf-danger-text:#d23b3b;
+    --xf-official:#1f9d57;--xf-real:#2f7ad1;--xf-est:#9aa0aa;--xf-demo:#d9821a;
+    --xf-fill:rgba(0,0,0,0.045);
+  }
+  :root[data-theme="teal"]{
+    --xf-bg:#0c1416;--xf-surface:#122021;--xf-surface-2:#182a2a;--xf-surface-3:#1f3433;
+    --xf-line:#1f3433;--xf-line-soft:#162827;
+    --xf-text:#e2eeec;--xf-text-2:#b6c5c2;--xf-text-3:#7e928e;--xf-text-4:#5e726e;
+    --xf-gold:#46c8b8;--xf-gold-dim:#2f9488;
+    --xf-reach:#e0a23e;--xf-match:#4fb3d1;--xf-safe:#4fd18a;--xf-danger:#e5686a;--xf-danger-text:#f0a0a2;
+    --xf-official:#4fd18a;--xf-real:#4fb3d1;--xf-est:#8fa39f;--xf-demo:#e0a23e;
+    --xf-fill:rgba(255,255,255,0.045);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--xf-bg);color:var(--xf-text);transition:background .2s,color .2s;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:420px;margin:0 auto;padding:24px 18px 60px;}
+  h1{font-size:18px;margin:0 0 4px;font-weight:700;}
+  .sub{font-size:13px;color:var(--xf-text-3);margin:0 0 18px;line-height:1.6;}
+  /* 主题选择器（与 about.vue 的「外观主题」卡片同款） */
+  .theme-card{background:var(--xf-surface);border:1px solid var(--xf-line);border-radius:16px;padding:16px;margin-bottom:20px;}
+  .th-head{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+  .xf-tile{width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;
+    background:var(--xf-fill);border:1px solid var(--xf-line);}
+  .th-title{font-size:15px;font-weight:600;}
+  .th-desc{font-size:12px;color:var(--xf-text-3);}
+  .th-grid{display:flex;gap:12px;}
+  .th-opt{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px 6px;border-radius:14px;
+    border:1px solid var(--xf-line);background:var(--xf-fill);cursor:pointer;transition:border-color .15s;}
+  .th-opt.on{border-color:var(--xf-gold);}
+  .th-swatch{position:relative;width:100%;height:64px;border-radius:10px;overflow:hidden;display:flex;border:1px solid var(--xf-line);}
+  .th-bg{flex:1;}
+  .th-surface{flex:1;border-left:1px solid var(--xf-line);}
+  .th-dot{position:absolute;right:8px;bottom:8px;width:18px;height:18px;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.3);}
+  .th-name{font-size:13px;color:var(--xf-text-2);}
+  .th-opt.on .th-name{color:var(--xf-gold);font-weight:600;}
+  /* 示例卡片：结论页主结果卡（金边） */
+  .xf-card{background:var(--xf-surface);border:1px solid var(--xf-line);border-radius:16px;padding:18px;margin-bottom:14px;}
+  .verdict{background:linear-gradient(135deg,rgba(255,210,77,0.14),rgba(255,210,77,0.03));border-color:rgba(255,210,77,0.4);}
+  .v-big{font-size:40px;font-weight:700;color:var(--xf-gold);line-height:1.1;font-variant-numeric:tabular-nums;}
+  .v-unit{font-size:14px;color:var(--xf-text-3);margin-left:4px;}
+  .v-cond{font-size:13px;color:var(--xf-text-3);margin-top:4px;}
+  .v-tag{display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:4px 12px;border-radius:999px;font-size:12px;
+    color:var(--xf-official);border:1px solid rgba(95,216,127,.38);background:rgba(95,216,127,.08);}
+  /* 档位卡（左色条） */
+  .strip{border-left:6px solid var(--xf-line);border-radius:0 12px 12px 0;}
+  .strip--reach{border-left-color:var(--xf-reach);}
+  .strip--match{border-left-color:var(--xf-match);}
+  .strip--safe{border-left-color:var(--xf-safe);}
+  .tier-h{display:flex;justify-content:space-between;align-items:center;font-size:14px;font-weight:600;}
+  .tier-n{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;}
+  .tier-d{font-size:12px;color:var(--xf-text-3);margin-top:2px;}
+  /* 芯片 */
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;}
+  .chip{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;font-size:12px;
+    border:1px solid var(--xf-line);color:var(--xf-text-3);background:var(--xf-fill);}
+  .chip.o{color:var(--xf-official);border-color:rgba(95,216,127,.38);background:rgba(95,216,127,.08);}
+  .chip.r{color:var(--xf-real);border-color:rgba(109,179,242,.38);background:rgba(109,179,242,.08);}
+  .chip.d{color:var(--xf-demo);border-color:rgba(240,173,78,.4);background:rgba(240,173,78,.1);}
+</style>
+</head>
+<body data-theme="dark">
+<div class="wrap">
+  <h1>我能上哪（示例）</h1>
+  <p class="sub">下方是「我的 → 外观主题」同款选择器与三套主题的实时效果预览。点击切换，整页配色随之变化。</p>
+
+  <div class="theme-card">
+    <div class="th-head">
+      <div class="xf-tile">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#c2c8d0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.6"/><path d="M12 3.4a8.6 8.6 0 0 0 0 17.2Z" fill="#c2c8d0" stroke="none"/></svg>
+      </div>
+      <div>
+        <div class="th-title">外观主题</div>
+        <div class="th-desc">随时切换明暗与配色，选择会记住</div>
+      </div>
+    </div>
+    <div class="th-grid" id="picker"></div>
+  </div>
+
+  <div class="xf-card verdict">
+    <div><span class="v-big">40000</span><span class="v-unit">名</span></div>
+    <div class="v-cond">广东 · 物理类 · 目标专业：计算机类</div>
+    <div class="v-tag">● 真实抓取 · 数据来源可信</div>
+  </div>
+
+  <div class="xf-card strip strip--reach">
+    <div class="tier-h"><span>冲 · 跳一跳够得着</span><span class="tier-n">12 所</span></div>
+    <div class="tier-d">录取末位位次略高于你，有希望但不稳</div>
+  </div>
+  <div class="xf-card strip strip--match">
+    <div class="tier-h"><span>稳 · 大概率能上</span><span class="tier-n">20 所</span></div>
+    <div class="tier-d">位次与你相当，正常发挥即可</div>
+  </div>
+  <div class="xf-card strip strip--safe">
+    <div class="tier-h"><span>保 · 兜底稳进</span><span class="tier-n">9 所</span></div>
+    <div class="tier-d">位次明显优于你，保底无忧</div>
+  </div>
+
+  <div class="xf-card">
+    <div style="font-size:13px;color:var(--xf-text-2);margin-bottom:8px;">数据可信度</div>
+    <div class="chips">
+      <span class="chip o">● 官方数据</span>
+      <span class="chip r">● 真实抓取</span>
+      <span class="chip">● 估算数据</span>
+      <span class="chip d">● 演示数据</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  const THEMES = [
+    {id:"dark",  name:"暗夜金", bg:"#0f1115", surface:"#16191f", accent:"#ffd24d"},
+    {id:"light", name:"晨曦白", bg:"#f4f6f8", surface:"#ffffff", accent:"#c8910a"},
+    {id:"teal",  name:"墨青",   bg:"#0c1416", surface:"#122021", accent:"#46c8b8"},
+  ];
+  const KEY = "zhiyuan_theme_preview";
+  let cur = localStorage.getItem(KEY) || "dark";
+  const picker = document.getElementById("picker");
+  THEMES.forEach(t=>{
+    const el = document.createElement("div");
+    el.className = "th-opt" + (t.id===cur?" on":"");
+    el.innerHTML =
+      '<div class="th-swatch"><div class="th-bg" style="background:'+t.bg+'"></div>'+
+      '<div class="th-surface" style="background:'+t.surface+'"></div>'+
+      '<div class="th-dot" style="background:'+t.accent+'"></div></div>'+
+      '<div class="th-name">'+t.name+'</div>';
+    el.onclick = ()=>{ apply(t.id); };
+    picker.appendChild(el);
+  });
+  function apply(id){
+    cur = id;
+    document.body.setAttribute("data-theme", id);
+    localStorage.setItem(KEY, id);
+    [...picker.children].forEach((c,i)=>c.classList.toggle("on", THEMES[i].id===id));
+  }
+  apply(cur);
+</script>
+</body>
+</html>

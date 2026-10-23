@@ -7,15 +7,32 @@
   },
   "pages": [
     { "path": "pages/verdict/verdict", "style": { "navigationBarTitleText": "我能上哪" } },
-    { "path": "pages/compass/compass", "style": { "navigationBarTitleText": "历年省控线" } },
-    { "path": "pages/diagnose/diagnose", "style": { "navigationBarTitleText": "八连问·自我诊断" } },
-    { "path": "pages/graph/graph", "style": { "navigationBarTitleText": "专业图谱" } },
-    { "path": "pages/verify/verify", "style": { "navigationBarTitleText": "查专业·能上哪档" } },
     { "path": "pages/recommend/recommend", "style": { "navigationBarTitleText": "院校池·冲稳保" } },
     { "path": "pages/plan/plan", "style": { "navigationBarTitleText": "志愿表" } },
-    { "path": "pages/majorGroup/majorGroup", "style": { "navigationBarTitleText": "院校专业组" } },
-    { "path": "pages/about/about", "style": { "navigationBarTitleText": "我的" } },
-    { "path": "pages/webview/webview", "style": { "navigationBarTitleText": "原始数据", "navigationBarTextStyle": "white", "navigationBarBackgroundColor": "#0f1115" } }
+    { "path": "pages/verify/verify", "style": { "navigationBarTitleText": "查专业·能上哪档" } },
+    { "path": "pages/about/about", "style": { "navigationBarTitleText": "我的" } }
+  ],
+  "subPackages": [
+    {
+      "root": "subpackages/compass",
+      "pages": [{ "path": "compass", "style": { "navigationBarTitleText": "历年省控线" } }]
+    },
+    {
+      "root": "subpackages/diagnose",
+      "pages": [{ "path": "diagnose", "style": { "navigationBarTitleText": "八连问·自我诊断" } }]
+    },
+    {
+      "root": "subpackages/graph",
+      "pages": [{ "path": "graph", "style": { "navigationBarTitleText": "专业图谱" } }]
+    },
+    {
+      "root": "subpackages/majorGroup",
+      "pages": [{ "path": "majorGroup", "style": { "navigationBarTitleText": "院校专业组" } }]
+    },
+    {
+      "root": "subpackages/webview",
+      "pages": [{ "path": "webview", "style": { "navigationBarTitleText": "原始数据", "navigationBarTextStyle": "white", "navigationBarBackgroundColor": "#0f1115" } }]
+    }
   ],
   "globalStyle": {
     "navigationBarTextStyle": "white",

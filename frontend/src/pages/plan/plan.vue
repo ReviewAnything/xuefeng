@@ -503,7 +503,7 @@ function goRecommend() {
   uni.switchTab({ url: "/pages/recommend/recommend" });
 }
 function goCompass() {
-  uni.navigateTo({ url: "/pages/compass/compass" });
+  uni.navigateTo({ url: "/subpackages/compass/compass" });
 }
 
 // S5-C 保底失守一键补位：拉取更低层次、用户位次可稳够的兜底院校并入「保」档。

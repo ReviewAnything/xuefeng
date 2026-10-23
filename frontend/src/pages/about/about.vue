@@ -241,23 +241,23 @@
 import { ref, computed } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
-import { APP_VERSION, DATA_DATE, CONTENT_SOURCE, RESOURCES, RES_CATS, MAJORS, SCHOOLS } from "@/utils/content.js";
+import { APP_VERSION, DATA_DATE, CONTENT_SOURCE, RESOURCES, RES_CATS, MAJORS, SCHOOLS, ensureContent } from "@/utils/content.js";
 import { themeVars, THEMES, setTheme } from "@/utils/theme.js";
 import { api } from "@/utils/api.js";
 import { PROFILE_OPTIONS, getProfile, setProfile } from "@/utils/profile.js";
 
-const version = APP_VERSION;
-const date = DATA_DATE;
-const majorCount = MAJORS.length;
-const schoolCount = SCHOOLS.length;
+const version = ref("");
+const date = ref("");
+const majorCount = ref(0);
+const schoolCount = ref(0);
 const open = ref("");
-const src = CONTENT_SOURCE;
+const src = ref({});
 
 const toast = useToast();
 const provinces = PROFILE_OPTIONS.provinces;
 const subjects = PROFILE_OPTIONS.subjects;
 const NO_MAJOR = "不限（用省份基线）";
-const majorOptions = [NO_MAJOR].concat(MAJORS.map((m) => m.name));
+const majorOptions = ref([]);
 
 const pf = ref({ province: "", subject: "", rank: "", major: NO_MAJOR });
 const saving = ref(false);
@@ -270,7 +270,8 @@ const hasProfile = computed(() => !!(pf.value.province && pf.value.subject && pf
 const adminPath = "/admin（后端服务地址后）";
 
 // 进入本页即同步全局档案与演示开关，保证「我的」始终反映当前状态
-onShow(() => {
+onShow(async () => {
+  await ensureContent();
   const p = getProfile();
   pf.value = {
     province: p.province || "",
@@ -281,6 +282,14 @@ onShow(() => {
   demoOn.value = api.isDemo();
   // 已有档案就默认收起表单（进页面先看摘要，不先看输入框）
   editing.value = !(p.province && p.subject && p.rank);
+  // 内容数据按需懒加载，onShow 里拿到后再填充（分包瘦身：避免主包打进 234KB JSON）
+  version.value = APP_VERSION;
+  date.value = DATA_DATE;
+  majorCount.value = MAJORS.length;
+  schoolCount.value = SCHOOLS.length;
+  src.value = CONTENT_SOURCE;
+  majorOptions.value = [NO_MAJOR].concat(MAJORS.map((m) => m.name));
+  resources.value = RESOURCES;
 });
 
 function cancelEdit() {
@@ -334,20 +343,21 @@ function pick(id) {
 /* 开源资源（原「资源」tab 已并入本页） */
 const resCats = RES_CATS;
 const cur = ref("all");
-const list = computed(() => RESOURCES.filter((r) => cur.value === "all" || r.cat === cur.value));
+const resources = ref([]);
+const list = computed(() => resources.value.filter((r) => cur.value === "all" || r.cat === cur.value));
 
 function goVerdict() {
   uni.switchTab({ url: "/pages/verdict/verdict" });
 }
 // 非 tab 页：专业图谱 / 八连问 / 历年省控线用 navigateTo
 function goGraph() {
-  uni.navigateTo({ url: "/pages/graph/graph" });
+  uni.navigateTo({ url: "/subpackages/graph/graph" });
 }
 function goDiagnose() {
-  uni.navigateTo({ url: "/pages/diagnose/diagnose" });
+  uni.navigateTo({ url: "/subpackages/diagnose/diagnose" });
 }
 function goCompass() {
-  uni.navigateTo({ url: "/pages/compass/compass" });
+  uni.navigateTo({ url: "/subpackages/compass/compass" });
 }
 function openLink(u) {
   // #ifdef H5

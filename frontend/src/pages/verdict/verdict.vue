@@ -389,10 +389,10 @@ function openPlan() {
 }
 
 function goDiagnose() {
-  uni.navigateTo({ url: "/pages/diagnose/diagnose" });
+  uni.navigateTo({ url: "/subpackages/diagnose/diagnose" });
 }
 function goCompass() {
-  uni.navigateTo({ url: "/pages/compass/compass" });
+  uni.navigateTo({ url: "/subpackages/compass/compass" });
 }
 </script>
 

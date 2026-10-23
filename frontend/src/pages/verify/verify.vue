@@ -304,7 +304,7 @@
 import { computed, reactive, ref, watch } from "vue";
 import { onLoad, onShow } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
-import { MAJORS } from "@/utils/content.js";
+import { MAJORS, ensureContent } from "@/utils/content.js";
 import { api } from "@/utils/api.js";
 import { themeVars } from "@/utils/theme.js";
 import { applyProfile, setProfile } from "@/utils/profile.js";
@@ -314,7 +314,7 @@ const toast = useToast();
 // 全国 31 省（与 admission_real_baseline.json 覆盖一致）
 const provinces = ["北京", "天津", "河北", "山西", "内蒙古", "辽宁", "吉林", "黑龙江", "上海", "江苏", "浙江", "安徽", "福建", "江西", "山东", "河南", "湖北", "湖南", "广东", "广西", "海南", "重庆", "四川", "贵州", "云南", "西藏", "陕西", "甘肃", "青海", "宁夏", "新疆"];
 const subjects = ["物理类", "历史类", "综合/未改革"];
-const majorNames = MAJORS.map((m) => m.name);
+const majorNames = ref([]);
 
 const p = reactive({ province: "", subject: "", user_rank: "", major_name: "" });
 const res = ref(null);
@@ -563,7 +563,9 @@ async function openOne(name) {
 }
 
 // 支持从「诊断画布」一键带入（省份/科类/位次/专业，或 batch=1 进入批量模式）
-onLoad((q) => {
+onLoad(async (q) => {
+  await ensureContent();
+  majorNames.value = MAJORS.map((m) => m.name);
   loadCanvas();
   // 优先带入全局档案（「我能上哪」已写入），外链参数再覆盖
   Object.assign(p, applyProfile(p));
@@ -615,7 +617,7 @@ function openRaw(url) {
     return;
   }
   uni.navigateTo({
-    url: "/pages/webview/webview?src=" + encodeURIComponent(url),
+    url: "/subpackages/webview/webview?src=" + encodeURIComponent(url),
     fail: () => {
       // 兜底：复制到剪贴板，便于在浏览器核验
       uni.setClipboardData({ data: url });

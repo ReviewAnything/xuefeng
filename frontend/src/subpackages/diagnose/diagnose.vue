@@ -107,14 +107,14 @@
 import { reactive, ref } from "vue";
 import { onLoad } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
-import { QUESTIONS, MAJORS } from "@/utils/content.js";
+import { QUESTIONS, MAJORS, ensureContent } from "@/utils/content.js";
 import { buildCanvas } from "@/utils/engine.js";
 import { api } from "@/utils/api.js";
 import { themeVars } from "@/utils/theme.js";
 import { getProfile, setProfile } from "@/utils/profile.js";
 
 const toast = useToast();
-const questions = QUESTIONS;
+const questions = ref([]);
 const form = reactive({});
 const rankInput = ref("");
 const canvas = ref(null);
@@ -128,9 +128,10 @@ const groups = [
   { key: "safe", title: "保（兜底）" },
 ];
 
-QUESTIONS.forEach((q) => (form[q.id] = ""));
-
-onLoad(() => {
+onLoad(async () => {
+  await ensureContent();
+  QUESTIONS.forEach((q) => (form[q.id] = ""));
+  questions.value = QUESTIONS;
   const saved = uni.getStorageSync("zhiyuan_profile_v2") || {};
   Object.assign(form, saved);
   rankInput.value = saved._rank || "";
@@ -216,7 +217,7 @@ function goRecommend() {
 // 进入「院校专业组」页，按当前选科查看专业组结构
 function goGroups() {
   const q = form.subject ? `?subject=${encodeURIComponent(form.subject)}` : "";
-  uni.navigateTo({ url: `/pages/majorGroup/majorGroup${q}` });
+  uni.navigateTo({ url: `/subpackages/majorGroup/majorGroup${q}` });
 }
 
 async function enrich() {

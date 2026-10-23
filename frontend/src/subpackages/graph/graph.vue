@@ -196,15 +196,23 @@
 
 <script setup>
 import { ref, computed, reactive } from "vue";
+import { onLoad } from "@dcloudio/uni-app";
 import { useToast } from "wot-design-uni";
-import { MAJORS, CATS, VIEW_LABEL, SCHOOL_GRAPH, GLOSSARY } from "@/utils/content.js";
+import { CATS, VIEW_LABEL, ensureContent } from "@/utils/content.js";
 import { themeVars } from "@/utils/theme.js";
 
 const toast = useToast();
-const meta = SCHOOL_GRAPH.meta;
-const tiers = SCHOOL_GRAPH.tiers;
-const leagues = SCHOOL_GRAPH.leagues;
-const allSchools = SCHOOL_GRAPH.schools;
+
+// P1 分包瘦身：SCHOOL_GRAPH / GLOSSARY / MAJORS 等大体积数据按需懒加载（见 onLoad），
+// 不进主包初始体积。以下用 ref 承接，确保 ensureContent() 后响应式刷新（computed 依赖这些 ref）。
+const meta = ref({});
+const tiers = ref([]);
+const leagues = ref([]);
+const allSchools = ref([]);
+const MAJORS_DATA = ref([]);
+const glossaryNodes = ref([]);
+const glossaryEdges = ref([]);
+const termCatData = ref([]);
 
 const segs = [
   { key: "major", name: "专业图谱" },
@@ -218,7 +226,7 @@ const cats = ["全部", ...CATS];
 const cur = ref("全部");
 const kw = ref("");
 const majors = computed(() =>
-  MAJORS.filter(
+  MAJORS_DATA.value.filter(
     (m) =>
       (cur.value === "全部" || m.cat === cur.value) &&
       (!kw.value || (m.name + m.tags.join("") + m.reason).includes(kw.value))
@@ -242,20 +250,20 @@ const skw = ref("");
 
 const groupIndex = computed(() => {
   const map = {};
-  tiers.forEach((t) => { map[t.key] = { ...t, kind: "tier" }; });
-  leagues.forEach((l) => { map[l.key] = { ...l, kind: "league" }; });
+  tiers.value.forEach((t) => { map[t.key] = { ...t, kind: "tier" }; });
+  leagues.value.forEach((l) => { map[l.key] = { ...l, kind: "league" }; });
   return map;
 });
 const groups = computed(() => [
-  { key: "all", name: "全部", count: allSchools.length },
-  ...tiers.map((t) => ({ key: t.key, name: t.name, count: t.count })),
-  ...leagues.map((l) => ({ key: l.key, name: l.name, count: l.count })),
+  { key: "all", name: "全部", count: allSchools.value.length },
+  ...tiers.value.map((t) => ({ key: t.key, name: t.name, count: t.count })),
+  ...leagues.value.map((l) => ({ key: l.key, name: l.name, count: l.count })),
 ]);
 const activeGroup = computed(() =>
   curGroup.value === "all" ? null : groupIndex.value[curGroup.value] || null
 );
 const schools = computed(() =>
-  allSchools.filter(
+  allSchools.value.filter(
     (s) =>
       (curGroup.value === "all" || s.groups.indexOf(curGroup.value) >= 0) &&
       (curProv.value === "全部省份" || s.province === curProv.value) &&
@@ -286,7 +294,7 @@ function groupNames(s) {
       out.push({ key: k, name: k === "dfc" ? "双一流" : t.name.replace(" 工程", ""), cls: "tier" });
     }
   });
-  leagues.forEach((l) => {
+  leagues.value.forEach((l) => {
     if (s.groups.indexOf(l.key) >= 0) out.push({ key: l.key, name: l.name, cls: "league" });
   });
   return out;
@@ -301,7 +309,7 @@ function open(u) {
 }
 
 /* ---------- 术语图谱 ---------- */
-const termCats = ["全部", ...GLOSSARY.meta.categories];
+const termCats = computed(() => ["全部", ...termCatData.value]);
 const curTermCat = ref("全部");
 const tkw = ref("");
 const termView = ref("terms");
@@ -312,18 +320,18 @@ const termSegs = [
 const openSys = reactive({});
 const termIndex = computed(() => {
   const m = {};
-  GLOSSARY.nodes.forEach((n) => { m[n.id] = n; });
+  glossaryNodes.value.forEach((n) => { m[n.id] = n; });
   return m;
 });
 const filteredTerms = computed(() =>
-  GLOSSARY.nodes.filter(
+  glossaryNodes.value.filter(
     (n) =>
       (curTermCat.value === "全部" || n.category === curTermCat.value) &&
       (!tkw.value || (n.term + (n.aka || []).join("") + n.definition).includes(tkw.value))
   )
 );
 const filteredEdges = computed(() =>
-  GLOSSARY.edges.filter((e) => {
+  glossaryEdges.value.filter((e) => {
     const s = termIndex.value[e.source];
     const t = termIndex.value[e.target];
     if (curTermCat.value !== "全部") {
@@ -364,6 +372,21 @@ function jumpTo(id) {
   tkw.value = termName(id);
   termView.value = "terms";
 }
+
+/* ---------- 懒加载：进入页面后按需拉取大体积内容数据（分包瘦身核心） ---------- */
+onLoad(async () => {
+  const data = await ensureContent();
+  const sg = data.SCHOOL_GRAPH || {};
+  meta.value = sg.meta || {};
+  tiers.value = sg.tiers || [];
+  leagues.value = sg.leagues || [];
+  allSchools.value = sg.schools || [];
+  const gl = data.GLOSSARY || {};
+  glossaryNodes.value = gl.nodes || [];
+  glossaryEdges.value = gl.edges || [];
+  termCatData.value = (gl.meta && gl.meta.categories) || [];
+  MAJORS_DATA.value = data.MAJORS || [];
+});
 </script>
 
 <style scoped>

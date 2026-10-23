@@ -3,14 +3,8 @@
 // 不再在各页重复索要。仅存端侧存储，不上传。
 const KEY = "zhiyuan_profile_v1";
 
-export const PROFILE_OPTIONS = {
-  provinces: [
-    "北京", "天津", "河北", "山西", "内蒙古", "辽宁", "吉林", "黑龙江", "上海",
-    "江苏", "浙江", "安徽", "福建", "江西", "山东", "河南", "湖北", "湖南", "广东", "广西",
-    "海南", "重庆", "四川", "贵州", "云南", "西藏", "陕西", "甘肃", "青海", "宁夏", "新疆",
-  ],
-  subjects: ["物理类", "历史类", "综合/未改革"],
-};
+// PROFILE_OPTIONS 已迁移至 src/constants/index.ts（对齐伯乐目录结构），此处重导出以兼容旧引用。
+export { PROFILE_OPTIONS } from "@/constants";
 
 export function getProfile() {
   try {
