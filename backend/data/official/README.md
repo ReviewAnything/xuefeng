@@ -48,6 +48,13 @@
 按 `(year, province, subject, university, group_code)` 唯一键 upsert：
 重复落库只更新变化的行，不重复插入；变化会写进 `data_changes` 留痕。
 
+## 存档（P2）
+
+落库成功后，原表字节会按 sha256 前缀命名存入本目录下的 `archive/`
+（如 `archive/4e9d1af9e1e2c263-gd_2024.xlsx`，gitignore 不入库）。
+考试院原表链接经常改版失效，存档保证「每行 official 都能复核到原始文件」；
+溯源台账 `sources.json` 的 `archive` 字段记录对应存档路径。
+
 ## 示例（JSON，勿直接照抄数据）
 
 ```json

@@ -554,7 +554,9 @@ def official_coverage() -> dict:
 def map_for(province: str, subject: str, names: list[str], year: int = None) -> dict:
     """给推荐用：一次取出某省/科类的院校线，返回 {校名: 记录}。
 
-    同一院校多年数据时取「最新年份、位次最优（数值最小）」的一条。
+    同一院校多条记录时按「最新年份 → 官方优先 → 位次最优（数值最小）」挑一条：
+    同年同校的 official 行与 estimated_real 行并存时（如层次占位行 vs 抓取行），
+    以官方口径优先，避免估算值遮蔽官方值；data_source 透传真实来源。
     """
     if not names:
         return {}
@@ -571,8 +573,12 @@ def map_for(province: str, subject: str, names: list[str], year: int = None) -> 
             continue
         cur = out.get(r.university)
         cand = {"year": r.year, "min_score": r.min_score, "min_rank": r.min_rank,
-                "group_code": r.group_code, "batch": r.batch, "data_source": "school_line"}
-        if cur is None or (cand["year"], -cand["min_rank"]) > (cur["year"], -cur["min_rank"]):
+                "group_code": r.group_code, "batch": r.batch,
+                "data_source": r.data_source or "school_line"}
+        # 元组越大越优：年份新 → official 优先 → 位次数值小（门槛低）
+        cand_key = (cand["year"], cand["data_source"] == "official", -cand["min_rank"])
+        if cur is None or cand_key > (cur["year"], cur["data_source"] == "official",
+                                      -cur["min_rank"]):
             out[r.university] = cand
     return out
 
@@ -596,6 +602,9 @@ OFFICIAL_ADMISSION = os.path.join(DATA_DIR, "admission_official_2024.json")
 # S7-A：官方逐校投档线落地区。运营把各省考试院原表放进来，一键落库即可识别；
 # 仓库不预置任何「官方」数据文件，缺 source_url 的行一律拒收（见 validate_official_rows）。
 OFFICIAL_DIR = os.path.join(DATA_DIR, "official")
+# P2：官方原表留档区。考试院链接经常改版失效，落库成功后把原表字节按 sha256 留档，
+# 让「真实性」不依赖外链存活——与 S6 收编 estimated 种子是同一个自持思路。
+OFFICIAL_ARCHIVE_DIR = os.path.join(OFFICIAL_DIR, "archive")
 
 _URL_RE = re.compile(r"https?://[^\s；;，,）)]+")
 
@@ -978,13 +987,14 @@ def official_registry() -> dict:
 def record_official_source(filename: str, province: str = "", year: int | None = None,
                            subject: str = "", source_url: str = "", source_org: str = "",
                            rows: int = 0, rejected: int = 0, sha256: str = "",
-                           operator: str = "system") -> dict:
+                           archive: str = "", operator: str = "system") -> dict:
     """登记一条官方文件溯源（按文件名去重，重复登记只更新）。"""
     reg = official_registry()
     entry = {
         "file": filename, "province": province, "year": year, "subject": subject,
         "source_url": source_url, "source_org": source_org, "rows": int(rows or 0),
-        "rejected": int(rejected or 0), "sha256": sha256, "operator": operator,
+        "rejected": int(rejected or 0), "sha256": sha256, "archive": archive,
+        "operator": operator,
         "imported_at": datetime.now(timezone.utc).isoformat(),
     }
     items = [it for it in reg["files"] if it.get("file") != filename]
@@ -1046,10 +1056,12 @@ def parse_official_table(raw: bytes, filename: str = "",
 
 def import_official_table(raw: bytes, filename: str = "", defaults: dict | None = None,
                           dry_run: bool = True, operator: str = "admin",
-                          register: bool = True) -> dict:
+                          register: bool = True, archive: bool = True) -> dict:
     """官方原表一键落库（S8-A）：解析 → 强校验 → 幂等写 official → 写溯源台账。
 
     ``dry_run=True`` 只报「可落库 / 拒收」明细，不写库也不登记。
+    P2 增补：落库成功后把原表字节按 sha256 留档进 ``data/official/archive/``，
+    考试院链接失效后仍可复核（``archive=False`` 可关闭）。
     """
     parsed = parse_official_table(raw, filename, defaults)
     if not parsed.get("ok"):
@@ -1062,15 +1074,39 @@ def import_official_table(raw: bytes, filename: str = "", defaults: dict | None 
     report["parsed"] = parsed["parsed"]
     report["format"] = parsed.get("format", "")
     if register and not dry_run and report.get("ok") and report.get("inserted", 0) + report.get("updated", 0) > 0:
+        digest = sha256_bytes(raw)
+        archive_path = archive_official_table(raw, filename, digest) if archive else ""
         rec = record_official_source(
             filename=filename or "upload", province=parsed["defaults"].get("province", ""),
             year=parsed["defaults"].get("year"), subject=parsed["defaults"].get("subject", ""),
             source_url=parsed["defaults"].get("source_url", ""),
             source_org=parsed["defaults"].get("source_org", ""),
             rows=report.get("accepted", 0), rejected=report.get("rejected", 0),
-            sha256=sha256_bytes(raw), operator=operator)
+            sha256=digest, archive=archive_path, operator=operator)
         report["registry"] = rec
+        if archive_path:
+            report["archive"] = archive_path
     return report
+
+
+def archive_official_table(raw: bytes, filename: str, sha256: str = "") -> str:
+    """把官方原表字节留档（P2）：按 sha256 前缀命名，重复落库不重复写。
+
+    返回相对 ``data/`` 的存档路径；写失败不阻断落库，返回空串并在调用方如实上报。
+    """
+    if not raw:
+        return ""
+    digest = sha256 or sha256_bytes(raw)
+    safe = os.path.basename(filename or "upload").replace("\\", "_") or "upload"
+    try:
+        os.makedirs(OFFICIAL_ARCHIVE_DIR, exist_ok=True)
+        dst = os.path.join(OFFICIAL_ARCHIVE_DIR, f"{digest[:16]}-{safe}")
+        if not os.path.exists(dst):
+            with open(dst, "wb") as f:
+                f.write(raw)
+        return os.path.relpath(dst, DATA_DIR)
+    except OSError:
+        return ""
 
 
 def import_official(rows: list[dict], defaults: dict | None = None, dry_run: bool = True,
@@ -1078,14 +1114,20 @@ def import_official(rows: list[dict], defaults: dict | None = None, dry_run: boo
     """官方原表一键落库（S7-A）：强校验 → 幂等写 ``data_source=official``。
 
     ``dry_run=True`` 只报「可落库 / 拒收」明细，不写库。
+    P2 增补：对可落库行做「分数 ↔ 位次」交叉校验（用当年一分一段表反查），
+    偏差超阈值的行把疑点写进行备注（commit 时随行落库，dry-run 时仅供预览）。
     """
     res = validate_official_rows(rows, defaults)
+    from services import data_quality as DQ  # 局部导入避免环
+    cross = DQ.annotate_cross_check(res["accepted"])
     report = {
         "ok": True, "dry_run": dry_run, "operator": operator,
         "total": res["total"], "accepted": len(res["accepted"]), "rejected": len(res["rejected"]),
         "inserted": 0, "updated": 0, "unchanged": 0,
         "provenance_warnings": len(res["provenance_warnings"]),
         "rejected_samples": res["rejected"][:20],
+        "cross_check": {"checked": cross["checked"], "warnings": len(cross["warnings"]),
+                        "samples": cross["warnings"][:20]},
     }
     if dry_run or not res["accepted"]:
         return report

@@ -151,6 +151,7 @@ const app = createApp({
       { key: "versions", label: "数据版本", icon: "database", title: "数据版本", desc: "年度更新：建草稿 → 校验 → 发布；支持补丁、审计与回滚" },
       { key: "sync", label: "数据同步", icon: "sync", title: "数据同步", desc: "静态数据源 → 数据库的幂等同步" },
       { key: "lines", label: "校线导入", icon: "upload", title: "院校投档线导入", desc: "上传各省投档表（CSV/XLSX），校名匹配后落库；先预览再入库" },
+      { key: "acquisition", label: "采集台账", icon: "database", title: "年度采集台账", desc: "31 省 × 年份 × 数据类：官方数据采集进度与库内实测覆盖，缺哪补哪；含一键体检" },
       { key: "events", label: "查询日志", icon: "list", title: "查询日志", desc: "匿名记录核验 / 检索调用，用于产品分析" },
       { key: "settings", label: "系统设置", icon: "settings", title: "系统设置", desc: "账号安全与运行环境" },
     ];
@@ -924,6 +925,105 @@ const app = createApp({
       }
     }
 
+    /* ---------- 年度采集台账（P0）+ 数据体检（P2） ---------- */
+    const acqMatrix = ref(null);
+    const acqYear = ref(null);
+    const acqDialog = ref(false);
+    const acqSaving = ref(false);
+    const acqForm = reactive({ year: null, province: "", category: "", status: "pending",
+      source_url: "", source_org: "", note: "" });
+    const quality = ref(null);
+    const qualityLoading = ref(false);
+
+    const acqCategoryKeys = computed(() => Object.keys((acqMatrix.value || {}).categories || {}));
+    const acqDialogLabel = computed(() => (acqForm.province
+      ? `${acqForm.year} 年 · ${acqForm.province}` : "登记采集进度"));
+
+    function acqCategoryLabel(cat) {
+      const m = acqMatrix.value;
+      return (m && m.categories && m.categories[cat]) || cat;
+    }
+    function acqStatusLabel(status) {
+      const m = acqMatrix.value;
+      return (m && m.statuses && m.statuses[status]) || status;
+    }
+    function acqTagType(status) {
+      return { pending: "info", collected: "warning", ingested: "success", na: "info" }[status] || "info";
+    }
+    function acqActualText(cell) {
+      if (!cell || !cell.actual && !cell.rows) return "";
+      const info = cell.actual || cell;
+      if (info.subjects) return `· ${info.subjects.join("/")}`;
+      if (info.rows != null) return `· ${info.rows} 行`;
+      return "";
+    }
+
+    const acqRows = computed(() => {
+      const m = acqMatrix.value;
+      if (!m || !m.provinces) return [];
+      const year = acqYear.value || (m.years && m.years[0]);
+      return m.provinces.map((p) => {
+        const row = { province: p };
+        acqCategoryKeys.value.forEach((cat) => {
+          row[cat] = (m.cells && m.cells[`${year}|${p}|${cat}`]) || null;
+        });
+        return row;
+      });
+    });
+
+    async function loadAcquisition() {
+      try {
+        const data = await api("/api/admin/acquisition");
+        acqMatrix.value = data;
+        if (!acqYear.value || !data.years.includes(acqYear.value)) {
+          acqYear.value = data.years[0] || null;
+        }
+      } catch (_) { /* 未登录/无权限时静默 */ }
+    }
+
+    function openAcqCell(province, category) {
+      const m = acqMatrix.value;
+      const year = acqYear.value || (m && m.years && m.years[0]);
+      const cell = (m && m.cells && m.cells[`${year}|${province}|${category}`]) || null;
+      acqForm.year = year;
+      acqForm.province = province;
+      acqForm.category = category;
+      acqForm.status = (cell && cell.status) || "pending";
+      acqForm.source_url = (cell && cell.source_url) || "";
+      acqForm.source_org = (cell && cell.source_org) || "";
+      acqForm.note = (cell && cell.note) || "";
+      acqDialog.value = true;
+    }
+
+    async function saveAcqCell() {
+      acqSaving.value = true;
+      try {
+        await api("/api/admin/acquisition", {
+          method: "POST",
+          body: JSON.stringify({ ...acqForm, year: Number(acqForm.year) }),
+        });
+        ElMessage.success("已登记");
+        acqDialog.value = false;
+        await loadAcquisition();
+      } catch (e) {
+        ElMessage.error(e.message);
+      } finally {
+        acqSaving.value = false;
+      }
+    }
+
+    async function runQuality() {
+      qualityLoading.value = true;
+      try {
+        quality.value = await api("/api/admin/data-quality");
+        ElMessage.success("体检完成");
+      } catch (e) {
+        ElMessage.error(e.message);
+      } finally {
+        qualityLoading.value = false;
+      }
+    }
+
     /* ---------- 通用 ---------- */
     async function refreshAll() {
       if (!token.value) return;
@@ -971,6 +1071,7 @@ const app = createApp({
         if (p === "versions") await loadVersions();
         if (p === "sync") await Promise.all([loadSources(), loadJobs(), loadSyncTargets()]);
         if (p === "lines") await Promise.all([loadLineCoverage(), loadSeedStatus(), loadOfficialStatus(), loadOfficialSources(), loadRankProvinces()]);
+        if (p === "acquisition") await loadAcquisition();
         if (p === "events") await loadEvents();
         if (p === "settings") await Promise.all([loadProfile(), loadDbConfig()]);
       } catch (e) {
@@ -1004,6 +1105,9 @@ const app = createApp({
       officialSources, loadOfficialSources,
       rankProvs, rankCounts, rankSyncing, rankReport, rankReportText,
       loadRankProvinces, syncProvince, rankTagType, rankStatusLabel,
+      acqMatrix, acqYear, acqDialog, acqSaving, acqForm, quality, qualityLoading,
+      acqCategoryKeys, acqDialogLabel, acqCategoryLabel, acqStatusLabel, acqTagType,
+      acqActualText, acqRows, loadAcquisition, openAcqCell, saveAcqCell, runQuality,
       pwdForm, pwdLoading, changePassword,
       dbState, dbForm, dbDialects, dbResult, dbResultTitle, dbTesting, dbApplying, dbResetting,
       loadDbConfig, onDialectChange, testDb, applyDb, resetDb,

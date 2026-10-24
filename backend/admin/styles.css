@@ -379,3 +379,6 @@ html.dark {
 .line-alert { margin-bottom: 12px; }
 .line-block { margin-top: 16px; }
 .line-block > h4 { margin: 0 0 8px; font-size: 13px; color: var(--muted); font-weight: 600; }
+
+/* 采集台账（P0） */
+.acq-actual { margin-left: 6px; color: var(--muted); font-size: 12px; }

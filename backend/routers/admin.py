@@ -16,8 +16,10 @@ from db import repository as repo
 from db.database import session_scope
 from db.models import AdminUser
 from db import seed as seed_mod
+from services import acquisition as ACQ
 from services import admission as A
 from services import admin_auth as auth
+from services import data_quality as DQ
 from services import data_sync as DS
 from services import data_versions as DV
 from services import db_config as DBC
@@ -760,6 +762,45 @@ def admin_rank_sync_status(admin: dict = Depends(auth.require_admin)):
     import rank_sync
 
     return {"ok": True, **rank_sync.status()}
+
+
+# ---------------------------------------------------------------- 年度采集台账（P0）
+
+class AcquisitionUpdate(BaseModel):
+    """采集进度登记：按 年|省|数据类 幂等更新一格。"""
+    year: int = Field(ge=2000, le=2100)
+    province: str = Field(min_length=2, max_length=8)
+    category: str            # control_lines / school_lines / rank_table
+    status: str              # pending / collected / ingested / na
+    source_url: str = ""
+    source_org: str = ""
+    note: str = ""
+
+
+@router.get("/acquisition")
+def get_acquisition(admin: dict = Depends(auth.require_admin)):
+    """采集台账矩阵：31 省 × 年份 × 数据类，登记状态 + 库内实测覆盖。"""
+    return {"ok": True, **ACQ.matrix()}
+
+
+@router.post("/acquisition")
+def update_acquisition(req: AcquisitionUpdate,
+                       admin: dict = Depends(auth.require_admin_ready)):
+    """登记/更新一格采集进度（录取季逐格补录，缺哪补哪）。"""
+    result = ACQ.upsert(req.year, req.province, req.category, req.status,
+                        source_url=req.source_url, source_org=req.source_org,
+                        note=req.note, operator=admin["username"])
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error") or "登记失败")
+    return result
+
+
+# ---------------------------------------------------------------- 数据体检（P2）
+
+@router.get("/data-quality")
+def data_quality_report(admin: dict = Depends(auth.require_admin)):
+    """一键体检：官方覆盖 / 溯源台账 / 落地区待办 / 位次交叉校验复检 / 跨年突变 / 种子一致性。"""
+    return {"ok": True, **DQ.health_report()}
 
 
 # ---------------------------------------------------------------- 导出

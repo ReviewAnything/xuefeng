@@ -159,7 +159,7 @@ def test_public_api_query_and_coverage():
 
 
 def test_recommend_attaches_school_line():
-    """导入校线后，推荐结果里对应院校应带 min_score/min_rank 且标 school_line。"""
+    """导入校线后，推荐结果里对应院校应带 min_score/min_rank 且透传真实来源。"""
     _cleanup()
     _import(dry_run=False)
     r = c.get("/api/recommend/schools", params={"province": PROVINCE, "subject": SUBJECT,
@@ -168,7 +168,8 @@ def test_recommend_attaches_school_line():
     j = r.json()
     assert j["school_line_hits"] >= 1
     hit = next(s for t in j["tiers"] for s in t["schools"] if s["name"] == "清华大学")
-    assert hit["data_source"] == "school_line"
+    # 导入时带了 source_url，行走 official 口径：来源应透传而非写死 school_line
+    assert hit["data_source"] == "official"
     assert hit["min_score"] == 690 and hit["min_rank"] == 120
     assert hit["line_year"] == YEAR
     assert any("已匹配到院校级投档线" in n for n in j["notes"])

@@ -993,6 +993,153 @@
           </div>
         </section>
 
+        <!-- ---------------- 采集台账（P0）+ 数据体检（P2） ---------------- -->
+        <section v-if="page === 'acquisition'" class="page">
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h3>年度采集矩阵</h3>
+                <p>31 省 × 数据类：登记的采集进度 + 库内实测覆盖；点击格子登记/更新进度</p>
+              </div>
+              <div>
+                <el-select v-model="acqYear" size="small" style="width: 110px">
+                  <el-option v-for="y in (acqMatrix ? acqMatrix.years : [])" :key="y"
+                             :label="y + ' 年'" :value="y"></el-option>
+                </el-select>
+                <el-button size="small" @click="loadAcquisition">刷新</el-button>
+              </div>
+            </div>
+
+            <p class="hint">
+              图例：<el-tag size="small" type="info" effect="plain">待采集</el-tag>
+              <el-tag size="small" type="warning" effect="plain">已采集</el-tag>
+              <el-tag size="small" type="success" effect="plain">已落库</el-tag>
+              <el-tag size="small" type="info" effect="plain">当年无公布</el-tag>
+              ·「已落库」格子同时显示库内实测行数；状态与实测不符时以实测为准。
+              采集窗口为每年 6 月底至 8 月上旬，详见 docs/data-acquisition.md。
+            </p>
+
+            <el-table :data="acqRows" size="small" max-height="560">
+              <el-table-column prop="province" label="省份" width="90" fixed></el-table-column>
+              <el-table-column v-for="cat in acqCategoryKeys" :key="cat" :label="acqCategoryLabel(cat)" min-width="170">
+                <template #default="s">
+                  <el-button v-if="s.row[cat]" link size="small" @click="openAcqCell(s.row.province, cat)">
+                    <el-tag size="small" :type="acqTagType(s.row[cat].status)" effect="plain">
+                      {{ acqStatusLabel(s.row[cat].status) }}
+                    </el-tag>
+                    <span class="acq-actual" v-if="acqActualText(s.row[cat])">{{ acqActualText(s.row[cat]) }}</span>
+                  </el-button>
+                  <el-button v-else link size="small" type="primary" plain @click="openAcqCell(s.row.province, cat)">
+                    登记
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+
+          <el-dialog v-model="acqDialog" :title="acqDialogLabel" width="520px">
+            <el-form label-width="92px">
+              <el-form-item label="定位">
+                <span>{{ acqForm.year }} 年 · {{ acqForm.province }} · {{ acqCategoryLabel(acqForm.category) }}</span>
+              </el-form-item>
+              <el-form-item label="状态">
+                <el-radio-group v-model="acqForm.status">
+                  <el-radio v-for="(label, key) in (acqMatrix ? acqMatrix.statuses : {})" :key="key"
+                            :value="key">{{ label }}</el-radio>
+                </el-radio-group>
+              </el-form-item>
+              <el-form-item label="来源链接">
+                <el-input v-model="acqForm.source_url" placeholder="https://…（考试院原表地址）"></el-input>
+              </el-form-item>
+              <el-form-item label="发布机构">
+                <el-input v-model="acqForm.source_org" placeholder="如 广东省教育考试院"></el-input>
+              </el-form-item>
+              <el-form-item label="备注">
+                <el-input v-model="acqForm.note" type="textarea" :rows="2"
+                          placeholder="如：PDF 需人工转 XLSX；附件在考试院「普高处」栏目"></el-input>
+              </el-form-item>
+            </el-form>
+            <template #footer>
+              <el-button @click="acqDialog = false">取消</el-button>
+              <el-button type="primary" :loading="acqSaving" @click="saveAcqCell">保存</el-button>
+            </template>
+          </el-dialog>
+
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h3>数据体检</h3>
+                <p>官方覆盖 · 位次交叉校验复检 · 跨年突变 · 溯源台账 · 种子一致性</p>
+              </div>
+              <el-button size="small" type="primary" plain :loading="qualityLoading" @click="runQuality">
+                运行体检
+              </el-button>
+            </div>
+
+            <template v-if="quality">
+              <el-descriptions :column="4" border size="small" class="line-desc">
+                <el-descriptions-item label="校线总行数">{{ quality.school_lines.total }}</el-descriptions-item>
+                <el-descriptions-item label="official 行">{{ quality.school_lines.official }}</el-descriptions-item>
+                <el-descriptions-item label="官方覆盖专业组">
+                  {{ quality.school_lines.official_coverage.groups.official }} /
+                  {{ quality.school_lines.official_coverage.groups.total }}
+                  （{{ quality.school_lines.official_coverage.groups.ratio_pct }}%）
+                </el-descriptions-item>
+                <el-descriptions-item label="种子一致性">
+                  <el-tag size="small" :type="quality.seed.ok ? 'success' : 'danger'" effect="plain">
+                    {{ quality.seed.ok ? '通过' : '异常' }}
+                  </el-tag>
+                </el-descriptions-item>
+                <el-descriptions-item label="溯源台账文件">{{ quality.official_sources.count }}</el-descriptions-item>
+                <el-descriptions-item label="落地区待落库">{{ quality.official_landing.accepted }}</el-descriptions-item>
+                <el-descriptions-item label="交叉校验告警">
+                  {{ quality.cross_check.warnings }} / 可比 {{ quality.cross_check.checked }}
+                </el-descriptions-item>
+                <el-descriptions-item label="跨年突变">{{ quality.year_over_year_anomalies.count }}</el-descriptions-item>
+              </el-descriptions>
+
+              <div class="line-block" v-if="quality.cross_check.samples.length">
+                <h4>位次交叉校验告警（前 20 条）</h4>
+                <el-table :data="quality.cross_check.samples" size="small" max-height="240">
+                  <el-table-column prop="year" label="年份" width="80"></el-table-column>
+                  <el-table-column prop="province" label="省份" width="86"></el-table-column>
+                  <el-table-column prop="university" label="院校" min-width="180"></el-table-column>
+                  <el-table-column prop="min_score" label="分数" width="80" align="right"></el-table-column>
+                  <el-table-column prop="min_rank" label="原表位次" width="100" align="right"></el-table-column>
+                  <el-table-column prop="expected_rank" label="一分一段位次" width="120" align="right"></el-table-column>
+                  <el-table-column label="偏差" width="90" align="right">
+                    <template #default="s">{{ Math.round(s.row.deviation * 100) }}%</template>
+                  </el-table-column>
+                </el-table>
+              </div>
+
+              <div class="line-block" v-if="quality.year_over_year_anomalies.samples.length">
+                <h4>跨年位次突变（前 50 条，> {{ quality.year_over_year_anomalies.threshold_pct }}%）</h4>
+                <el-table :data="quality.year_over_year_anomalies.samples" size="small" max-height="260">
+                  <el-table-column prop="province" label="省份" width="86"></el-table-column>
+                  <el-table-column prop="subject" label="科类" width="90"></el-table-column>
+                  <el-table-column prop="university" label="院校" min-width="180"></el-table-column>
+                  <el-table-column prop="group_code" label="专业组" width="100"></el-table-column>
+                  <el-table-column label="位次变化" min-width="170">
+                    <template #default="s">
+                      {{ s.row.from_year }}：{{ s.row.from_rank }} → {{ s.row.to_year }}：{{ s.row.to_rank }}
+                      （{{ s.row.change_pct }}%）
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="sources" label="来源" min-width="150"></el-table-column>
+                </el-table>
+              </div>
+
+              <p class="hint">
+                交叉校验：official 行的最低分经该省当年一分一段表反查位次，与原表位次偏差超
+                {{ quality.cross_check.threshold_pct }}% 即告警（不阻断落库，疑点写进行备注）。
+                「无表可比」的行不计入（该省该年一分一段表尚未同步）。
+              </p>
+            </template>
+            <el-empty v-else description="点击「运行体检」生成数据质量报告" :image-size="60"></el-empty>
+          </div>
+        </section>
+
         <!-- ---------------- 查询日志 ---------------- -->
         <section v-if="page === 'events'" class="page">
           <div class="mini-stats">

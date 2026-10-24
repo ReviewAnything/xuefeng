@@ -33,3 +33,9 @@ __pycache__/
 
 # 一分一段按省同步的运行期台账（非数据源，状态可由看板重算）
 backend/data/rank_tables/_sync_status.json
+
+# 官方原表留档（P2：sha256 命名的原表副本，体积大且为运行时产物，不入库）
+/backend/data/official/archive/
+
+# 年度采集台账（P0：运行时登记的采集进度，非数据源）
+/backend/data/acquisition_ledger.json
