@@ -28,9 +28,9 @@ def _tmpdir(tag: str) -> str:
 
 def _mkrow(university: str, group_code: str, rank: int, source: str,
            year: int = YEAR, province: str = "河南", subject: str = "物理类",
-           score: int = 600) -> SchoolLine:
+           score: int = 600, batch: str = "普通类本科批") -> SchoolLine:
     return SchoolLine(
-        year=year, province=province, subject=subject, batch="普通类本科批",
+        year=year, province=province, subject=subject, batch=batch,
         university=university, university_input=university, group_code=group_code,
         min_score=score, min_rank=rank, data_source=source, match_method="exact",
         source_url="https://example.gov.cn/t" if source == "official" else "",
@@ -173,6 +173,84 @@ def test_acquisition_api(monkeypatch):
     assert r3.status_code == 400
 
 
+# ---------------------------------------------------------------- 审核报告回归（M07/M09/M15/局限②）
+
+def test_mixed_grade_reachable():
+    """M07 回归：official 与 estimated_real 并存时权威等级必须是 mixed（原短路写法不可达）。"""
+    _cleanup_lines()
+    try:
+        with session_scope() as s:
+            s.add(_mkrow("混合大学", "01", 30000, "estimated_real"))
+            s.add(_mkrow("混合大学", "官方投档", 50000, "official"))
+        counts = SL.source_counts()
+        assert counts["official"] >= 1 and counts["estimated_real"] >= 1
+        assert counts["grade"] == "mixed", "两种来源并存必须判 mixed"
+    finally:
+        _cleanup_lines()
+    assert SL.source_counts()["grade"] != "official"
+
+
+def test_real_reachability_pins_single_year():
+    """M09 回归：可及性比较必须钉在单一年份（缺省=最新年），跨年行不参与。"""
+    from services import verify as V
+    _cleanup_lines()
+    try:
+        with session_scope() as s:
+            s.add(_mkrow("新年大学", "01", 11000, "estimated_real", year=2096,
+                         province="西藏"))
+            s.add(_mkrow("新年学院", "02", 15000, "estimated_real", year=2096,
+                         province="西藏"))
+            s.add(_mkrow("新年学院", "03", 19000, "estimated_real", year=2096,
+                         province="西藏"))
+            s.add(_mkrow("旧年大学", "04", 500, "estimated_real", year=2095,
+                         province="西藏"))
+        real = V.real_reachability("西藏", "物理类", 20000)
+        assert real is not None
+        assert real["year"] == 2096, "缺省应钉在最新年"
+        assert real["total_lines"] == 3, "跨年行不得混入位次比较"
+        assert all(r["year"] == 2096 for r in real["reachable_sample"])
+        old = V.real_reachability("西藏", "物理类", 20000, year=2095)
+        assert old is not None and old["total_lines"] == 1
+        assert old["year"] == 2095
+    finally:
+        _cleanup_lines()
+
+
+def test_expected_rank_respects_batch(monkeypatch):
+    """审核局限②回归：专科批用 cum_zhuan 反查，本科批用 cum_ben。"""
+
+    class _FakeRT:
+        @staticmethod
+        def lookup(year, province, subject, score):
+            return {"cum_ben": 100000, "cum_zhuan": 300000}
+
+    monkeypatch.setattr(DQ, "RT", _FakeRT)
+    assert DQ._expected_rank(2024, "X", "物理类", 400, batch="专科批") == 300000
+    assert DQ._expected_rank(2024, "X", "物理类", 400, batch="专科批") != 100000
+    assert DQ._expected_rank(2024, "X", "物理类", 400, batch="本科批") == 100000
+    assert DQ._expected_rank(2024, "X", "物理类", 400) == 100000, "缺省走本科档"
+
+
+def test_control_line_violations_catches_below_line():
+    """M15 回归：本科批投档分低于该省当年最低本科线，体检必须抓到（全来源）。"""
+    _cleanup_lines()
+    try:
+        with session_scope() as s:
+            # 真实案例（M15）：河北 2024 历史类本科线 477 / 普通二本档 449
+            s.add(_mkrow("违规大学", "01", 60000, "estimated_real", year=2024,
+                         province="河北", subject="历史类", score=431, batch="本科批"))
+            s.add(_mkrow("合规大学", "02", 30000, "estimated_real", year=2024,
+                         province="河北", subject="历史类", score=500, batch="本科批"))
+        v = DQ.control_line_violations()
+        hit = [x for x in v if x["university"] == "违规大学"]
+        assert hit, "低于控线的行必须被抓到"
+        assert hit[0]["control_line"] >= 431
+        assert hit[0]["data_source"] == "estimated_real", "硬约束必须覆盖 estimated 来源"
+        assert not [x for x in v if x["university"] == "合规大学"], "合规行不得误报"
+    finally:
+        _cleanup_lines()
+
+
 # ---------------------------------------------------------------- 数据体检 + 原表留档
 
 def test_health_report_structure_and_official_cross_check(monkeypatch):
@@ -182,9 +260,12 @@ def test_health_report_structure_and_official_cross_check(monkeypatch):
     try:
         rep = DQ.health_report()
         for key in ("school_lines", "official_sources", "official_landing",
-                    "cross_check", "year_over_year_anomalies", "seed", "generated_at"):
+                    "cross_check", "control_line_violations",
+                    "year_over_year_anomalies", "seed", "generated_at"):
             assert key in rep
-        assert rep["cross_check"]["warnings"] == 0
+        # 干净库 official==0 → official 侧交叉校验告警必为 0
+        #（estimated 侧允许有少量种子偏差告警——实测 14020 行约 7 行，正是要暴露的对象）
+        assert rep["cross_check"]["by_source"].get("official", {}).get("warnings", 0) == 0
 
         # 落一行与一分一段表矛盾的 official 行 → 体检应报出来
         if _rank_table_available():

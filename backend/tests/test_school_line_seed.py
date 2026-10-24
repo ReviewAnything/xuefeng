@@ -115,7 +115,8 @@ def test_import_seed_official_lands_and_is_idempotent():
     counts = SL.source_counts()
     assert counts["official"] == first["official"]["inserted"]
     assert counts["has_official"] is True
-    assert counts["grade"] == "official"
+    # M07 修复后 grade 为三态互斥：库内同时有 estimated_real（conftest 种子）与 official → mixed
+    assert counts["grade"] == "mixed"
 
     # 幂等：第二次全 unchanged
     second = SL.import_seed(commit=True, include=["official"])

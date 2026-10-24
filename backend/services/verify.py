@@ -171,8 +171,13 @@ def _elite_sets() -> tuple[set, set]:
     return _ELITE_CACHE
 
 
-def real_reachability(province: str, subject: str, user_rank: int) -> dict | None:
+def real_reachability(province: str, subject: str, user_rank: int,
+                      year: int | None = None) -> dict | None:
     """查询真实校线（掌上高考 2025 真实抓取 + 考试院官方表，若已导入）下候选位次的可及性。
+
+    M09：``reachable`` 清单按位次全局排序后取「最易触及」，这是跨行位次比较——
+    必须钉在单一年份（S9-B：跨年位次不可直接比）。``year`` 缺省时自动取该
+    (省/科类) 现有数据的最新年份，返回值带实际使用的 ``year``。
 
     数据权威性（S5-A）：
     - 同时消费 ``official`` 与 ``estimated_real`` 两种来源，优先用官方数据；
@@ -190,23 +195,29 @@ def real_reachability(province: str, subject: str, user_rank: int) -> dict | Non
             select(SchoolLine).where(
                 SchoolLine.province == province, SchoolLine.subject == subject)
         ).all()
-        if not rows:
-            return None
-        src_counts = {"official": 0, "estimated_real": 0, "other": 0}
-        reachable = []
-        for r in rows:
-            ds = r.data_source or "estimated_real"
-            src_counts[ds if ds in src_counts else "other"] += 1
-            if not r.min_rank or r.min_rank < user_rank:
-                continue
-            tier = "985" if r.university in s985 else ("211" if r.university in s211 else "")
-            reachable.append({
-                "university": r.university, "min_rank": r.min_rank, "min_score": r.min_score,
-                "year": r.year, "batch": r.batch, "tier": tier,
-                "source_url": r.source_url,
-                "data_source": ds,
-                "source_label": "官方" if ds == "official" else "真实抓取",
-            })
+    # M09：钉单一年份——显式传入优先；缺省取数据里最新的一年，跨年行不参与位次比较
+    if year is None:
+        years_present = {int(r.year) for r in rows if r.year}
+        year = max(years_present) if years_present else None
+    if year is not None:
+        rows = [r for r in rows if int(r.year) == int(year)]
+    if not rows:
+        return None
+    src_counts = {"official": 0, "estimated_real": 0, "other": 0}
+    reachable = []
+    for r in rows:
+        ds = r.data_source or "estimated_real"
+        src_counts[ds if ds in src_counts else "other"] += 1
+        if not r.min_rank or r.min_rank < user_rank:
+            continue
+        tier = "985" if r.university in s985 else ("211" if r.university in s211 else "")
+        reachable.append({
+            "university": r.university, "min_rank": r.min_rank, "min_score": r.min_score,
+            "year": r.year, "batch": r.batch, "tier": tier,
+            "source_url": r.source_url,
+            "data_source": ds,
+            "source_label": "官方" if ds == "official" else "真实抓取",
+        })
     reachable.sort(key=lambda x: (x["data_source"] != "official", x["min_rank"]))
     # S7-C：样本量（校线条数 / 覆盖院校数）是「敢不敢下判断」的前提，随结果一并返回
     total_schools = len({r.university for r in rows})
@@ -225,9 +236,13 @@ def real_reachability(province: str, subject: str, user_rank: int) -> dict | Non
     best = reachable[0] if reachable else None
     official = src_counts["official"]
     estimated = src_counts["estimated_real"]
-    grade = "official" if official else ("mixed" if (official and estimated) else "estimated_real")
+    # M07 修复：三态必须互斥展开。原写法 `official if official else (mixed if official and estimated …)`
+    # 的第二分支要求 official>0，但 official>0 已被第一分支截走，mixed 永远不可达。
+    grade = ("official" if (official and not estimated)
+             else "mixed" if (official and estimated)
+             else "estimated_real")
     return {
-        "has_data": True, "province": province, "subject": subject,
+        "has_data": True, "province": province, "subject": subject, "year": year,
         "total_lines": len(rows), "reachable": len(reachable),
         "total_schools": total_schools, "reachable_schools": reachable_schools,
         "tiers": tiers, "best": best, "reachable_sample": reachable[:10],

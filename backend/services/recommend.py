@@ -167,14 +167,18 @@ def recommend_schools(province: str, subject: str, user_rank: int,
             "basis": _basis(m["tier"]),
         })
 
-    # 固定批次顺序（985→211→一本→二本→专科），同档内按 冲→稳→保→不可及
+    # M03 修正：排序主键是 冲→稳→保 层级（LEVEL_ORDER），同层内再按 985→211→一本→二本→专科（TIER_INDEX）。
+    # 原注释写成「固定批次顺序」与实现相反，已纠正。
     tiers.sort(key=lambda x: (LEVEL_ORDER.get(x["level"], 9),
                               TIER_INDEX.get(x["tier"], 99)))
 
     # D1：如果该省已导入院校级投档线，给每条院校挂上真实最低分/位次；
     # 未导入则保持空值，前端继续按层次提示，不假装精确。
+    # M09：跨校位次比较必须钉在单一参考年（S9-B 跨年不可比）——
+    # 取该 (省/科类) 最新年份为参考年；同一年内仍 official 优先。
     all_names = [s["name"] for t in tiers for s in t["schools"]]
-    lines = SL.map_for(province, subject, all_names)
+    ref_year = SL.latest_year(province, subject)
+    lines = SL.map_for(province, subject, all_names, year=ref_year)
     for t in tiers:
         hits = 0
         for s in t["schools"]:

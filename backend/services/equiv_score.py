@@ -172,7 +172,10 @@ def _anchors_from_rank_tables(province: str, subject: str, year: int):
             if score in seen:
                 continue
             seen.add(score)
-            cum = r[2] if len(r) <= 4 else r[2]   # cum_ben（本科档累计）
+            # M08 修复：原 `r[2] if len(r) <= 4 else r[2]` 两分支相同（死代码）。
+            # 实际行结构：3 列 [score, seg, cum] 与 5 列 [score, seg_ben, cum_ben, seg_zhuan, cum_zhuan]
+            # 的第 3 列均为 cum_ben；本曲线口径固定取本科档累计（见 docstring），无分支必要。
+            cum = r[2]
             if not cum or cum <= 0:
                 continue
             out.append(_anchor(f"{score}分", score, cum, "tmp"))

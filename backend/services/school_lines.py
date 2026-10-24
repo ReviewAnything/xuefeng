@@ -24,7 +24,7 @@ import re
 import unicodedata
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from db.database import session_scope
 from db.models import DataChange, SchoolLine
@@ -503,7 +503,10 @@ def source_counts() -> dict:
             provinces.add(prov)
     official = counts.get("official", 0)
     estimated = counts.get("estimated_real", 0)
-    grade = "official" if official else ("mixed" if (official and estimated) else "estimated_real")
+    # M07 修复：三态互斥展开（同 verify.py——原短路写法使 mixed 永远不可达）。
+    grade = ("official" if (official and not estimated)
+             else "mixed" if (official and estimated)
+             else "estimated_real")
     return {
         "total": sum(counts.values()),
         "by_source": counts,
@@ -549,6 +552,20 @@ def official_coverage() -> dict:
         "schools": {"official": len(official_schools), "total": total_schools,
                     "ratio": round(len(official_schools) / total_schools, 4) if total_schools else 0.0},
     }
+
+
+def latest_year(province: str, subject: str) -> int | None:
+    """该 (省/科类) 校线的最新年份；无数据返回 None。
+
+    M09：推荐/核验链路的跨校位次比较必须钉在单一参考年（S9-B：跨年位次不可直接比），
+    调用方以此取参考年再传给 ``map_for``。
+    """
+    with session_scope() as s:
+        v = s.execute(
+            select(func.max(SchoolLine.year)).where(
+                SchoolLine.province == province, SchoolLine.subject == subject)
+        ).scalar()
+    return int(v) if v else None
 
 
 def map_for(province: str, subject: str, names: list[str], year: int = None) -> dict:
