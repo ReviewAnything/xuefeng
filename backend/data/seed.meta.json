@@ -1,9 +1,9 @@
 {
   "file": "school_lines_estimated_real.json.gz",
   "data_source": "estimated_real",
-  "rows": 14020,
-  "generated_at": "2026-10-20T15:30:09.396205+00:00",
-  "size_bytes": 262530,
-  "sha256": "961752d3305d839e84872bca4b30552f45f6e822774598e2908582d55ce7d3f1",
+  "rows": 14019,
+  "generated_at": "2026-10-24T13:08:02.940347+00:00",
+  "size_bytes": 262625,
+  "sha256": "064228931139cb5b2a2c2ad843f3d91f6c878d29bfad70c89282727335fc6a2e",
   "compressed": true
 }

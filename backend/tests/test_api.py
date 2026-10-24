@@ -98,7 +98,7 @@ def test_school_line_authority_split_in_health():
     j = r.json()
     sl = j["school_lines"]
     assert sl["official"] == 0
-    assert sl["estimated_real"] == 14020
+    assert sl["estimated_real"] == 14019  # M15 修订：删除 1 行低于省控线的错误行
     assert sl["provinces"] == 30
     assert sl["grade"] == "estimated_real"
     assert sl["has_official"] is False

@@ -130,7 +130,7 @@ def test_import_seed_official_lands_and_is_idempotent():
 
 
 def test_import_seed_estimated_uses_seed_file():
-    """抓取快照按种子文件落库，标 estimated_real（用临时小种子避免动真实 14020 行）。"""
+    """抓取快照按种子文件落库，标 estimated_real（用临时小种子避免动真实 14019 行）。"""
     _cleanup_seed()
     fake = os.path.join(_mk_tmp_dir(), "seed.json")
     _write_temp_seed(str(fake), [

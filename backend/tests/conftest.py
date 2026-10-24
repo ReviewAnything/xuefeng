@@ -1,7 +1,7 @@
 """共享测试夹具：保证测试套件在全新库上自封闭。
 
 历史问题（2026-10-21 全新库复现）：school_lines 种子不在 init_db/sync_all 的
-TARGETS 里，全新库要等到 test_school_line_seed（字母序靠后）才被写入 14020 行
+TARGETS 里，全新库要等到 test_school_line_seed（字母序靠后）才被写入 14019 行
 estimated_real；此前全量测试「全绿」依赖共享库的历史存量，全新库上
 alignment_evidence / api / official_table 家族会假红（gate_profile combos==0、
 覆盖率 total==official 等）。
@@ -20,7 +20,7 @@ import pytest
 
 @pytest.fixture(scope="session", autouse=True)
 def seed_school_lines_once():
-    """预播种校线（estimated_real 14020 行），幂等。
+    """预播种校线（estimated_real 14019 行，M15 修订后 14020-1），幂等。
 
     先 init_db 建表再 import_seed——import_seed 本身不建表，
     只跑单文件（如 test_rank_tables）时不能依赖套件里其它测试先行建表。

@@ -264,7 +264,7 @@ def test_health_report_structure_and_official_cross_check(monkeypatch):
                     "year_over_year_anomalies", "seed", "generated_at"):
             assert key in rep
         # 干净库 official==0 → official 侧交叉校验告警必为 0
-        #（estimated 侧允许有少量种子偏差告警——实测 14020 行约 7 行，正是要暴露的对象）
+        #（estimated 侧允许有少量种子偏差告警——实测 14019 行约 7 行，正是要暴露的对象）
         assert rep["cross_check"]["by_source"].get("official", {}).get("warnings", 0) == 0
 
         # 落一行与一分一段表矛盾的 official 行 → 体检应报出来

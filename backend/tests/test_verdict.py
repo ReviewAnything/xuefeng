@@ -62,8 +62,8 @@ def test_narrow_211_is_not_sold_as_main_battlefield():
 
 
 def test_undergrad_case_by_percentile():
-    """200000 名：落在本科批后段，措辞必须跟着位置变。"""
-    d = get("广东", "物理类", 200000).json()
+    """260000 名（M13/M14 校准后广东物理本科批 111604–303919 区间的后段）：措辞跟着位置变。"""
+    d = get("广东", "物理类", 260000).json()
     assert d["case"] == "has_ben"
     assert "本科批" in d["headline"]
     assert "后段" in d["headline"]

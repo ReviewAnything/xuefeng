@@ -1,18 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""从 chenxuyaun/gaokao-advisor 生成 xuefeng 真实录取基线。
+"""从 gaokao-advisor 参数 + 官方省控线 + 真实一分一段表，生成 xuefeng 录取基线。
 
-gaokao-advisor（MIT）用「31 省 2026 一分一段表 + 283 所大学 + 院校层次」通过确定性公式
-生成各省各批次录取位次。本脚本复用其权威参数（base_seg / PROVINCE_SCALE / TIER_PCT），
-计算 xuefeng 所需的 per-(省份, 科类, 批次) 录取门槛，写出
-backend/data/admission_real_baseline.json（结构与 admission_sample.json 一致，
-后端优先使用，自动覆盖 31 省真实基线）。
+数据来源三层（可信度降序）：
+1. **官方省控线**（data/admission_control_lines_2022_2026.json，阳光高考逐年主表转录，
+   31 省 × 2022-2026）：普通一本/普通二本/专科档阈值直接锚定官方分数（M13 修复——
+   旧版一本档中位偏差 -21 分）。
+2. **真实一分一段表**（data/rank_tables/*.json，逐年落盘）：所有 (分数, 位次) 配对的
+   位次一律由锚定分数经同年一分段表反查生成；985/211 层次（官方无控线）保留模型
+   位次门槛、分数改由真实一分段表反查（M14 修复——旧版自洽率仅 10.2%）。
+3. **gaokao-advisor 模型参数**（MIT，内置 PROVINCE_SCALE / TIER_PCT / base_seg）：
+   仅作位次百分比门槛与无一分段表省份的兜底。
 
 用法：
-    python scripts/ingest_gaokao_advisor.py            # 用内置参数生成（离线）
-    python scripts/ingest_gaokao_advisor.py --sync     # 拉取 gaokao-advisor 最新参数后生成
+    python scripts/ingest_gaokao_advisor.py            # 离线生成（内置参数 + 本地数据）
+    python scripts/ingest_gaokao_advisor.py --sync     # 先拉取 gaokao-advisor 最新参数
+    python scripts/verify_baseline_calibration.py      # 生成后跑 M13/M14/M15 校验
 
-数据来源：https://github.com/chenxuyaun/gaokao-advisor  (MIT License)
+写出 backend/data/admission_real_baseline.json，后端优先使用。
 """
 import argparse
 import ast
@@ -24,6 +29,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DATA = os.path.join(HERE, "..", "data")
 SAMPLE = os.path.join(BACKEND_DATA, "admission_sample.json")
 OUT = os.path.join(BACKEND_DATA, "admission_real_baseline.json")
+CONTROL = os.path.join(BACKEND_DATA, "admission_control_lines_2022_2026.json")
+RT_DIR = os.path.join(BACKEND_DATA, "rank_tables")
 GA_REPO = "https://github.com/chenxuyaun/gaokao-advisor.git"
 
 # ===== 内置参数（来自 gaokao-advisor data/seed_unified.py，MIT）=====
@@ -51,6 +58,17 @@ TIER_PCT = {"985_top": 0.003, "985_mid": 0.02, "985_low": 0.06, "211_top": 0.12,
 DEFAULT_BUCKET = {"985": "985_mid", "211": "211_mid", "双一流": "211_low", "普通": "普通_mid"}
 # 院校层次 -> xuefeng 批次
 LEVEL_TO_TIER = {"985": "985", "211": "211", "双一流": "普通一本", "普通": "普通二本"}
+TIER_ORDER = ["985", "211", "普通一本", "普通二本", "专科"]
+# 基线科类 -> 一分段表科类键候选（RT.lookup 不做归一，这里自行解析）
+RT_SUBJECT_CANDIDATES = {
+    "物理类": ["物理类", "物理", "选考物理", "物理科目组合", "理科"],
+    "历史类": ["历史类", "历史", "选考历史", "历史科目组合", "文科"],
+    "综合": ["综合"],
+}
+# 基线批次档位 -> 省控线档位键
+CL_TIER_KEY = {"普通一本": "普通一本", "普通二本": "普通二本", "专科": "专科"}
+YEARS_DESC = [2026, 2025, 2024, 2023, 2022]
+
 base_seg = {
     "北京": [("综合", 521, 22000), ("综合", 429, 45000), ("综合", 400, 55000)],
     "天津": [("综合", 547, 18000), ("综合", 458, 42000), ("综合", 400, 55000)],
@@ -116,6 +134,8 @@ base_seg = {
 }
 
 
+# ---------------------------------------------------------------- 模型层（保留作兜底）
+
 def build_segments():
     """由 base_seg 生成各省各科类的一分一段表（含插值点），与 gaokao-advisor 一致。"""
     seg = {}
@@ -172,7 +192,7 @@ def rank_to_score(seg, prov, cat, rk):
 
 
 def tier_baseline_for(prov, cat, total, seg):
-    """计算该省该科类的各批次录取门槛（取批次内代表位次 -> 反查分数）。"""
+    """纯模型兜底：该省该科类各批次录取门槛（取批次内代表位次 -> 模型表反查分数）。"""
     out = {}
     for level, tier in LEVEL_TO_TIER.items():
         pct = TIER_PCT[DEFAULT_BUCKET[level]]
@@ -186,6 +206,199 @@ def tier_baseline_for(prov, cat, total, seg):
     out["专科"] = {"min_score": 200, "min_rank": zhuan_rank}
     return out
 
+
+# ---------------------------------------------------------------- 校准层（M13/M14）
+
+def _load_json(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def _rank_rows(year, prov, cat):
+    """取 (year, prov, cat) 的真实一分段行；返回 (rows, subject_key) 或 (None, None)。
+
+    rows 为 [score, seg, cum]（3 列）或 [score, seg_ben, cum_ben, seg_zhuan, cum_zhuan]（5 列），
+    统一整理成 score 降序。科类键按 RT_SUBJECT_CANDIDATES 顺序解析。
+    """
+    doc = _load_json(os.path.join(RT_DIR, str(year), f"{prov}.json"))
+    if not doc:
+        return None, None
+    subs = doc.get("subjects") or {}
+    for key in RT_SUBJECT_CANDIDATES.get(cat, []):
+        blk = subs.get(key)
+        if blk and blk.get("rows"):
+            rows = sorted(blk["rows"], key=lambda r: -int(r[0]))
+            return rows, key
+    return None, None
+
+
+def _cl_block(control, year, prov, cat):
+    """取官方省控线 (year, prov, cat) 的档位块；综改省（综合科类）要求历史/物理双键同值。
+
+    返回 {档位键: score} 或 None。双写校验：两键同档位分值必须一致，不一致不臆造。
+    """
+    blk = ((control.get("by_year") or {}).get(str(year)) or {}).get("batch_lines", {})
+    if cat in ("物理类", "历史类"):
+        block = blk.get(prov, {}).get(cat)
+        if not block:
+            return None
+        return {k: int(v.get("score")) for k, v in block.items()
+                if isinstance(v, dict) and v.get("score") is not None}
+    # 综合：双键同值才可用
+    hist = blk.get(prov, {}).get("历史类") or {}
+    phys = blk.get(prov, {}).get("物理类") or {}
+    if not hist or not phys:
+        return None
+    merged = {}
+    for k in set(hist) | set(phys):
+        hs = (hist.get(k) or {}).get("score")
+        ps = (phys.get(k) or {}).get("score")
+        if hs is None or ps is None or int(hs) != int(ps):
+            return None  # 双写不一致 → 放弃锚定，不臆造
+        merged[k] = int(hs)
+    return merged
+
+
+def score_from_rank(rows, rk, zhuan: bool = False):
+    """位次 -> 分数（真实一分段表；本科档用 r[2]，专科档 5 列表用 r[4]、3 列表回退 r[2]）。"""
+    idx = 4 if zhuan else 2
+    pts = sorted(((int(r[idx]), int(r[0])) for r in rows
+                  if len(r) > idx and int(r[idx]) > 0),
+                 key=lambda x: x[0])
+    if not pts:
+        if zhuan:
+            return score_from_rank(rows, rk, zhuan=False)
+        return None
+    if rk <= pts[0][0]:
+        if len(pts) >= 2 and pts[1][0] != pts[0][0]:
+            sc = pts[0][1] + (pts[1][1] - pts[0][1]) * (rk - pts[0][0]) / (pts[1][0] - pts[0][0])
+            return int(min(750, max(pts[0][1], sc)))
+        return pts[0][1]
+    if rk >= pts[-1][0]:
+        sN, cN = pts[-1]
+        sP, cP = pts[-2] if len(pts) >= 2 else (sN, max(1, cN - 1))
+        if cN != cP:
+            sc = sN - (sN - 150) * (rk - cN) / max(1, int(cN * 0.2))
+            return max(150, int(sc))
+        return max(150, sN - 20)
+    lower = None
+    for cum, sc in pts:
+        if cum >= rk:
+            if lower is None:
+                return sc
+            ratio = (rk - lower[0]) / (cum - lower[0]) if cum != lower[0] else 0
+            return int(lower[1] + (sc - lower[1]) * ratio)
+        lower = (cum, sc)
+    return pts[-1][1]
+
+
+def rank_from_score(rows, score, zhuan: bool = False):
+    """分数 -> 位次（与 services/rank_tables.lookup 同语义：取不高于该分的最近行）。
+
+    双档表专科档取 r[4]，单档表回退 r[2]；分数低于表内最低分（超出覆盖下限）时
+    按表末两点斜率外推——低于表覆盖下限的位次区分度无表可依，线性外推可保
+    「分数越低位次越大」严格成立（专科线常低于一分段表下限）。
+    """
+    idx_ben, idx_zh = 2, 4
+    for r in rows:
+        if int(r[0]) <= score:
+            i = idx_zh if (zhuan and len(r) > idx_zh) else idx_ben
+            return int(r[i])
+    # 低于表内最低分：外推
+    i_last = idx_zh if (zhuan and len(rows[-1]) > idx_zh) else idx_ben
+    i_prev = idx_zh if (zhuan and len(rows[-2]) > idx_zh) else idx_ben
+    sN, cN = int(rows[-1][0]), int(rows[-1][i_last])
+    sP, cP = int(rows[-2][0]), int(rows[-2][i_prev])
+    if len(rows) >= 2 and sP > sN and cN > cP:
+        return int(cN + (sP - score) * (cN - cP) / (sP - sN))
+    return cN
+
+
+def calibrate_tiers(prov, cat, total, control):
+    """官方控线锚定 + 真实一分段表反查，产出该 (省, 科类) 五档门槛。
+
+    返回 ({tier: {min_score, min_rank, src}}, anchor_year, rt_key) ；无一分段表时 (None, None, None)。
+    src 取值：official_control_line / rank_table_model_rank。
+    """
+    rows = rt_key = None
+    anchor_year = None
+    for y in YEARS_DESC:
+        rows, rt_key = _rank_rows(y, prov, cat)
+        if rows:
+            anchor_year = y
+            break
+    if not rows:
+        return None, None, None
+    cl = _cl_block(control, anchor_year, prov, cat) or {}
+
+    def pct_for(tier):
+        if tier == "985":
+            return TIER_PCT["985_mid"]
+        if tier == "211":
+            return TIER_PCT["211_mid"]
+        if tier == "普通一本":
+            p = TIER_PCT[DEFAULT_BUCKET["双一流"]]
+        elif tier == "普通二本":
+            p = TIER_PCT[DEFAULT_BUCKET["普通"]]
+        else:
+            return 0.95
+        if "历史" in cat:
+            p = min(p * 0.7 + 0.05, 0.95)
+        return p
+
+    # 1) 目标分数：官方控线优先，否则模型位次经真实一分段表反查
+    target = {}
+    for tier in TIER_ORDER:
+        if tier in ("普通一本", "普通二本", "专科") and tier in cl:
+            target[tier] = {"score": int(cl[tier]), "src": "official_control_line"}
+        else:
+            base_rank = max(1, int(total * pct_for(tier)))
+            sc = score_from_rank(rows, base_rank, zhuan=(tier == "专科"))
+            if tier == "专科":
+                # 无官方专科线的省份（如上海）：一分段表终端即本科批线，0.95 分位会
+                # 落在本科线上、与二本档并列——专科门槛语义上必须低于本科地板，
+                # 取 min(模型分, 本科地板-1)，位次随后由表末斜率外推。
+                ben_floor = cl.get("普通二本") or cl.get("普通一本")
+                if ben_floor:
+                    sc = min(sc, int(ben_floor) - 1)
+                sc = max(sc, 150)
+            if sc is None:
+                return None, None, None
+            target[tier] = {"score": int(sc), "src": "rank_table_model_rank"}
+
+    # 2) 兜底地板：合并批次省无一本线时，一本档不得低于本科线（官方地板）
+    floor = cl.get("普通二本") or cl.get("普通一本")
+    if floor and target["普通一本"]["src"] != "official_control_line":
+        target["普通一本"]["score"] = max(target["普通一本"]["score"], int(floor))
+    if floor and target["普通二本"]["src"] != "official_control_line":
+        target["普通二本"]["score"] = max(target["普通二本"]["score"], int(floor))
+
+    # 3) 单调化（自下而上）：官方锚定值不动，模型档低于官方低档时抬升
+    #    （211 模型分低于一本线 = 模型百分比在该省失真，抬到官方地板并随后重查位次）。
+    order_bottom_up = ["专科", "普通二本", "普通一本", "211", "985"]
+    for lo_t, hi_t in zip(order_bottom_up, order_bottom_up[1:]):
+        if target[hi_t]["score"] < target[lo_t]["score"]:
+            if target[hi_t]["src"] != "official_control_line":
+                target[hi_t]["score"] = target[lo_t]["score"]
+            elif target[lo_t]["src"] != "official_control_line":
+                target[lo_t]["score"] = target[hi_t]["score"]
+            # 两者均为官方锚定却倒挂：数据问题，保持原值交由校验器暴露
+
+    # 4) 位次一律由最终分数经同年一分段表反查（M14：配对自洽）
+    out = {}
+    for tier in TIER_ORDER:
+        score = target[tier]["score"]
+        rank = rank_from_score(rows, score, zhuan=(tier == "专科"))
+        if rank is None:
+            rank = max(1, int(total * pct_for(tier)))  # 极端兜底（表为空时已在上面拦截）
+        out[tier] = {"min_score": score, "min_rank": rank, "src": target[tier]["src"]}
+    return out, anchor_year, rt_key
+
+
+# ---------------------------------------------------------------- 主流程
 
 def sync_params():
     """拉取 gaokao-advisor 最新参数（ast 解析，安全不执行）。"""
@@ -204,7 +417,7 @@ def sync_params():
 
 
 def main():
-    ap = argparse.ArgumentParser(description="生成 xuefeng 真实录取基线（基于 gaokao-advisor）")
+    ap = argparse.ArgumentParser(description="生成 xuefeng 录取基线（官方控线锚定 + 一分段表反查）")
     ap.add_argument("--sync", action="store_true", help="先拉取 gaokao-advisor 最新参数")
     args = ap.parse_args()
 
@@ -214,23 +427,45 @@ def main():
         PROVINCE_SCALE, TIER_PCT, base_seg = p["PROVINCE_SCALE"], p["TIER_PCT"], p["base_seg"]
         print("[sync] 已更新参数：", list(p.keys()))
 
+    control = _load_json(CONTROL) or {}
     seg = build_segments()
     sample = json.load(open(SAMPLE, encoding="utf-8"))
 
     tier_baseline = {}
+    calibration = {"provinces": {}, "totals": {"official_control_line": 0,
+                                               "rank_table_model_rank": 0,
+                                               "model_fallback": 0}}
     for prov, cats in PROVINCE_SCALE.items():
         for cat, total in cats.items():
-            tier_baseline.setdefault(prov, {})[cat] = tier_baseline_for(prov, cat, total, seg)
+            calibrated, anchor_year, rt_key = calibrate_tiers(prov, cat, total, control)
+            if calibrated:
+                tier_baseline.setdefault(prov, {})[cat] = calibrated
+                calibration["provinces"][f"{prov}|{cat}"] = {
+                    "anchor_year": anchor_year,
+                    "rank_table_subject": rt_key,
+                }
+                for t in calibrated.values():
+                    calibration["totals"][t["src"]] = calibration["totals"].get(t["src"], 0) + 1
+            else:
+                # 无一分段表：纯模型兜底（旧口径），并在校准账目中如实计数
+                tier_baseline.setdefault(prov, {})[cat] = tier_baseline_for(prov, cat, total, seg)
+                for t in tier_baseline[prov][cat].values():
+                    calibration["totals"]["model_fallback"] = \
+                        calibration["totals"].get("model_fallback", 0) + 1
 
     out = {
         "meta": {
             "year": 2026,
-            "source": "gaokao-advisor",
-            "note": ("由 scripts/ingest_gaokao_advisor.py 基于 chenxuyaun/gaokao-advisor（MIT）的 "
-                     "31 省一分一段表/院校层次参数生成，覆盖 31 省。位次门槛为模型推算；分数在锚点区间内插值、"
-                     "区间外按斜率外推（顶尖/末端为估算）。专科为估算值。后端优先使用本文件，仅供学习参考。"),
+            "source": "gaokao-advisor + official control lines + rank tables",
+            "note": ("由 scripts/ingest_gaokao_advisor.py 生成：普通一本/普通二本/专科档阈值锚定"
+                     "官方省控线（admission_control_lines_2022_2026.json，M13）；全部 (分数,位次) "
+                     "配对的位次由同年真实一分一段表反查（data/rank_tables，M14）；985/211 层次"
+                     "保留模型位次百分比门槛、分数经真实一分段表反查。无一分段表数据的省份回退"
+                     "gaokao-advisor 模型口径（meta.calibration.totals.model_fallback 可查）。"
+                     "专科为估算值。后端优先使用本文件，仅供学习参考。"),
+            "calibration": calibration,
         },
-        "tier_order": ["985", "211", "普通一本", "普通二本", "专科"],
+        "tier_order": TIER_ORDER,
         "tier_baseline": tier_baseline,
         "category_default": sample.get("category_default", {}),
         "major_overrides": sample.get("major_overrides", {}),
@@ -240,10 +475,10 @@ def main():
 
     print(f"[ok] 已写出 {OUT}")
     print(f"     省份数：{len(tier_baseline)}")
+    print(f"     校准账目：{calibration['totals']}")
     demo = tier_baseline.get("河南", {}).get("物理类", {})
-    print("     河南/物理类 样例：", demo)
-    hn = tier_baseline.get("河南", {}).get("历史类", {})
-    print("     河南/历史类 样例：", hn)
+    print("     河南/物理类 样例：", {k: {kk: vv for kk, vv in v.items() if kk != 'src'}
+                                  for k, v in demo.items()})
 
 
 if __name__ == "__main__":
